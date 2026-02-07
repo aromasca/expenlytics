@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import Database from 'better-sqlite3'
 import { initializeSchema } from '@/lib/db/schema'
-import { createDocument, getDocument, updateDocumentStatus, findDocumentByHash, updateDocumentType, listDocuments } from '@/lib/db/documents'
+import { createDocument, getDocument, updateDocumentStatus, findDocumentByHash, updateDocumentType, listDocuments, deleteOrphanedDocuments } from '@/lib/db/documents'
+import { insertTransactions, deleteTransactions, listTransactions } from '@/lib/db/transactions'
 
 describe('documents', () => {
   let db: Database.Database
@@ -66,5 +67,59 @@ describe('documents', () => {
     expect(docs).toHaveLength(2)
     expect(docs[0].filename).toBe('second.pdf')
     expect(docs[1].filename).toBe('first.pdf')
+  })
+
+  it('deletes completed documents with no remaining transactions', () => {
+    const id = createDocument(db, 'test.pdf', '/path/test.pdf', 'hash123')
+    updateDocumentStatus(db, id, 'completed')
+    insertTransactions(db, id, [
+      { date: '2025-01-15', description: 'Store', amount: 50, type: 'debit' },
+    ])
+    const txns = listTransactions(db, { document_id: id })
+    deleteTransactions(db, txns.transactions.map(t => t.id))
+
+    const deleted = deleteOrphanedDocuments(db)
+    expect(deleted).toBe(1)
+    expect(getDocument(db, id)).toBeUndefined()
+  })
+
+  it('preserves documents that still have transactions', () => {
+    const id = createDocument(db, 'test.pdf', '/path/test.pdf', 'hash456')
+    updateDocumentStatus(db, id, 'completed')
+    insertTransactions(db, id, [
+      { date: '2025-01-15', description: 'Store', amount: 50, type: 'debit' },
+    ])
+
+    const deleted = deleteOrphanedDocuments(db)
+    expect(deleted).toBe(0)
+    expect(getDocument(db, id)).toBeDefined()
+  })
+
+  it('allows re-upload after deleting all transactions (full flow)', () => {
+    const id = createDocument(db, 'statement.pdf', '/data/uploads/statement.pdf', 'reupload-hash')
+    updateDocumentStatus(db, id, 'completed')
+    insertTransactions(db, id, [
+      { date: '2025-01-15', description: 'Grocery Store', amount: 85, type: 'debit' },
+      { date: '2025-01-16', description: 'Gas Station', amount: 45, type: 'debit' },
+    ])
+
+    expect(findDocumentByHash(db, 'reupload-hash')).toBeDefined()
+
+    const txns = listTransactions(db, { document_id: id })
+    deleteTransactions(db, txns.transactions.map(t => t.id))
+    deleteOrphanedDocuments(db)
+
+    expect(findDocumentByHash(db, 'reupload-hash')).toBeUndefined()
+  })
+
+  it('preserves pending/processing documents even with no transactions', () => {
+    const id1 = createDocument(db, 'pending.pdf', '/path/pending.pdf', 'hashA')
+    const id2 = createDocument(db, 'processing.pdf', '/path/processing.pdf', 'hashB')
+    updateDocumentStatus(db, id2, 'processing')
+
+    const deleted = deleteOrphanedDocuments(db)
+    expect(deleted).toBe(0)
+    expect(getDocument(db, id1)).toBeDefined()
+    expect(getDocument(db, id2)).toBeDefined()
   })
 })

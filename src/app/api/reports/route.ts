@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   const spendingOverTime = getSpendingOverTime(db, filters, groupBy)
   const categoryBreakdown = getCategoryBreakdown(db, filters)
   const trend = getSpendingTrend(db, filters)
-  const topTransactions = getTopTransactions(db, filters, 10)
+  const topTransactions = getTopTransactions(db, filters, 50)
 
   return NextResponse.json({
     summary,

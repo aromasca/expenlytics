@@ -2,7 +2,7 @@
 
 ## Tech Stack
 - Next.js 16 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui
-- SQLite via better-sqlite3, Anthropic SDK, Zod v4
+- SQLite via better-sqlite3, Anthropic SDK, Zod v4, Recharts
 - Vitest for testing
 
 ## Commands
@@ -22,8 +22,11 @@
 - Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`)
 - `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib)
 - `src/lib/claude/` — Claude API extraction with Zod validation
-- `src/app/api/` — Next.js API routes (upload, transactions, categories)
+- `src/app/api/` — Next.js API routes (upload, transactions, categories, documents, reports)
+- `src/app/(app)/` — Route group with sidebar layout; pages: transactions, reports, settings
+- `src/app/page.tsx` — Redirects to `/transactions`
 - `src/components/` — React client components using shadcn/ui
+- `src/components/reports/` — Recharts chart components for reports dashboard
 - `src/__tests__/` — mirrors src structure
 - `data/` — gitignored; SQLite DB and uploaded PDFs
 
@@ -35,6 +38,9 @@
 - React 19: avoid calling setState synchronously in useEffect; use `.then()` pattern
 - better-sqlite3: pass params as array to `.get([...])` and `.all([...])` when using dynamic params; `.run()` uses positional args
 - `next.config.ts` has `serverExternalPackages: ['better-sqlite3']`
+- API routes: validate query params with allowlists before passing to DB functions (never trust `as` casts for SQL-interpolated values like `sort_by`)
+- Recharts: `Tooltip` formatter expects `value: number | undefined`, use `Number(value)` not `(value: number)`
+- shadcn/ui components installed: button, card, table, input, select, badge, checkbox, dialog, popover
 
 ## SQLite Migrations
 - `CREATE TABLE IF NOT EXISTS` doesn't modify existing tables - only creates new ones

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { listTransactions, deleteTransactions } from '@/lib/db/transactions'
+import { deleteOrphanedDocuments } from '@/lib/db/documents'
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams
@@ -55,5 +56,6 @@ export async function DELETE(request: NextRequest) {
 
   const db = getDb()
   const deleted = deleteTransactions(db, ids)
+  deleteOrphanedDocuments(db)
   return NextResponse.json({ deleted })
 }

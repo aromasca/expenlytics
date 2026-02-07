@@ -26,7 +26,7 @@ STEP 2: Extract every transaction. For each:
 - category: classify into exactly one of: ${VALID_CATEGORIES.join(', ')}
 
 DOCUMENT TYPE CONTEXT — this determines how to interpret debits and credits:
-- Credit card: debits are purchases/charges, credits are payments to the card or refunds (NOT income). Use "Transfer" for bill payments, "Refund" for returned purchases.
+- Credit card: debits are purchases/charges, credits are payments to the card or refunds. NEVER use "Income" for credit card credits — use "Transfer" for payments/transfers to the card, "Refund" for returned purchases.
 - Checking/savings account: debits are money out (spending, transfers), credits are money in (salary, deposits). Use "Income" for salary/wages, "Transfer" for account transfers.
 - Investment: debits are contributions/purchases, credits are withdrawals/dividends.
 
@@ -52,7 +52,7 @@ CATEGORY GUIDE:
 - Entertainment: movies, concerts, events, games, hobbies
 - Gifts & Donations: charity, presents, tips
 - Personal Care: haircuts, spa, cosmetics, personal hygiene
-- Income: salary, freelance income, interest, dividends (bank accounts only)
+- Income: salary, freelance income, interest, dividends (ONLY for checking/savings accounts — NEVER for credit card statements)
 - Transfer: account transfers, credit card bill payments, internal moves
 - Refund: returns, reimbursements, chargebacks
 - Fees & Charges: bank fees, late fees, ATM fees, service charges
@@ -122,7 +122,7 @@ const RECLASSIFY_PROMPT = `You are a financial transaction categorizer. Given th
 DOCUMENT TYPE: {document_type}
 
 DOCUMENT TYPE CONTEXT:
-- credit_card: credits are payments to the card or refunds (NOT income). Use "Transfer" for bill payments, "Refund" for returned purchases.
+- credit_card: credits are payments to the card or refunds. NEVER use "Income" — use "Transfer" for payments/transfers, "Refund" for returned purchases.
 - checking_account/savings_account: credits are money in (salary, deposits). Use "Income" for salary/wages.
 - investment: credits are withdrawals/dividends.
 

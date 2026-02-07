@@ -35,3 +35,12 @@ export function updateDocumentType(db: Database.Database, id: number, documentTy
 export function listDocuments(db: Database.Database): Document[] {
   return db.prepare('SELECT * FROM documents ORDER BY uploaded_at DESC, id DESC').all() as Document[]
 }
+
+export function deleteOrphanedDocuments(db: Database.Database): number {
+  const result = db.prepare(`
+    DELETE FROM documents
+    WHERE status IN ('completed', 'failed')
+      AND NOT EXISTS (SELECT 1 FROM transactions WHERE transactions.document_id = documents.id)
+  `).run()
+  return result.changes
+}

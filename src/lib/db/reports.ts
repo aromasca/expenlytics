@@ -78,8 +78,9 @@ export function getSpendingSummary(db: Database.Database, filters: ReportFilters
   const totals = db.prepare(`
     SELECT
       COALESCE(SUM(CASE WHEN t.type = 'debit' THEN t.amount ELSE 0 END), 0) as totalSpent,
-      COALESCE(SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END), 0) as totalIncome
+      COALESCE(SUM(CASE WHEN t.type = 'credit' AND COALESCE(c.name, '') NOT IN ('Transfer', 'Refund') THEN t.amount ELSE 0 END), 0) as totalIncome
     FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
     ${where}
   `).get(params) as { totalSpent: number; totalIncome: number }
 
@@ -177,8 +178,9 @@ export function getSpendingTrend(db: Database.Database, filters: ReportFilters):
     SELECT
       strftime('%Y-%m', t.date) as period,
       COALESCE(SUM(CASE WHEN t.type = 'debit' THEN t.amount ELSE 0 END), 0) as debits,
-      COALESCE(SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END), 0) as credits
+      COALESCE(SUM(CASE WHEN t.type = 'credit' AND COALESCE(c.name, '') NOT IN ('Transfer', 'Refund') THEN t.amount ELSE 0 END), 0) as credits
     FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
     ${where}
     GROUP BY period
     ORDER BY period ASC
