@@ -81,6 +81,13 @@ export function initializeSchema(db: Database.Database): void {
     db.exec('ALTER TABLE transactions ADD COLUMN manual_category INTEGER NOT NULL DEFAULT 0')
   }
 
+  if (!txnColumnNames.includes('normalized_merchant')) {
+    db.exec('ALTER TABLE transactions ADD COLUMN normalized_merchant TEXT')
+  }
+
+  // Create index for recurring charge queries
+  db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_normalized_merchant ON transactions(normalized_merchant)')
+
   // Create index on file_hash after migration
   db.exec('CREATE INDEX IF NOT EXISTS idx_documents_hash ON documents(file_hash)')
 

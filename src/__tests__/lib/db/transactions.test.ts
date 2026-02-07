@@ -193,6 +193,12 @@ describe('transactions', () => {
     expect(result.transactions[0].description).toBe('Doc2')
   })
 
+  it('has normalized_merchant column on transactions', () => {
+    const columns = db.prepare("PRAGMA table_info(transactions)").all() as Array<{ name: string }>
+    const names = columns.map(c => c.name)
+    expect(names).toContain('normalized_merchant')
+  })
+
   it('filters by multiple category_ids', () => {
     insertTransactions(db, docId, [
       { date: '2025-01-15', description: 'A', amount: 10, type: 'debit' },
