@@ -66,6 +66,7 @@ export default function SubscriptionsPage() {
         setData(d)
         setLoading(false)
       })
+      .catch(() => { setLoading(false) })
   }
 
   useEffect(() => {
@@ -84,6 +85,7 @@ export default function SubscriptionsPage() {
           setLoading(false)
         }
       })
+      .catch(() => { if (!cancelled) setLoading(false) })
 
     return () => { cancelled = true }
   }, [startDate, endDate])
@@ -102,6 +104,7 @@ export default function SubscriptionsPage() {
         setNormalizing(false)
         fetchData()
       })
+      .catch(() => { setNormalizing(false) })
   }
 
   return (

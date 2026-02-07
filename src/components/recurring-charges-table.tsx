@@ -45,7 +45,8 @@ const PAGE_SIZE = 20
 export function RecurringChargesTable({ groups }: RecurringChargesTableProps) {
   const [page, setPage] = useState(0)
   const totalPages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE))
-  const paged = groups.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const effectivePage = Math.min(page, totalPages - 1)
+  const paged = groups.slice(effectivePage * PAGE_SIZE, (effectivePage + 1) * PAGE_SIZE)
 
   return (
     <Card className="p-4">
@@ -121,7 +122,7 @@ export function RecurringChargesTable({ groups }: RecurringChargesTableProps) {
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-3">
               <span className="text-xs text-gray-500">
-                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, groups.length)} of {groups.length}
+                {effectivePage * PAGE_SIZE + 1}–{Math.min((effectivePage + 1) * PAGE_SIZE, groups.length)} of {groups.length}
               </span>
               <div className="flex gap-1">
                 <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>

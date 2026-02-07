@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
           reclassifiedCount++
         } else {
           // New transaction
-          const normalizedMerchant = merchantMap.get(t.description) ?? t.description
+          const normalizedMerchant = merchantMap.get(t.description) ?? null
           insert.run(docId, t.date, t.description, t.amount, t.type, categoryId, normalizedMerchant)
           newCount++
         }
