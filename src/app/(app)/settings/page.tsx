@@ -3,9 +3,12 @@
 import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Tags, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { useTheme } from '@/components/theme-provider'
+import { Tags, SlidersHorizontal, Trash2, Moon, Sun } from 'lucide-react'
 
 export default function SettingsPage() {
+  const { theme, toggleTheme } = useTheme()
   const [resetting, setResetting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
@@ -26,31 +29,56 @@ export default function SettingsPage() {
     <div className="p-6 space-y-6">
       <div>
         <h2 className="text-2xl font-bold">Settings</h2>
-        <p className="text-sm text-gray-500">App configuration and preferences</p>
+        <p className="text-sm text-muted-foreground">App configuration and preferences</p>
       </div>
 
-      <Card className="p-6 opacity-60">
-        <div className="flex items-center gap-3 mb-2">
-          <Tags className="h-5 w-5 text-gray-400" />
-          <h3 className="font-medium text-gray-600">Category Management</h3>
+      <Card className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {theme === 'dark' ? (
+              <Moon className="h-5 w-5 text-primary" />
+            ) : (
+              <Sun className="h-5 w-5 text-primary" />
+            )}
+            <div>
+              <h3 className="font-medium">Appearance</h3>
+              <p className="text-sm text-muted-foreground">
+                {theme === 'dark' ? 'Dark mode enabled' : 'Light mode enabled'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">Dark Mode</span>
+            <Switch
+              checked={theme === 'dark'}
+              onCheckedChange={toggleTheme}
+            />
+          </div>
         </div>
-        <p className="text-sm text-gray-400">Add, edit, and organize spending categories. Coming soon.</p>
       </Card>
 
       <Card className="p-6 opacity-60">
         <div className="flex items-center gap-3 mb-2">
-          <SlidersHorizontal className="h-5 w-5 text-gray-400" />
-          <h3 className="font-medium text-gray-600">Preferences</h3>
+          <Tags className="h-5 w-5 text-muted-foreground" />
+          <h3 className="font-medium text-muted-foreground">Category Management</h3>
         </div>
-        <p className="text-sm text-gray-400">Currency, date format, and display options. Coming soon.</p>
+        <p className="text-sm text-muted-foreground">Add, edit, and organize spending categories. Coming soon.</p>
       </Card>
 
-      <Card className="p-6 border-red-200">
+      <Card className="p-6 opacity-60">
         <div className="flex items-center gap-3 mb-2">
-          <Trash2 className="h-5 w-5 text-red-500" />
-          <h3 className="font-medium text-red-600">Danger Zone</h3>
+          <SlidersHorizontal className="h-5 w-5 text-muted-foreground" />
+          <h3 className="font-medium text-muted-foreground">Preferences</h3>
         </div>
-        <p className="text-sm text-gray-500 mb-4">Delete all transactions and uploaded documents. This cannot be undone.</p>
+        <p className="text-sm text-muted-foreground">Currency, date format, and display options. Coming soon.</p>
+      </Card>
+
+      <Card className="p-6 border-destructive/30 bg-destructive/5">
+        <div className="flex items-center gap-3 mb-2">
+          <Trash2 className="h-5 w-5 text-destructive" />
+          <h3 className="font-medium text-destructive">Danger Zone</h3>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">Delete all transactions and uploaded documents. This cannot be undone.</p>
         {!confirmOpen ? (
           <Button variant="destructive" onClick={() => setConfirmOpen(true)}>
             Reset Database

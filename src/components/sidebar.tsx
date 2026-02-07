@@ -16,13 +16,13 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r bg-white max-md:w-16">
-      <div className="border-b px-6 py-4 max-md:px-2 max-md:py-3">
+    <aside className="flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar max-md:w-16">
+      <div className="border-b border-sidebar-border px-6 py-4 max-md:px-2 max-md:py-3">
         <Link href="/transactions">
-          <h1 className="text-xl font-bold max-md:hidden">Expenlytics</h1>
-          <span className="hidden text-xl font-bold max-md:block">E</span>
+          <h1 className="text-xl font-bold text-sidebar-foreground max-md:hidden">Expenlytics</h1>
+          <span className="hidden text-xl font-bold text-sidebar-foreground max-md:block">E</span>
         </Link>
-        <p className="text-xs text-gray-500 max-md:hidden">Local-first spending analytics</p>
+        <p className="text-xs text-muted-foreground max-md:hidden">Local-first spending analytics</p>
       </div>
       <nav className="flex-1 p-4 space-y-1 max-md:p-2">
         {navItems.map(({ href, label, icon: Icon }) => {
@@ -32,10 +32,10 @@ export function Sidebar() {
               key={href}
               href={href}
               className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors max-md:justify-center max-md:px-2',
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors max-md:justify-center max-md:px-2',
                 isActive
-                  ? 'bg-gray-100 text-gray-900'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
               )}
             >
               <Icon className="h-5 w-5 shrink-0" />
