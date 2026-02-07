@@ -59,16 +59,28 @@ export function detectRecurringGroups(transactions: TransactionForRecurring[]): 
 
     txns.sort((a, b) => a.date.localeCompare(b.date))
 
+    // Require at least 2 distinct dates — same-day duplicates aren't recurring
+    const distinctDates = new Set(txns.map(t => t.date))
+    if (distinctDates.size < 2) continue
+
+    // Require charges to span at least 14 days — same-statement charges aren't recurring
+    const firstDate = new Date(txns[0].date)
+    const lastDate = new Date(txns[txns.length - 1].date)
+    const spanDays = (lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)
+    if (spanDays < 14) continue
+
     const totalAmount = txns.reduce((sum, t) => sum + t.amount, 0)
     const avgAmount = totalAmount / txns.length
 
+    // Compute avg days between distinct dates for frequency detection
+    const sortedDates = [...distinctDates].sort()
     let totalDays = 0
-    for (let i = 1; i < txns.length; i++) {
-      const prev = new Date(txns[i - 1].date)
-      const curr = new Date(txns[i].date)
+    for (let i = 1; i < sortedDates.length; i++) {
+      const prev = new Date(sortedDates[i - 1])
+      const curr = new Date(sortedDates[i])
       totalDays += (curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24)
     }
-    const avgDaysBetween = totalDays / (txns.length - 1)
+    const avgDaysBetween = totalDays / (sortedDates.length - 1)
 
     const frequency = detectFrequency(avgDaysBetween)
 

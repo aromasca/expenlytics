@@ -98,7 +98,11 @@ export default function SubscriptionsPage() {
 
   const handleNormalize = () => {
     setNormalizing(true)
-    fetch('/api/recurring/normalize', { method: 'POST' })
+    fetch('/api/recurring/normalize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ force: true }),
+    })
       .then(r => r.json())
       .then(() => {
         setNormalizing(false)

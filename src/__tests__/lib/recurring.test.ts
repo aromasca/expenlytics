@@ -26,6 +26,26 @@ describe('detectRecurringGroups', () => {
     expect(groups).toHaveLength(0)
   })
 
+  it('excludes charges on the same date (not recurring)', () => {
+    const transactions = [
+      { id: 1, date: '2025-01-15', description: 'WALMART 1234', normalized_merchant: 'Walmart', amount: 50.00, type: 'debit' as const, category_name: null, category_color: null },
+      { id: 2, date: '2025-01-15', description: 'WALMART 5678', normalized_merchant: 'Walmart', amount: 30.00, type: 'debit' as const, category_name: null, category_color: null },
+    ]
+
+    const groups = detectRecurringGroups(transactions)
+    expect(groups).toHaveLength(0)
+  })
+
+  it('excludes charges within 14 days (same statement)', () => {
+    const transactions = [
+      { id: 1, date: '2025-01-10', description: 'COFFEE SHOP', normalized_merchant: 'Starbucks', amount: 5.00, type: 'debit' as const, category_name: null, category_color: null },
+      { id: 2, date: '2025-01-15', description: 'COFFEE SHOP', normalized_merchant: 'Starbucks', amount: 5.00, type: 'debit' as const, category_name: null, category_color: null },
+    ]
+
+    const groups = detectRecurringGroups(transactions)
+    expect(groups).toHaveLength(0)
+  })
+
   it('calculates monthly frequency and estimated cost', () => {
     const transactions = [
       { id: 1, date: '2025-01-15', description: 'Spotify', normalized_merchant: 'Spotify', amount: 9.99, type: 'debit' as const, category_name: null, category_color: null },

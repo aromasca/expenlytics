@@ -1,9 +1,17 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { normalizeMerchants } from '@/lib/claude/normalize-merchants'
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   const db = getDb()
+
+  const body = await request.json().catch(() => ({}))
+  const force = body.force === true
+
+  // If force, reset all normalized_merchant values first
+  if (force) {
+    db.prepare("UPDATE transactions SET normalized_merchant = NULL").run()
+  }
 
   // Find transactions without normalized_merchant
   const rows = db.prepare(
