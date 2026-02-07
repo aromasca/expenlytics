@@ -3,11 +3,12 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Receipt, BarChart3, Settings } from 'lucide-react'
+import { Receipt, BarChart3, RefreshCw, Settings } from 'lucide-react'
 
 const navItems = [
   { href: '/transactions', label: 'Transactions', icon: Receipt },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
+  { href: '/subscriptions', label: 'Subscriptions', icon: RefreshCw },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
