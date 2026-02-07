@@ -108,9 +108,14 @@ export async function POST(request: NextRequest) {
     const categoryMap = new Map(categories.map(c => [c.name.toLowerCase(), c.id]))
     const otherCategoryId = categoryMap.get('other')!
 
-    // Normalize merchant names via LLM
-    const descriptions = result.transactions.map(t => t.description)
-    const merchantMap = await normalizeMerchants(descriptions)
+    // Normalize merchant names via LLM (non-blocking — fallback to empty map on failure)
+    let merchantMap = new Map<string, string>()
+    try {
+      const descriptions = result.transactions.map(t => t.description)
+      merchantMap = await normalizeMerchants(descriptions)
+    } catch {
+      // Normalization failure shouldn't block transaction extraction
+    }
 
     const insert = db.prepare(
       'INSERT INTO transactions (document_id, date, description, amount, type, category_id, normalized_merchant) VALUES (?, ?, ?, ?, ?, ?, ?)'
