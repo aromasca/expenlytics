@@ -3,9 +3,10 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Receipt, BarChart3, RefreshCw, Settings } from 'lucide-react'
+import { Receipt, BarChart3, RefreshCw, Settings, Lightbulb } from 'lucide-react'
 
 const navItems = [
+  { href: '/insights', label: 'Insights', icon: Lightbulb },
   { href: '/transactions', label: 'Transactions', icon: Receipt },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
   { href: '/subscriptions', label: 'Subscriptions', icon: RefreshCw },
@@ -18,7 +19,7 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar max-md:w-16">
       <div className="border-b border-sidebar-border px-6 py-4 max-md:px-2 max-md:py-3">
-        <Link href="/transactions">
+        <Link href="/insights">
           <h1 className="text-xl font-bold text-sidebar-foreground max-md:hidden">Expenlytics</h1>
           <span className="hidden text-xl font-bold text-sidebar-foreground max-md:block">E</span>
         </Link>
