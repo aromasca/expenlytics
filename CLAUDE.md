@@ -22,11 +22,14 @@
 - Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`)
 - `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib)
 - `src/lib/claude/` — Claude API extraction with Zod validation
-- `src/app/api/` — Next.js API routes (upload, transactions, categories, documents, reports)
-- `src/app/(app)/` — Route group with sidebar layout; pages: transactions, reports, settings
+- `src/app/api/` — Next.js API routes (upload, transactions, categories, documents, reports, recurring)
+- `src/app/(app)/` — Route group with sidebar layout; pages: transactions, reports, subscriptions, settings
 - `src/app/page.tsx` — Redirects to `/transactions`
 - `src/components/` — React client components using shadcn/ui
 - `src/components/reports/` — Recharts chart components for reports dashboard
+- `src/lib/claude/normalize-merchants.ts` — LLM merchant normalization (Claude Haiku)
+- `src/lib/recurring.ts` — Pure recurring charge detection logic (no DB dependency)
+- `src/lib/db/recurring.ts` — DB query layer for recurring charges
 - `src/__tests__/` — mirrors src structure
 - `data/` — gitignored; SQLite DB and uploaded PDFs
 
@@ -34,11 +37,14 @@
 - DB query functions accept `db: Database.Database` as first param (testable with `:memory:`)
 - `getDb()` enables WAL mode and foreign_keys pragma
 - API routes use `getDb()` singleton from `src/lib/db/index.ts`
-- Mock Anthropic SDK with `class MockAnthropic {}` pattern, not `vi.fn().mockImplementation`
+- Mock Anthropic SDK with `class MockAnthropic {}` pattern, not `vi.fn().mockImplementation`. To spy on mock calls, extract `vi.fn()` to a module-level variable (per-instance spies are not shared)
 - React 19: avoid calling setState synchronously in useEffect; use `.then()` pattern
 - better-sqlite3: pass params as array to `.get([...])` and `.all([...])` when using dynamic params; `.run()` uses positional args
 - `next.config.ts` has `serverExternalPackages: ['better-sqlite3']`
 - API routes: validate query params with allowlists before passing to DB functions (never trust `as` casts for SQL-interpolated values like `sort_by`)
+- Optional LLM calls (normalization, etc.) should be wrapped in try/catch so failures don't block core operations
+- Always add `.catch()` to fetch promise chains in React to prevent stuck loading states
+- Use `null` (not fallback values) for un-populated columns so backfill endpoints can find rows via `IS NULL`
 - Recharts: `Tooltip` formatter expects `value: number | undefined`, use `Number(value)` not `(value: number)`
 - shadcn/ui components installed: button, card, table, input, select, badge, checkbox, dialog, popover
 
