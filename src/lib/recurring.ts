@@ -72,6 +72,13 @@ export function detectRecurringGroups(transactions: TransactionForRecurring[]): 
     const totalAmount = txns.reduce((sum, t) => sum + t.amount, 0)
     const avgAmount = totalAmount / txns.length
 
+    // Require consistent amounts — real subscriptions charge roughly the same each time
+    // Coefficient of variation (stddev / mean) must be ≤ 30%
+    const variance = txns.reduce((sum, t) => sum + (t.amount - avgAmount) ** 2, 0) / txns.length
+    const stddev = Math.sqrt(variance)
+    const coefficientOfVariation = avgAmount > 0 ? stddev / avgAmount : 0
+    if (coefficientOfVariation > 0.3) continue
+
     // Compute avg days between distinct dates for frequency detection
     const sortedDates = [...distinctDates].sort()
     let totalDays = 0

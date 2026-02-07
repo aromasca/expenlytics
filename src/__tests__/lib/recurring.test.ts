@@ -36,6 +36,29 @@ describe('detectRecurringGroups', () => {
     expect(groups).toHaveLength(0)
   })
 
+  it('excludes charges with highly varying amounts (not a subscription)', () => {
+    const transactions = [
+      { id: 1, date: '2025-01-15', description: 'TJ 1', normalized_merchant: "Trader Joe's", amount: 45.00, type: 'debit' as const, category_name: null, category_color: null },
+      { id: 2, date: '2025-02-15', description: 'TJ 2', normalized_merchant: "Trader Joe's", amount: 92.00, type: 'debit' as const, category_name: null, category_color: null },
+      { id: 3, date: '2025-03-15', description: 'TJ 3', normalized_merchant: "Trader Joe's", amount: 38.00, type: 'debit' as const, category_name: null, category_color: null },
+    ]
+
+    const groups = detectRecurringGroups(transactions)
+    expect(groups).toHaveLength(0)
+  })
+
+  it('includes charges with consistent amounts (real subscription)', () => {
+    const transactions = [
+      { id: 1, date: '2025-01-15', description: 'Netflix', normalized_merchant: 'Netflix', amount: 15.99, type: 'debit' as const, category_name: null, category_color: null },
+      { id: 2, date: '2025-02-15', description: 'Netflix', normalized_merchant: 'Netflix', amount: 15.99, type: 'debit' as const, category_name: null, category_color: null },
+      { id: 3, date: '2025-03-15', description: 'Netflix', normalized_merchant: 'Netflix', amount: 16.99, type: 'debit' as const, category_name: null, category_color: null },
+    ]
+
+    const groups = detectRecurringGroups(transactions)
+    expect(groups).toHaveLength(1)
+    expect(groups[0].merchantName).toBe('Netflix')
+  })
+
   it('excludes charges within 14 days (same statement)', () => {
     const transactions = [
       { id: 1, date: '2025-01-10', description: 'COFFEE SHOP', normalized_merchant: 'Starbucks', amount: 5.00, type: 'debit' as const, category_name: null, category_color: null },
