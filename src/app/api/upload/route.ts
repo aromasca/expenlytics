@@ -79,8 +79,19 @@ export async function POST(request: NextRequest) {
   // New file — extract and merge
   const uploadsDir = path.join(process.cwd(), 'data', 'uploads')
   await mkdir(uploadsDir, { recursive: true })
-  const filename = `${Date.now()}-${file.name}`
+
+  // Sanitize filename to prevent path traversal attacks
+  const sanitizedName = path.basename(file.name).replace(/[^a-zA-Z0-9._-]/g, '_')
+  const filename = `${Date.now()}-${sanitizedName}`
   const filepath = path.join(uploadsDir, filename)
+
+  // Validate the resolved path is still within uploads directory
+  const resolvedUploadsDir = path.resolve(uploadsDir)
+  const resolvedFilepath = path.resolve(filepath)
+  if (!resolvedFilepath.startsWith(resolvedUploadsDir + path.sep)) {
+    return NextResponse.json({ error: 'Invalid filename' }, { status: 400 })
+  }
+
   await writeFile(filepath, buffer)
 
   const docId = createDocument(db, file.name, filepath, fileHash)
