@@ -12,7 +12,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const db = getDb()
-  updateTransactionCategory(db, Number(id), category_id)
+  updateTransactionCategory(db, Number(id), category_id, true)
 
   return NextResponse.json({ success: true })
 }

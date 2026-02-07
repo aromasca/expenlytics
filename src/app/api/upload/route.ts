@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { writeFile, mkdir } from 'fs/promises'
+import { createHash } from 'crypto'
 import path from 'path'
 import { getDb } from '@/lib/db'
-import { createDocument, updateDocumentStatus } from '@/lib/db/documents'
+import { createDocument, findDocumentByHash, updateDocumentStatus, updateDocumentType } from '@/lib/db/documents'
 import { getAllCategories } from '@/lib/db/categories'
+import { getTransactionsByDocumentId, findDuplicateTransaction, bulkUpdateCategories } from '@/lib/db/transactions'
 import { extractTransactions } from '@/lib/claude/extract-transactions'
+import { reclassifyTransactions } from '@/lib/claude/extract-transactions'
+
+function computeHash(buffer: Buffer): string {
+  return createHash('sha256').update(buffer).digest('hex')
+}
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData()
@@ -19,45 +26,114 @@ export async function POST(request: NextRequest) {
   }
 
   const db = getDb()
+  const buffer = Buffer.from(await file.arrayBuffer())
+  const fileHash = computeHash(buffer)
 
-  // Save file to disk
+  // Check for existing document with same hash
+  const existingDoc = findDocumentByHash(db, fileHash)
+
+  if (existingDoc) {
+    // Same file — reclassify only
+    try {
+      const transactions = getTransactionsByDocumentId(db, existingDoc.id)
+      if (transactions.length === 0) {
+        return NextResponse.json({ error: 'No transactions to reclassify' }, { status: 400 })
+      }
+
+      const reclassifyInput = transactions
+        .filter(t => t.manual_category === 0)
+        .map(t => ({ id: t.id, date: t.date, description: t.description, amount: t.amount, type: t.type }))
+
+      if (reclassifyInput.length === 0) {
+        return NextResponse.json({
+          document_id: existingDoc.id,
+          action: 'reclassify',
+          transactions_updated: 0,
+          message: 'All transactions have manual overrides',
+        })
+      }
+
+      const result = await reclassifyTransactions(existingDoc.document_type ?? 'other', reclassifyInput)
+
+      const categories = getAllCategories(db)
+      const categoryMap = new Map(categories.map(c => [c.name.toLowerCase(), c.id]))
+      const otherCategoryId = categoryMap.get('other')!
+
+      const updates = result.classifications.map(c => ({
+        transactionId: c.id,
+        categoryId: categoryMap.get(c.category.toLowerCase()) ?? otherCategoryId,
+      }))
+      bulkUpdateCategories(db, updates)
+
+      return NextResponse.json({
+        document_id: existingDoc.id,
+        action: 'reclassify',
+        transactions_updated: updates.length,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      return NextResponse.json({ error: `Reclassification failed: ${message}` }, { status: 500 })
+    }
+  }
+
+  // New file — extract and merge
   const uploadsDir = path.join(process.cwd(), 'data', 'uploads')
   await mkdir(uploadsDir, { recursive: true })
   const filename = `${Date.now()}-${file.name}`
   const filepath = path.join(uploadsDir, filename)
-  const buffer = Buffer.from(await file.arrayBuffer())
   await writeFile(filepath, buffer)
 
-  // Create document record
-  const docId = createDocument(db, file.name, filepath)
+  const docId = createDocument(db, file.name, filepath, fileHash)
   updateDocumentStatus(db, docId, 'processing')
 
   try {
-    // Extract transactions + categories via Claude (single LLM call)
     const result = await extractTransactions(buffer)
 
-    // Map LLM-returned category names to DB category IDs
+    // Store detected document type
+    updateDocumentType(db, docId, result.document_type)
+
     const categories = getAllCategories(db)
     const categoryMap = new Map(categories.map(c => [c.name.toLowerCase(), c.id]))
     const otherCategoryId = categoryMap.get('other')!
 
-    // Insert transactions with LLM-assigned categories
     const insert = db.prepare(
       'INSERT INTO transactions (document_id, date, description, amount, type, category_id) VALUES (?, ?, ?, ?, ?, ?)'
     )
-    const insertMany = db.transaction(() => {
+    let newCount = 0
+    let reclassifiedCount = 0
+    const reclassifyUpdates: Array<{ transactionId: number; categoryId: number }> = []
+
+    const mergeTransaction = db.transaction(() => {
       for (const t of result.transactions) {
         const categoryId = categoryMap.get(t.category.toLowerCase()) ?? otherCategoryId
-        insert.run(docId, t.date, t.description, t.amount, t.type, categoryId)
+        const existing = findDuplicateTransaction(db, {
+          date: t.date, description: t.description, amount: t.amount, type: t.type,
+        })
+
+        if (existing) {
+          // Duplicate — queue reclassification (respects manual flag via bulkUpdateCategories)
+          reclassifyUpdates.push({ transactionId: existing.id, categoryId })
+          reclassifiedCount++
+        } else {
+          // New transaction
+          insert.run(docId, t.date, t.description, t.amount, t.type, categoryId)
+          newCount++
+        }
       }
     })
-    insertMany()
+    mergeTransaction()
+
+    if (reclassifyUpdates.length > 0) {
+      bulkUpdateCategories(db, reclassifyUpdates)
+    }
 
     updateDocumentStatus(db, docId, 'completed')
 
     return NextResponse.json({
       document_id: docId,
-      transactions_count: result.transactions.length,
+      action: 'extract_and_merge',
+      transactions_new: newCount,
+      transactions_reclassified: reclassifiedCount,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'

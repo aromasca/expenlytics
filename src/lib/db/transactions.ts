@@ -17,6 +17,7 @@ export interface TransactionRow {
   category_id: number | null
   category_name: string | null
   category_color: string | null
+  manual_category: number
   created_at: string
 }
 
@@ -79,6 +80,43 @@ export function listTransactions(db: Database.Database, filters: ListFilters): {
   return { transactions: rows, total: countResult.total }
 }
 
-export function updateTransactionCategory(db: Database.Database, transactionId: number, categoryId: number): void {
-  db.prepare('UPDATE transactions SET category_id = ? WHERE id = ?').run(categoryId, transactionId)
+export function updateTransactionCategory(db: Database.Database, transactionId: number, categoryId: number, manual: boolean = false): void {
+  db.prepare('UPDATE transactions SET category_id = ?, manual_category = ? WHERE id = ?').run(categoryId, manual ? 1 : 0, transactionId)
+}
+
+export function findDuplicateTransaction(
+  db: Database.Database,
+  txn: { date: string; description: string; amount: number; type: string }
+): TransactionRow | undefined {
+  return db.prepare(`
+    SELECT t.*, c.name as category_name, c.color as category_color
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.date = ? AND t.description = ? AND t.amount = ? AND t.type = ?
+  `).get([txn.date, txn.description, txn.amount, txn.type]) as TransactionRow | undefined
+}
+
+export function bulkUpdateCategories(
+  db: Database.Database,
+  updates: Array<{ transactionId: number; categoryId: number }>
+): void {
+  const update = db.prepare(
+    'UPDATE transactions SET category_id = ? WHERE id = ? AND manual_category = 0'
+  )
+  const updateMany = db.transaction((items: typeof updates) => {
+    for (const { transactionId, categoryId } of items) {
+      update.run(categoryId, transactionId)
+    }
+  })
+  updateMany(updates)
+}
+
+export function getTransactionsByDocumentId(db: Database.Database, documentId: number): TransactionRow[] {
+  return db.prepare(`
+    SELECT t.*, c.name as category_name, c.color as category_color
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.document_id = ?
+    ORDER BY t.date DESC
+  `).all([documentId]) as TransactionRow[]
 }

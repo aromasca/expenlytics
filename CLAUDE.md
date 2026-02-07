@@ -35,3 +35,10 @@
 - React 19: avoid calling setState synchronously in useEffect; use `.then()` pattern
 - better-sqlite3: pass params as array to `.get([...])` and `.all([...])` when using dynamic params; `.run()` uses positional args
 - `next.config.ts` has `serverExternalPackages: ['better-sqlite3']`
+
+## SQLite Migrations
+- `CREATE TABLE IF NOT EXISTS` doesn't modify existing tables - only creates new ones
+- Pattern: base CREATE TABLE (original columns) → PRAGMA table_info to check columns → ALTER TABLE for new columns → CREATE INDEX
+- Check existing columns: `db.prepare("PRAGMA table_info(table_name)").all()` returns `Array<{ name: string }>`
+- Example: `if (!columnNames.includes('new_col')) { db.exec('ALTER TABLE t ADD COLUMN new_col TYPE') }`
+- Restart dev server after schema changes for migrations to apply to existing `data/expenlytics.db`

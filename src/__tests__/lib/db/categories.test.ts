@@ -13,9 +13,10 @@ describe('categories', () => {
 
   it('seeds default categories', () => {
     const categories = getAllCategories(db)
-    expect(categories.length).toBeGreaterThanOrEqual(10)
+    expect(categories).toHaveLength(26)
     expect(categories.map(c => c.name)).toContain('Groceries')
-    expect(categories.map(c => c.name)).toContain('Dining')
+    expect(categories.map(c => c.name)).toContain('Restaurants & Dining')
+    expect(categories.map(c => c.name)).toContain('Subscriptions')
   })
 
   it('each category has a name and color', () => {
