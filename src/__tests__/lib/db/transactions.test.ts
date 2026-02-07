@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import Database from 'better-sqlite3'
 import { initializeSchema } from '@/lib/db/schema'
 import { createDocument } from '@/lib/db/documents'
-import { insertTransactions, listTransactions, updateTransactionCategory, findDuplicateTransaction, bulkUpdateCategories } from '@/lib/db/transactions'
+import { insertTransactions, listTransactions, updateTransactionCategory, findDuplicateTransaction, bulkUpdateCategories, deleteTransaction, deleteTransactions } from '@/lib/db/transactions'
 import { getAllCategories } from '@/lib/db/categories'
 
 describe('transactions', () => {
@@ -135,5 +135,78 @@ describe('transactions', () => {
     const updatedB = updated.transactions.find(t => t.description === 'Store B')!
     expect(updatedA.category_name).toBe('Groceries') // preserved manual override
     expect(updatedB.category_name).toBe('Shopping')   // updated
+  })
+
+  it('deletes a single transaction', () => {
+    insertTransactions(db, docId, [
+      { date: '2025-01-15', description: 'Store', amount: 50, type: 'debit' },
+      { date: '2025-01-16', description: 'Cafe', amount: 10, type: 'debit' },
+    ])
+    const txns = listTransactions(db, {})
+    deleteTransaction(db, txns.transactions[0].id)
+    const result = listTransactions(db, {})
+    expect(result.total).toBe(1)
+    expect(result.transactions[0].description).toBe('Store')
+  })
+
+  it('bulk deletes multiple transactions', () => {
+    insertTransactions(db, docId, [
+      { date: '2025-01-15', description: 'A', amount: 10, type: 'debit' },
+      { date: '2025-01-16', description: 'B', amount: 20, type: 'debit' },
+      { date: '2025-01-17', description: 'C', amount: 30, type: 'debit' },
+    ])
+    const txns = listTransactions(db, {})
+    const idsToDelete = txns.transactions.filter(t => t.description !== 'B').map(t => t.id)
+    const deleted = deleteTransactions(db, idsToDelete)
+    expect(deleted).toBe(2)
+    const result = listTransactions(db, {})
+    expect(result.total).toBe(1)
+    expect(result.transactions[0].description).toBe('B')
+  })
+
+  it('returns 0 when deleting empty array', () => {
+    const deleted = deleteTransactions(db, [])
+    expect(deleted).toBe(0)
+  })
+
+  it('filters by date range', () => {
+    insertTransactions(db, docId, [
+      { date: '2025-01-10', description: 'Early', amount: 10, type: 'debit' },
+      { date: '2025-02-15', description: 'Mid', amount: 20, type: 'debit' },
+      { date: '2025-03-20', description: 'Late', amount: 30, type: 'debit' },
+    ])
+    const result = listTransactions(db, { start_date: '2025-02-01', end_date: '2025-02-28' })
+    expect(result.total).toBe(1)
+    expect(result.transactions[0].description).toBe('Mid')
+  })
+
+  it('filters by document_id', () => {
+    const docId2 = createDocument(db, 'other.pdf', '/path/other.pdf')
+    insertTransactions(db, docId, [
+      { date: '2025-01-15', description: 'Doc1', amount: 10, type: 'debit' },
+    ])
+    insertTransactions(db, docId2, [
+      { date: '2025-01-16', description: 'Doc2', amount: 20, type: 'debit' },
+    ])
+    const result = listTransactions(db, { document_id: docId2 })
+    expect(result.total).toBe(1)
+    expect(result.transactions[0].description).toBe('Doc2')
+  })
+
+  it('filters by multiple category_ids', () => {
+    insertTransactions(db, docId, [
+      { date: '2025-01-15', description: 'A', amount: 10, type: 'debit' },
+      { date: '2025-01-16', description: 'B', amount: 20, type: 'debit' },
+      { date: '2025-01-17', description: 'C', amount: 30, type: 'debit' },
+    ])
+    const categories = getAllCategories(db)
+    const groceries = categories.find(c => c.name === 'Groceries')!
+    const shopping = categories.find(c => c.name === 'Shopping')!
+    const txns = listTransactions(db, {})
+    updateTransactionCategory(db, txns.transactions[0].id, groceries.id)
+    updateTransactionCategory(db, txns.transactions[1].id, shopping.id)
+
+    const result = listTransactions(db, { category_ids: [groceries.id, shopping.id] })
+    expect(result.total).toBe(2)
   })
 })

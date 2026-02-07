@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
-import { updateTransactionCategory } from '@/lib/db/transactions'
+import { updateTransactionCategory, deleteTransaction } from '@/lib/db/transactions'
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -15,4 +15,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   updateTransactionCategory(db, Number(id), category_id, true)
 
   return NextResponse.json({ success: true })
+}
+
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const db = getDb()
+  deleteTransaction(db, Number(id))
+  return new NextResponse(null, { status: 204 })
 }

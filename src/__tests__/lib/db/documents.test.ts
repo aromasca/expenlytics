@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import Database from 'better-sqlite3'
 import { initializeSchema } from '@/lib/db/schema'
-import { createDocument, getDocument, updateDocumentStatus, findDocumentByHash, updateDocumentType } from '@/lib/db/documents'
+import { createDocument, getDocument, updateDocumentStatus, findDocumentByHash, updateDocumentType, listDocuments } from '@/lib/db/documents'
 
 describe('documents', () => {
   let db: Database.Database
@@ -57,5 +57,14 @@ describe('documents', () => {
     updateDocumentType(db, id, 'credit_card')
     const doc = getDocument(db, id)
     expect(doc!.document_type).toBe('credit_card')
+  })
+
+  it('lists all documents ordered by upload date desc', () => {
+    createDocument(db, 'first.pdf', '/data/first.pdf', 'hash1')
+    createDocument(db, 'second.pdf', '/data/second.pdf', 'hash2')
+    const docs = listDocuments(db)
+    expect(docs).toHaveLength(2)
+    expect(docs[0].filename).toBe('second.pdf')
+    expect(docs[1].filename).toBe('first.pdf')
   })
 })

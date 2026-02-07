@@ -31,3 +31,7 @@ export function findDocumentByHash(db: Database.Database, fileHash: string): Doc
 export function updateDocumentType(db: Database.Database, id: number, documentType: string): void {
   db.prepare('UPDATE documents SET document_type = ? WHERE id = ?').run(documentType, id)
 }
+
+export function listDocuments(db: Database.Database): Document[] {
+  return db.prepare('SELECT * FROM documents ORDER BY uploaded_at DESC, id DESC').all() as Document[]
+}

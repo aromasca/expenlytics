@@ -1,10 +1,14 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CategoryBadge } from './category-badge'
 import { CategorySelect } from './category-select'
+import { Trash2 } from 'lucide-react'
+import type { Filters } from '@/components/filter-bar'
 
 interface Transaction {
   id: number
@@ -25,46 +29,67 @@ interface Category {
 
 interface TransactionTableProps {
   refreshKey: number
+  filters?: Filters
 }
 
-async function fetchTransactionsData(search: string) {
+const PAGE_SIZE = 50
+
+function buildParams(filters: Filters | undefined, page: number): URLSearchParams {
   const params = new URLSearchParams()
-  if (search) params.set('search', search)
-  const res = await fetch(`/api/transactions?${params}`)
-  return res.json()
+  if (filters?.search) params.set('search', filters.search)
+  if (filters?.type) params.set('type', filters.type)
+  if (filters?.start_date) params.set('start_date', filters.start_date)
+  if (filters?.end_date) params.set('end_date', filters.end_date)
+  if (filters?.document_id) params.set('document_id', filters.document_id)
+  if (filters?.category_ids && filters.category_ids.length > 0) {
+    params.set('category_ids', filters.category_ids.join(','))
+  }
+  params.set('limit', String(PAGE_SIZE))
+  params.set('offset', String(page * PAGE_SIZE))
+  return params
 }
 
-async function fetchCategoriesData() {
-  const res = await fetch('/api/categories')
-  return res.json()
-}
-
-export function TransactionTable({ refreshKey }: TransactionTableProps) {
+export function TransactionTable({ refreshKey, filters }: TransactionTableProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [categories, setCategories] = useState<Category[]>([])
-  const [search, setSearch] = useState('')
   const [total, setTotal] = useState(0)
-  const refreshRef = useRef(0)
+  const [page, setPage] = useState(0)
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [deleteDialog, setDeleteDialog] = useState<{ type: 'single' | 'bulk'; ids: number[] } | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    fetchCategoriesData().then(data => {
+    fetch('/api/categories').then(r => r.json()).then(data => {
       if (!cancelled) setCategories(data)
     })
     return () => { cancelled = true }
   }, [])
 
+  // Reset page and selection when filters or refreshKey change
+  useEffect(() => {
+    setPage(0)
+    setSelected(new Set())
+  }, [filters, refreshKey])
+
+  // Fetch transactions
+  const fetchTransactions = useCallback(async (currentPage: number) => {
+    const params = buildParams(filters, currentPage)
+    const data = await fetch(`/api/transactions?${params}`).then(r => r.json())
+    setTransactions(data.transactions)
+    setTotal(data.total)
+  }, [filters])
+
   useEffect(() => {
     let cancelled = false
-    refreshRef.current++
-    fetchTransactionsData(search).then(data => {
+    const params = buildParams(filters, page)
+    fetch(`/api/transactions?${params}`).then(r => r.json()).then(data => {
       if (!cancelled) {
         setTransactions(data.transactions)
         setTotal(data.total)
       }
     })
     return () => { cancelled = true }
-  }, [search, refreshKey])
+  }, [filters, refreshKey, page])
 
   const updateCategory = async (transactionId: number, categoryId: number) => {
     await fetch(`/api/transactions/${transactionId}`, {
@@ -72,43 +97,98 @@ export function TransactionTable({ refreshKey }: TransactionTableProps) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ category_id: categoryId }),
     })
-    const data = await fetchTransactionsData(search)
-    setTransactions(data.transactions)
-    setTotal(data.total)
+    await fetchTransactions(page)
   }
+
+  const confirmDelete = async () => {
+    if (!deleteDialog) return
+    if (deleteDialog.type === 'single') {
+      await fetch(`/api/transactions/${deleteDialog.ids[0]}`, { method: 'DELETE' })
+    } else {
+      await fetch('/api/transactions', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: deleteDialog.ids }),
+      })
+    }
+    setDeleteDialog(null)
+    setSelected(new Set())
+    await fetchTransactions(page)
+  }
+
+  const toggleSelect = (id: number) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selected.size === transactions.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(transactions.map(t => t.id)))
+    }
+  }
+
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const start = page * PAGE_SIZE + 1
+  const end = Math.min((page + 1) * PAGE_SIZE, total)
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Input
-          placeholder="Search transactions..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
-        />
-        <span className="text-sm text-gray-500">{total} transactions</span>
-      </div>
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-4 rounded-md bg-blue-50 px-4 py-2">
+          <span className="text-sm font-medium">{selected.size} selected</span>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setDeleteDialog({ type: 'bulk', ids: Array.from(selected) })}
+          >
+            <Trash2 className="h-4 w-4 mr-1" /> Delete selected
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
+            Cancel
+          </Button>
+        </div>
+      )}
 
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-10">
+              <Checkbox
+                checked={transactions.length > 0 && selected.size === transactions.length}
+                onCheckedChange={toggleSelectAll}
+              />
+            </TableHead>
             <TableHead>Date</TableHead>
             <TableHead>Description</TableHead>
             <TableHead className="text-right">Amount</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Category</TableHead>
+            <TableHead className="w-10"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {transactions.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-gray-500 py-8">
-                No transactions yet. Upload a bank statement to get started.
+              <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                No transactions found.
               </TableCell>
             </TableRow>
           ) : (
             transactions.map((txn) => (
-              <TableRow key={txn.id}>
+              <TableRow key={txn.id} className={selected.has(txn.id) ? 'bg-blue-50/50' : ''}>
+                <TableCell>
+                  <Checkbox
+                    checked={selected.has(txn.id)}
+                    onCheckedChange={() => toggleSelect(txn.id)}
+                  />
+                </TableCell>
                 <TableCell>{txn.date}</TableCell>
                 <TableCell>{txn.description}</TableCell>
                 <TableCell className={`text-right ${txn.type === 'credit' ? 'text-green-600' : ''}`}>
@@ -137,11 +217,56 @@ export function TransactionTable({ refreshKey }: TransactionTableProps) {
                     />
                   )}
                 </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-400 hover:text-red-500"
+                    onClick={() => setDeleteDialog({ type: 'single', ids: [txn.id] })}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
+
+      {/* Pagination */}
+      {total > 0 && (
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-500">
+            Showing {start}-{end} of {total}
+          </span>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+              Previous
+            </Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteDialog !== null} onOpenChange={(open) => { if (!open) setDeleteDialog(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {deleteDialog?.type === 'bulk' ? `${deleteDialog.ids.length} transactions` : 'transaction'}?</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. {deleteDialog?.type === 'bulk'
+                ? `${deleteDialog.ids.length} transactions will be permanently deleted.`
+                : 'This transaction will be permanently deleted.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialog(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

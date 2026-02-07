@@ -24,7 +24,11 @@ export interface TransactionRow {
 export interface ListFilters {
   type?: 'debit' | 'credit'
   category_id?: number
+  category_ids?: number[]
   search?: string
+  start_date?: string
+  end_date?: string
+  document_id?: number
   sort_by?: 'date' | 'amount' | 'description'
   sort_order?: 'asc' | 'desc'
   limit?: number
@@ -59,10 +63,31 @@ export function listTransactions(db: Database.Database, filters: ListFilters): {
     conditions.push('t.description LIKE ?')
     params.push(`%${filters.search}%`)
   }
+  if (filters.start_date) {
+    conditions.push('t.date >= ?')
+    params.push(filters.start_date)
+  }
+  if (filters.end_date) {
+    conditions.push('t.date <= ?')
+    params.push(filters.end_date)
+  }
+  if (filters.document_id !== undefined) {
+    conditions.push('t.document_id = ?')
+    params.push(filters.document_id)
+  }
+  if (filters.category_ids && filters.category_ids.length > 0) {
+    const placeholders = filters.category_ids.map(() => '?').join(', ')
+    conditions.push(`t.category_id IN (${placeholders})`)
+    params.push(...filters.category_ids)
+  }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
-  const sortBy = filters.sort_by ?? 'date'
-  const sortOrder = filters.sort_order ?? 'desc'
+
+  const VALID_SORT_BY = ['date', 'amount', 'description'] as const
+  const VALID_SORT_ORDER = ['asc', 'desc'] as const
+
+  const sortBy = VALID_SORT_BY.includes(filters.sort_by as typeof VALID_SORT_BY[number]) ? filters.sort_by! : 'date'
+  const sortOrder = VALID_SORT_ORDER.includes(filters.sort_order as typeof VALID_SORT_ORDER[number]) ? filters.sort_order! : 'desc'
   const limit = filters.limit ?? 100
   const offset = filters.offset ?? 0
 
@@ -109,6 +134,17 @@ export function bulkUpdateCategories(
     }
   })
   updateMany(updates)
+}
+
+export function deleteTransaction(db: Database.Database, id: number): void {
+  db.prepare('DELETE FROM transactions WHERE id = ?').run(id)
+}
+
+export function deleteTransactions(db: Database.Database, ids: number[]): number {
+  if (ids.length === 0) return 0
+  const placeholders = ids.map(() => '?').join(', ')
+  const result = db.prepare(`DELETE FROM transactions WHERE id IN (${placeholders})`).run(...ids)
+  return result.changes
 }
 
 export function getTransactionsByDocumentId(db: Database.Database, documentId: number): TransactionRow[] {

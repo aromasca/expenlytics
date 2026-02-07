@@ -1,0 +1,204 @@
+import type Database from 'better-sqlite3'
+
+export interface ReportFilters {
+  start_date?: string
+  end_date?: string
+  category_ids?: number[]
+  type?: 'debit' | 'credit'
+  document_id?: number
+}
+
+interface SpendingSummary {
+  totalSpent: number
+  totalIncome: number
+  avgMonthly: number
+  topCategory: { name: string; amount: number }
+}
+
+interface SpendingOverTimeRow {
+  period: string
+  amount: number
+}
+
+interface CategoryBreakdownRow {
+  category: string
+  color: string
+  amount: number
+  percentage: number
+}
+
+interface SpendingTrendRow {
+  period: string
+  debits: number
+  credits: number
+}
+
+interface TopTransactionRow {
+  id: number
+  date: string
+  description: string
+  amount: number
+  type: string
+  category: string | null
+}
+
+function buildWhere(filters: ReportFilters): { where: string; params: unknown[] } {
+  const conditions: string[] = []
+  const params: unknown[] = []
+
+  if (filters.start_date) {
+    conditions.push('t.date >= ?')
+    params.push(filters.start_date)
+  }
+  if (filters.end_date) {
+    conditions.push('t.date <= ?')
+    params.push(filters.end_date)
+  }
+  if (filters.type) {
+    conditions.push('t.type = ?')
+    params.push(filters.type)
+  }
+  if (filters.document_id !== undefined) {
+    conditions.push('t.document_id = ?')
+    params.push(filters.document_id)
+  }
+  if (filters.category_ids && filters.category_ids.length > 0) {
+    const placeholders = filters.category_ids.map(() => '?').join(', ')
+    conditions.push(`t.category_id IN (${placeholders})`)
+    params.push(...filters.category_ids)
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+  return { where, params }
+}
+
+export function getSpendingSummary(db: Database.Database, filters: ReportFilters): SpendingSummary {
+  const { where, params } = buildWhere(filters)
+
+  const totals = db.prepare(`
+    SELECT
+      COALESCE(SUM(CASE WHEN t.type = 'debit' THEN t.amount ELSE 0 END), 0) as totalSpent,
+      COALESCE(SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END), 0) as totalIncome
+    FROM transactions t
+    ${where}
+  `).get(params) as { totalSpent: number; totalIncome: number }
+
+  const monthCount = db.prepare(`
+    SELECT COUNT(DISTINCT strftime('%Y-%m', t.date)) as months
+    FROM transactions t
+    ${where}
+  `).get(params) as { months: number }
+
+  const avgMonthly = monthCount.months > 0
+    ? Math.round((totals.totalSpent / monthCount.months) * 100) / 100
+    : 0
+
+  // For top category, we need the base where clause PLUS type = 'debit'
+  const debitFilters = { ...filters, type: 'debit' as const }
+  const { where: debitWhere, params: debitParams } = buildWhere(debitFilters)
+
+  const topCat = db.prepare(`
+    SELECT c.name, SUM(t.amount) as amount
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    ${debitWhere}
+    GROUP BY t.category_id
+    ORDER BY amount DESC
+    LIMIT 1
+  `).get(debitParams) as { name: string; amount: number } | undefined
+
+  return {
+    totalSpent: totals.totalSpent,
+    totalIncome: totals.totalIncome,
+    avgMonthly,
+    topCategory: topCat ?? { name: 'None', amount: 0 },
+  }
+}
+
+export function getSpendingOverTime(
+  db: Database.Database,
+  filters: ReportFilters,
+  groupBy: 'month' | 'quarter' | 'year'
+): SpendingOverTimeRow[] {
+  const debitFilters = { ...filters, type: filters.type ?? 'debit' as const }
+  const { where, params } = buildWhere(debitFilters)
+
+  let periodExpr: string
+  switch (groupBy) {
+    case 'month':
+      periodExpr = "strftime('%Y-%m', t.date)"
+      break
+    case 'quarter':
+      periodExpr = "strftime('%Y', t.date) || '-Q' || ((cast(strftime('%m', t.date) as integer) - 1) / 3 + 1)"
+      break
+    case 'year':
+      periodExpr = "strftime('%Y', t.date)"
+      break
+  }
+
+  return db.prepare(`
+    SELECT ${periodExpr} as period, SUM(t.amount) as amount
+    FROM transactions t
+    ${where}
+    GROUP BY period
+    ORDER BY period ASC
+  `).all(params) as SpendingOverTimeRow[]
+}
+
+export function getCategoryBreakdown(db: Database.Database, filters: ReportFilters): CategoryBreakdownRow[] {
+  const debitFilters = { ...filters, type: 'debit' as const }
+  const { where, params } = buildWhere(debitFilters)
+
+  const rows = db.prepare(`
+    SELECT
+      COALESCE(c.name, 'Uncategorized') as category,
+      COALESCE(c.color, '#9CA3AF') as color,
+      SUM(t.amount) as amount
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    ${where}
+    GROUP BY t.category_id
+    ORDER BY amount DESC
+  `).all(params) as Array<{ category: string; color: string; amount: number }>
+
+  const total = rows.reduce((sum, r) => sum + r.amount, 0)
+
+  return rows.map(r => ({
+    ...r,
+    percentage: total > 0 ? Math.round((r.amount / total) * 10000) / 100 : 0,
+  }))
+}
+
+export function getSpendingTrend(db: Database.Database, filters: ReportFilters): SpendingTrendRow[] {
+  const { type: _type, ...filtersWithoutType } = filters
+  const { where, params } = buildWhere(filtersWithoutType)
+
+  return db.prepare(`
+    SELECT
+      strftime('%Y-%m', t.date) as period,
+      COALESCE(SUM(CASE WHEN t.type = 'debit' THEN t.amount ELSE 0 END), 0) as debits,
+      COALESCE(SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END), 0) as credits
+    FROM transactions t
+    ${where}
+    GROUP BY period
+    ORDER BY period ASC
+  `).all(params) as SpendingTrendRow[]
+}
+
+export function getTopTransactions(
+  db: Database.Database,
+  filters: ReportFilters,
+  limit: number = 10
+): TopTransactionRow[] {
+  const { where, params } = buildWhere(filters)
+
+  return db.prepare(`
+    SELECT t.id, t.date, t.description, t.amount, t.type,
+           c.name as category
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    ${where}
+    ORDER BY t.amount DESC
+    LIMIT ?
+  `).all([...params, limit]) as TopTransactionRow[]
+}
