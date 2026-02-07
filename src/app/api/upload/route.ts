@@ -8,6 +8,7 @@ import { getAllCategories } from '@/lib/db/categories'
 import { getTransactionsByDocumentId, findDuplicateTransaction, bulkUpdateCategories } from '@/lib/db/transactions'
 import { extractTransactions } from '@/lib/claude/extract-transactions'
 import { reclassifyTransactions } from '@/lib/claude/extract-transactions'
+import { normalizeMerchants } from '@/lib/claude/normalize-merchants'
 
 function computeHash(buffer: Buffer): string {
   return createHash('sha256').update(buffer).digest('hex')
@@ -107,8 +108,12 @@ export async function POST(request: NextRequest) {
     const categoryMap = new Map(categories.map(c => [c.name.toLowerCase(), c.id]))
     const otherCategoryId = categoryMap.get('other')!
 
+    // Normalize merchant names via LLM
+    const descriptions = result.transactions.map(t => t.description)
+    const merchantMap = await normalizeMerchants(descriptions)
+
     const insert = db.prepare(
-      'INSERT INTO transactions (document_id, date, description, amount, type, category_id) VALUES (?, ?, ?, ?, ?, ?)'
+      'INSERT INTO transactions (document_id, date, description, amount, type, category_id, normalized_merchant) VALUES (?, ?, ?, ?, ?, ?, ?)'
     )
     let newCount = 0
     let reclassifiedCount = 0
@@ -127,7 +132,8 @@ export async function POST(request: NextRequest) {
           reclassifiedCount++
         } else {
           // New transaction
-          insert.run(docId, t.date, t.description, t.amount, t.type, categoryId)
+          const normalizedMerchant = merchantMap.get(t.description) ?? t.description
+          insert.run(docId, t.date, t.description, t.amount, t.type, categoryId, normalizedMerchant)
           newCount++
         }
       }
