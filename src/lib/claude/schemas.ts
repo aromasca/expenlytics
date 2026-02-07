@@ -33,6 +33,14 @@ export const reclassificationSchema = z.object({
   })),
 })
 
+export const normalizationSchema = z.object({
+  normalizations: z.array(z.object({
+    description: z.string(),
+    merchant: z.string(),
+  })),
+})
+
 export type ExtractionResult = z.infer<typeof extractionSchema>
 export type TransactionData = z.infer<typeof transactionSchema>
 export type ReclassificationResult = z.infer<typeof reclassificationSchema>
+export type NormalizationResult = z.infer<typeof normalizationSchema>
