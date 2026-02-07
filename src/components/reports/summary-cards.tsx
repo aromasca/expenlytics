@@ -22,10 +22,10 @@ export function SummaryCards({ totalSpent, totalIncome, avgMonthly, topCategory 
         <Card key={c.label} className="p-4">
           <div className="flex items-center gap-2 mb-2">
             <c.icon className={`h-4 w-4 ${c.color}`} />
-            <span className="text-xs text-gray-500 font-medium">{c.label}</span>
+            <span className="text-xs text-muted-foreground font-medium">{c.label}</span>
           </div>
           <p className="text-xl font-bold">{c.value}</p>
-          {c.sub && <p className="text-sm text-gray-500">{c.sub}</p>}
+          {c.sub && <p className="text-sm text-muted-foreground">{c.sub}</p>}
         </Card>
       ))}
     </div>

@@ -139,7 +139,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
           </PopoverTrigger>
           <PopoverContent className="w-56 max-h-64 overflow-auto p-2" align="start">
             {categories.map(cat => (
-              <label key={cat.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-gray-50 cursor-pointer">
+              <label key={cat.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer transition-colors">
                 <Checkbox
                   checked={filters.category_ids.includes(cat.id)}
                   onCheckedChange={() => toggleCategory(cat.id)}
@@ -174,7 +174,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
       {/* Date range row */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
-          <span className="text-xs text-gray-500">From</span>
+          <span className="text-xs text-muted-foreground">From</span>
           <Input
             type="date"
             value={filters.start_date}
@@ -183,7 +183,7 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
           />
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-xs text-gray-500">To</span>
+          <span className="text-xs text-muted-foreground">To</span>
           <Input
             type="date"
             value={filters.end_date}
