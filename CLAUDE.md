@@ -13,6 +13,7 @@
 - `npm run build` — production build
 - `npm run dev` — dev server on localhost:3000
 - `npm start` — start production server
+- `git reset --soft <commit>` — squash multiple commits into one (combine with `git commit` to create unified commit)
 
 ## Environment
 - `ANTHROPIC_API_KEY` — required for PDF extraction (used by `@anthropic-ai/sdk`)
@@ -46,7 +47,11 @@
 - Always add `.catch()` to fetch promise chains in React to prevent stuck loading states
 - Use `null` (not fallback values) for un-populated columns so backfill endpoints can find rows via `IS NULL`
 - Recharts: `Tooltip` formatter expects `value: number | undefined`, use `Number(value)` not `(value: number)`
-- shadcn/ui components installed: button, card, table, input, select, badge, checkbox, dialog, popover
+- Recharts: CSS variables don't render in SVG - use explicit hex colors for `stroke`, `fill`, `tick={{ fill }}`, `labelStyle`, `itemStyle`
+- Recharts: Disable gray hover cursor with `cursor={false}` on Tooltip component
+- Dark mode: Add `suppressHydrationWarning` to `<html>` when using blocking scripts to prevent hydration errors
+- ThemeProvider: Avoid returning `null` during SSR - causes hydration mismatches; render children immediately
+- shadcn/ui components installed: button, card, table, input, select, badge, checkbox, dialog, popover, switch
 
 ## SQLite Migrations
 - `CREATE TABLE IF NOT EXISTS` doesn't modify existing tables - only creates new ones
