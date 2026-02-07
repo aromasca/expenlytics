@@ -1,28 +1,28 @@
 import { describe, it, expect, vi } from 'vitest'
 import { normalizeMerchants } from '@/lib/claude/normalize-merchants'
 
-vi.mock('@anthropic-ai/sdk', () => {
-  class MockAnthropic {
-    messages = {
-      create: vi.fn().mockResolvedValue({
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              normalizations: [
-                { description: 'NETFLIX.COM 1234', merchant: 'Netflix' },
-                { description: 'NETFLIX.COM 5678', merchant: 'Netflix' },
-                { description: 'AMZN MKTP US*1A2B3C', merchant: 'Amazon' },
-                { description: 'Amazon.com*4D5E6F', merchant: 'Amazon' },
-                { description: 'SPOTIFY USA 1234567', merchant: 'Spotify' },
-                { description: 'Spotify Premium', merchant: 'Spotify' },
-                { description: 'Whole Foods Market #1234', merchant: 'Whole Foods Market' },
-              ],
-            }),
-          },
+const mockCreate = vi.fn().mockResolvedValue({
+  content: [
+    {
+      type: 'text',
+      text: JSON.stringify({
+        normalizations: [
+          { description: 'NETFLIX.COM 1234', merchant: 'Netflix' },
+          { description: 'NETFLIX.COM 5678', merchant: 'Netflix' },
+          { description: 'AMZN MKTP US*1A2B3C', merchant: 'Amazon' },
+          { description: 'Amazon.com*4D5E6F', merchant: 'Amazon' },
+          { description: 'SPOTIFY USA 1234567', merchant: 'Spotify' },
+          { description: 'Spotify Premium', merchant: 'Spotify' },
+          { description: 'Whole Foods Market #1234', merchant: 'Whole Foods Market' },
         ],
       }),
-    }
+    },
+  ],
+})
+
+vi.mock('@anthropic-ai/sdk', () => {
+  class MockAnthropic {
+    messages = { create: mockCreate }
   }
   return { default: MockAnthropic }
 })
@@ -54,9 +54,15 @@ describe('normalizeMerchants', () => {
   })
 
   it('deduplicates input descriptions before sending to LLM', async () => {
-    const descriptions = ['Netflix', 'Netflix', 'Netflix']
-    const result = await normalizeMerchants(descriptions)
-    // Should still work — the mock returns data for all unique inputs
-    expect(result.size).toBeGreaterThanOrEqual(0)
+    mockCreate.mockClear()
+
+    const descriptions = ['NETFLIX.COM 1234', 'NETFLIX.COM 1234', 'NETFLIX.COM 1234']
+    await normalizeMerchants(descriptions)
+
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+    const prompt = mockCreate.mock.calls[0][0].messages[0].content as string
+    // The prompt should contain only one instance of the description (deduplicated)
+    const matches = prompt.match(/NETFLIX\.COM 1234/g)
+    expect(matches).toHaveLength(1)
   })
 })
