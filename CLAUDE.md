@@ -56,7 +56,7 @@
 - Recharts: Disable gray hover cursor with `cursor={false}` on Tooltip component
 - Dark mode: Add `suppressHydrationWarning` to `<html>` when using blocking scripts to prevent hydration errors
 - ThemeProvider: Avoid returning `null` during SSR - causes hydration mismatches; render children immediately
-- Categories: 69 entries across 15 groups; `category_group` column on categories table for UI grouping
+- Categories: 71 entries across 15 groups; `category_group` column on categories table for UI grouping
 - `VALID_CATEGORIES` in `schemas.ts` and `SEED_CATEGORIES` in `schema.ts` must stay in sync
 - shadcn/ui Select supports `SelectGroup` and `SelectLabel` for grouped dropdowns
 - shadcn/ui components installed: button, card, table, input, select, badge, checkbox, dialog, popover, switch, command

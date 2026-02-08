@@ -13,7 +13,7 @@ describe('categories', () => {
 
   it('seeds default categories', () => {
     const categories = getAllCategories(db)
-    expect(categories).toHaveLength(69)
+    expect(categories).toHaveLength(71)
     expect(categories.map(c => c.name)).toContain('Groceries')
     expect(categories.map(c => c.name)).toContain('Restaurants')
     expect(categories.map(c => c.name)).toContain('Coffee & Cafes')
