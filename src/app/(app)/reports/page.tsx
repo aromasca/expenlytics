@@ -23,6 +23,7 @@ interface ReportData {
   trend: Array<{ period: string; debits: number; credits: number }>
   topTransactions: Array<{ id: number; date: string; description: string; amount: number; type: string; category: string | null }>
   sankeyData: Array<{ category: string; category_group: string; color: string; amount: number }>
+  sankeyIncomeData: Array<{ category: string; category_group: string; color: string; amount: number }>
 }
 
 function getDatePreset(preset: string): { start: string; end: string } {
@@ -145,7 +146,7 @@ export default function ReportsPage() {
             <CategoryPieChart data={data.categoryBreakdown} />
           </div>
 
-          <SankeyChart data={data.sankeyData} totalIncome={data.summary.totalIncome} />
+          <SankeyChart data={data.sankeyData} incomeData={data.sankeyIncomeData} totalIncome={data.summary.totalIncome} />
           <SpendingTrendChart data={data.trend} />
           <TopTransactionsTable data={data.topTransactions} />
         </>

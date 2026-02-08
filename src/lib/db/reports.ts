@@ -213,6 +213,26 @@ export function getSankeyData(db: Database.Database, filters: ReportFilters): Sa
   `).all(params) as SankeyRow[]
 }
 
+export function getSankeyIncomeData(db: Database.Database, filters: ReportFilters): SankeyRow[] {
+  const creditFilters = { ...filters, type: 'credit' as const }
+  const { where, params } = buildWhere(creditFilters)
+
+  return db.prepare(`
+    SELECT
+      COALESCE(c.name, 'Uncategorized') as category,
+      COALESCE(c.category_group, 'Other') as category_group,
+      COALESCE(c.color, '#9CA3AF') as color,
+      SUM(t.amount) as amount
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    ${where}
+    AND COALESCE(c.name, '') NOT IN ('Transfer', 'Refund')
+    GROUP BY t.category_id
+    HAVING amount > 0
+    ORDER BY amount DESC
+  `).all(params) as SankeyRow[]
+}
+
 export function getTopTransactions(
   db: Database.Database,
   filters: ReportFilters,

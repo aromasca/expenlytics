@@ -5,8 +5,16 @@ import { sankey, sankeyLinkHorizontal, SankeyNode, SankeyLink } from 'd3-sankey'
 import { useTheme } from '@/components/theme-provider'
 import { Card } from '@/components/ui/card'
 
+interface SankeyRow {
+  category: string
+  category_group: string
+  color: string
+  amount: number
+}
+
 interface SankeyChartProps {
-  data: Array<{ category: string; category_group: string; color: string; amount: number }>
+  data: SankeyRow[]
+  incomeData: SankeyRow[]
   totalIncome: number
 }
 
@@ -24,60 +32,98 @@ type SLink = SankeyLink<NodeExtra, LinkExtra>
 
 const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 
-export function SankeyChart({ data, totalIncome }: SankeyChartProps) {
+export function SankeyChart({ data, incomeData, totalIncome }: SankeyChartProps) {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
   const [hoveredLink, setHoveredLink] = useState<number | null>(null)
 
   const textColor = isDark ? '#A1A1AA' : '#737373'
   const incomeColor = isDark ? '#34D399' : '#10B981'
-  const groupColor = isDark ? '#A1A1AA' : '#737373'
+  const savingsColor = isDark ? '#34D399' : '#10B981'
+  const groupColor = isDark ? '#52525B' : '#A1A1AA'
 
   const layout = useMemo(() => {
     if (data.length === 0) return null
 
-    // Build unique groups
+    const totalSpent = data.reduce((s, d) => s + d.amount, 0)
+    const savings = Math.max(0, totalIncome - totalSpent)
+
+    // Income sources (left column)
+    const incomeSources = incomeData.length > 0
+      ? incomeData
+      : [{ category: 'Income', category_group: 'Income & Transfers', color: incomeColor, amount: totalIncome }]
+
+    // Spending groups (middle column)
     const groupMap = new Map<string, number>()
     for (const d of data) {
       groupMap.set(d.category_group, (groupMap.get(d.category_group) ?? 0) + d.amount)
     }
-
+    if (savings > 0) {
+      groupMap.set('Savings', savings)
+    }
     const groups = Array.from(groupMap.entries())
+
+    // Nodes: income sources | groups | spending categories (+ savings)
     const nodes: NodeExtra[] = [
-      { name: 'Income', color: incomeColor },
-      ...groups.map(([g]) => ({ name: g, color: groupColor })),
-      ...data.map((d) => ({ name: d.category, color: d.color })),
+      ...incomeSources.map(d => ({ name: d.category, color: incomeColor })),
+      ...groups.map(([g]) => ({ name: g, color: g === 'Savings' ? savingsColor : groupColor })),
+      ...data.map(d => ({ name: d.category, color: d.color })),
     ]
+    // Add savings as a right-column node if applicable
+    if (savings > 0) {
+      nodes.push({ name: 'Net Savings', color: savingsColor })
+    }
+
+    const incomeCount = incomeSources.length
+    const groupOffset = incomeCount
+    const catOffset = groupOffset + groups.length
+    const savingsNodeIdx = savings > 0 ? nodes.length - 1 : -1
 
     const links: Array<{ source: number; target: number; value: number }> = []
 
-    // Income -> Group links
-    groups.forEach(([, total], i) => {
-      links.push({ source: 0, target: 1 + i, value: total })
-    })
+    // Income sources → spending groups (distribute proportionally)
+    const totalIncomeFromSources = incomeSources.reduce((s, d) => s + d.amount, 0)
+    for (let i = 0; i < incomeSources.length; i++) {
+      const src = incomeSources[i]
+      const srcFraction = totalIncomeFromSources > 0 ? src.amount / totalIncomeFromSources : 1 / incomeSources.length
+      for (let g = 0; g < groups.length; g++) {
+        const val = Math.round(groups[g][1] * srcFraction * 100) / 100
+        if (val > 0) {
+          links.push({ source: i, target: groupOffset + g, value: val })
+        }
+      }
+    }
 
-    // Group -> Category links
-    data.forEach((d, i) => {
-      const groupIdx = groups.findIndex(([g]) => g === d.category_group)
-      links.push({ source: 1 + groupIdx, target: 1 + groups.length + i, value: d.amount })
-    })
+    // Groups → spending categories
+    for (let c = 0; c < data.length; c++) {
+      const d = data[c]
+      const gIdx = groups.findIndex(([g]) => g === d.category_group)
+      links.push({ source: groupOffset + gIdx, target: catOffset + c, value: d.amount })
+    }
 
-    const width = 600
-    const height = Math.max(200, Math.min(400, data.length * 18 + 40))
+    // Savings group → savings node
+    if (savings > 0 && savingsNodeIdx >= 0) {
+      const sIdx = groups.findIndex(([g]) => g === 'Savings')
+      links.push({ source: groupOffset + sIdx, target: savingsNodeIdx, value: savings })
+    }
+
+    const width = 900
+    const nodeCount = Math.max(incomeSources.length, groups.length, data.length + (savings > 0 ? 1 : 0))
+    const height = Math.max(250, Math.min(500, nodeCount * 16 + 40))
 
     const generator = sankey<NodeExtra, LinkExtra>()
       .nodeWidth(12)
       .nodePadding(4)
       .nodeSort(null)
-      .extent([[0, 4], [width, height - 4]])
+      .extent([[120, 4], [width - 120, height - 4]])
 
     const graph = generator({
-      nodes: nodes.map((n) => ({ ...n })),
-      links: links.map((l) => ({ ...l })),
+      nodes: nodes.map(n => ({ ...n })),
+      links: links.map(l => ({ ...l })),
     })
 
     return { ...graph, width, height }
-  }, [data, incomeColor, groupColor])
+  }, [data, incomeData, totalIncome, incomeColor, savingsColor, groupColor])
 
   if (data.length === 0) {
     return (
@@ -98,7 +144,7 @@ export function SankeyChart({ data, totalIncome }: SankeyChartProps) {
       <svg
         viewBox={`0 0 ${width} ${height}`}
         className="w-full"
-        style={{ maxHeight: 400 }}
+        style={{ maxHeight: 500 }}
         preserveAspectRatio="xMidYMid meet"
       >
         {/* Links */}
@@ -119,6 +165,7 @@ export function SankeyChart({ data, totalIncome }: SankeyChartProps) {
               opacity={opacity}
               onMouseEnter={() => setHoveredLink(i)}
               onMouseLeave={() => setHoveredLink(null)}
+              style={{ transition: 'opacity 0.15s' }}
             >
               <title>{`${source.name} → ${target.name}: ${fmt.format(link.value)}`}</title>
             </path>
@@ -133,7 +180,7 @@ export function SankeyChart({ data, totalIncome }: SankeyChartProps) {
           const y1 = node.y1 ?? 0
           const nodeHeight = y1 - y0
           const isLeft = node.depth === 0
-          const isRight = node.depth === 2
+          const isRight = node.depth === (nodes as SNode[]).reduce((max, n) => Math.max(max, n.depth ?? 0), 0)
 
           return (
             <g key={i}>
@@ -149,7 +196,7 @@ export function SankeyChart({ data, totalIncome }: SankeyChartProps) {
               </rect>
               {nodeHeight > 8 && (
                 <text
-                  x={isLeft ? x0 - 4 : x1 + 4}
+                  x={isLeft ? x0 - 4 : isRight ? x1 + 4 : x1 + 4}
                   y={(y0 + y1) / 2}
                   dy="0.35em"
                   textAnchor={isLeft ? 'end' : 'start'}
