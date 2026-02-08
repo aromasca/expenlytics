@@ -28,11 +28,11 @@ describe('generateInsights', () => {
         text: JSON.stringify({
           insights: [{
             headline: 'Dining is replacing groceries',
-            category: 'Restaurants & Dining',
+            category: 'Restaurants',
             severity: 'concerning',
             key_metric: '+$200/mo',
             explanation: 'Your dining spend increased while groceries dropped.',
-            evidence: { category_a: 'Restaurants & Dining', category_b: 'Groceries', merchant_names: ['DoorDash'] },
+            evidence: { category_a: 'Restaurants', category_b: 'Groceries', merchant_names: ['DoorDash'] },
             action_suggestion: 'Try meal prepping on Sundays',
           }],
         }),

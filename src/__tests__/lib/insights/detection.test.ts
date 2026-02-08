@@ -135,10 +135,10 @@ describe('detectSpendingShifts', () => {
     const db = createDb()
     // Previous month: mostly groceries
     insertTransaction(db, { date: monthsAgo(1), description: 'Grocery', amount: 500, category: 'Groceries' })
-    insertTransaction(db, { date: monthsAgo(1), description: 'Dining', amount: 100, category: 'Restaurants & Dining' })
+    insertTransaction(db, { date: monthsAgo(1), description: 'Dining', amount: 100, category: 'Restaurants' })
     // Current month: shift to dining
     insertTransaction(db, { date: monthsAgo(0), description: 'Grocery', amount: 200, category: 'Groceries' })
-    insertTransaction(db, { date: monthsAgo(0), description: 'Dining', amount: 500, category: 'Restaurants & Dining' })
+    insertTransaction(db, { date: monthsAgo(0), description: 'Dining', amount: 500, category: 'Restaurants' })
 
     const results = detectSpendingShifts(db)
     expect(results.length).toBeGreaterThanOrEqual(1)

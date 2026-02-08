@@ -23,7 +23,7 @@
 - Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`)
 - `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib)
 - `src/lib/claude/` — Claude API extraction with Zod validation
-- `src/app/api/` — Next.js API routes (upload, transactions, categories, documents, reports, recurring)
+- `src/app/api/` — Next.js API routes (upload, transactions, categories, documents, reports, recurring, reclassify/backfill)
 - `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, reports, subscriptions, settings
 - `src/app/page.tsx` — Redirects to `/insights`
 - `src/components/` — React client components using shadcn/ui
@@ -54,6 +54,9 @@
 - Recharts: Disable gray hover cursor with `cursor={false}` on Tooltip component
 - Dark mode: Add `suppressHydrationWarning` to `<html>` when using blocking scripts to prevent hydration errors
 - ThemeProvider: Avoid returning `null` during SSR - causes hydration mismatches; render children immediately
+- Categories: 69 entries across 15 groups; `category_group` column on categories table for UI grouping
+- `VALID_CATEGORIES` in `schemas.ts` and `SEED_CATEGORIES` in `schema.ts` must stay in sync
+- shadcn/ui Select supports `SelectGroup` and `SelectLabel` for grouped dropdowns
 - shadcn/ui components installed: button, card, table, input, select, badge, checkbox, dialog, popover, switch
 
 ## SQLite Migrations
@@ -62,4 +65,5 @@
 - Check existing columns: `db.prepare("PRAGMA table_info(table_name)").all()` returns `Array<{ name: string }>`
 - Example: `if (!columnNames.includes('new_col')) { db.exec('ALTER TABLE t ADD COLUMN new_col TYPE') }`
 - Restart dev server after schema changes for migrations to apply to existing `data/expenlytics.db`
+- `.worktrees/` is excluded in `vitest.config.ts` — stale worktree test copies cause false failures
 - SQLite: prefer `strftime('%Y-%m', t.date)` grouping over `date('now', '-1 month', 'start of month')` boundaries — the latter breaks in tests where data uses computed dates

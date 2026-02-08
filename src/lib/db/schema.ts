@@ -1,33 +1,108 @@
 import type Database from 'better-sqlite3'
 
 const SEED_CATEGORIES = [
-  { name: 'Groceries', color: '#22C55E' },
-  { name: 'Restaurants & Dining', color: '#F97316' },
-  { name: 'Gas & Fuel', color: '#A855F7' },
-  { name: 'Public Transit', color: '#3B82F6' },
-  { name: 'Rideshare & Taxi', color: '#6366F1' },
-  { name: 'Parking & Tolls', color: '#64748B' },
-  { name: 'Rent & Mortgage', color: '#8B5CF6' },
-  { name: 'Home Maintenance', color: '#D946EF' },
-  { name: 'Utilities', color: '#EAB308' },
-  { name: 'Subscriptions', color: '#0EA5E9' },
-  { name: 'Shopping', color: '#14B8A6' },
-  { name: 'Electronics', color: '#2563EB' },
-  { name: 'Health & Medical', color: '#EF4444' },
-  { name: 'Fitness', color: '#F43F5E' },
-  { name: 'Insurance', color: '#BE185D' },
-  { name: 'Childcare & Education', color: '#7C3AED' },
-  { name: 'Pets', color: '#EA580C' },
-  { name: 'Travel', color: '#0891B2' },
-  { name: 'Entertainment', color: '#EC4899' },
-  { name: 'Gifts & Donations', color: '#E11D48' },
-  { name: 'Personal Care', color: '#F472B6' },
-  { name: 'Income', color: '#10B981' },
-  { name: 'Transfer', color: '#6B7280' },
-  { name: 'Refund', color: '#059669' },
-  { name: 'Fees & Charges', color: '#DC2626' },
-  { name: 'Other', color: '#9CA3AF' },
+  // Food & Drink
+  { name: 'Groceries', color: '#22C55E', group: 'Food & Drink' },
+  { name: 'Restaurants', color: '#F97316', group: 'Food & Drink' },
+  { name: 'Coffee & Cafes', color: '#FB923C', group: 'Food & Drink' },
+  { name: 'Fast Food', color: '#FDBA74', group: 'Food & Drink' },
+  { name: 'Food Delivery', color: '#EA580C', group: 'Food & Drink' },
+  { name: 'Bars & Alcohol', color: '#C2410C', group: 'Food & Drink' },
+  // Transportation
+  { name: 'Gas & Fuel', color: '#A855F7', group: 'Transportation' },
+  { name: 'Public Transit', color: '#3B82F6', group: 'Transportation' },
+  { name: 'Rideshare & Taxi', color: '#6366F1', group: 'Transportation' },
+  { name: 'Parking & Tolls', color: '#64748B', group: 'Transportation' },
+  { name: 'Car Maintenance', color: '#7C3AED', group: 'Transportation' },
+  { name: 'Car Payment', color: '#8B5CF6', group: 'Transportation' },
+  { name: 'Car Insurance', color: '#9333EA', group: 'Transportation' },
+  // Housing
+  { name: 'Rent & Mortgage', color: '#0284C7', group: 'Housing' },
+  { name: 'Utilities', color: '#EAB308', group: 'Housing' },
+  { name: 'Internet & Phone', color: '#CA8A04', group: 'Housing' },
+  { name: 'Home Maintenance', color: '#D946EF', group: 'Housing' },
+  { name: 'Home Improvement', color: '#C026D3', group: 'Housing' },
+  { name: 'Furniture & Decor', color: '#A21CAF', group: 'Housing' },
+  { name: 'Home Insurance', color: '#86198F', group: 'Housing' },
+  // Shopping
+  { name: 'Clothing & Accessories', color: '#14B8A6', group: 'Shopping' },
+  { name: 'Electronics', color: '#2563EB', group: 'Shopping' },
+  { name: 'Office Supplies', color: '#1D4ED8', group: 'Shopping' },
+  { name: 'Home Goods', color: '#0D9488', group: 'Shopping' },
+  { name: 'Books', color: '#0F766E', group: 'Shopping' },
+  { name: 'Sporting Goods', color: '#115E59', group: 'Shopping' },
+  { name: 'General Merchandise', color: '#134E4A', group: 'Shopping' },
+  // Health & Wellness
+  { name: 'Health Insurance', color: '#BE185D', group: 'Health & Wellness' },
+  { name: 'Medical & Dental', color: '#EF4444', group: 'Health & Wellness' },
+  { name: 'Pharmacy', color: '#DC2626', group: 'Health & Wellness' },
+  { name: 'Fitness & Gym', color: '#F43F5E', group: 'Health & Wellness' },
+  { name: 'Mental Health', color: '#E11D48', group: 'Health & Wellness' },
+  { name: 'Vision & Eye Care', color: '#B91C1C', group: 'Health & Wellness' },
+  // Entertainment
+  { name: 'Movies & Theater', color: '#EC4899', group: 'Entertainment' },
+  { name: 'Music & Concerts', color: '#DB2777', group: 'Entertainment' },
+  { name: 'Gaming', color: '#BE185D', group: 'Entertainment' },
+  { name: 'Streaming Services', color: '#0EA5E9', group: 'Entertainment' },
+  { name: 'Sports & Outdoors', color: '#F472B6', group: 'Entertainment' },
+  { name: 'Hobbies', color: '#A855F7', group: 'Entertainment' },
+  // Personal
+  { name: 'Personal Care & Beauty', color: '#F9A8D4', group: 'Personal' },
+  { name: 'Haircuts & Salon', color: '#F472B6', group: 'Personal' },
+  { name: 'Laundry & Dry Cleaning', color: '#E879F9', group: 'Personal' },
+  // Education
+  { name: 'Tuition & School Fees', color: '#7C3AED', group: 'Education' },
+  { name: 'Books & Supplies', color: '#6D28D9', group: 'Education' },
+  { name: 'Online Courses', color: '#5B21B6', group: 'Education' },
+  // Kids & Family
+  { name: 'Childcare', color: '#8B5CF6', group: 'Kids & Family' },
+  { name: 'Kids Activities', color: '#7C3AED', group: 'Kids & Family' },
+  { name: 'Baby & Kids Supplies', color: '#6D28D9', group: 'Kids & Family' },
+  // Pets
+  { name: 'Pet Food & Supplies', color: '#EA580C', group: 'Pets' },
+  { name: 'Veterinary', color: '#C2410C', group: 'Pets' },
+  { name: 'Pet Services', color: '#9A3412', group: 'Pets' },
+  // Travel
+  { name: 'Flights', color: '#0891B2', group: 'Travel' },
+  { name: 'Hotels & Lodging', color: '#0E7490', group: 'Travel' },
+  { name: 'Rental Cars', color: '#155E75', group: 'Travel' },
+  { name: 'Travel Activities', color: '#164E63', group: 'Travel' },
+  { name: 'Travel Insurance', color: '#083344', group: 'Travel' },
+  // Financial
+  { name: 'Fees & Charges', color: '#DC2626', group: 'Financial' },
+  { name: 'Interest & Finance Charges', color: '#B91C1C', group: 'Financial' },
+  { name: 'Taxes', color: '#991B1B', group: 'Financial' },
+  { name: 'Investments', color: '#7F1D1D', group: 'Financial' },
+  { name: 'Savings', color: '#450A0A', group: 'Financial' },
+  // Gifts & Giving
+  { name: 'Gifts', color: '#E11D48', group: 'Gifts & Giving' },
+  { name: 'Charitable Donations', color: '#BE123C', group: 'Gifts & Giving' },
+  // Income & Transfers
+  { name: 'Salary & Wages', color: '#10B981', group: 'Income & Transfers' },
+  { name: 'Freelance Income', color: '#059669', group: 'Income & Transfers' },
+  { name: 'Refund', color: '#047857', group: 'Income & Transfers' },
+  { name: 'Transfer', color: '#6B7280', group: 'Income & Transfers' },
+  { name: 'ATM Withdrawal', color: '#4B5563', group: 'Income & Transfers' },
+  // Other
+  { name: 'Other', color: '#9CA3AF', group: 'Other' },
 ]
+
+// Mapping from old category names to new ones (for migration)
+const OLD_TO_NEW_CATEGORY: Record<string, string> = {
+  'Restaurants & Dining': 'Restaurants',
+  'Subscriptions': 'Streaming Services',
+  'Shopping': 'General Merchandise',
+  'Health & Medical': 'Medical & Dental',
+  'Fitness': 'Fitness & Gym',
+  'Insurance': 'Health Insurance',
+  'Childcare & Education': 'Tuition & School Fees',
+  'Pets': 'Pet Food & Supplies',
+  'Travel': 'Travel Activities',
+  'Entertainment': 'Movies & Theater',
+  'Gifts & Donations': 'Gifts',
+  'Personal Care': 'Personal Care & Beauty',
+  'Income': 'Salary & Wages',
+}
 
 export function initializeSchema(db: Database.Database): void {
   // Create base tables (without new columns for backward compatibility)
@@ -44,7 +119,8 @@ export function initializeSchema(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
-      color TEXT NOT NULL DEFAULT '#6B7280'
+      color TEXT NOT NULL DEFAULT '#6B7280',
+      category_group TEXT NOT NULL DEFAULT 'Other'
     );
 
     CREATE TABLE IF NOT EXISTS transactions (
@@ -118,21 +194,46 @@ export function initializeSchema(db: Database.Database): void {
     )
   `)
 
-  // Seed or update categories
-  const count = db.prepare('SELECT COUNT(*) as count FROM categories').get() as { count: number }
-  if (count.count === 0) {
-    const insert = db.prepare('INSERT INTO categories (name, color) VALUES (?, ?)')
+  // Migrate categories table - add category_group column if missing
+  const catColumns = db.prepare("PRAGMA table_info(categories)").all() as Array<{ name: string }>
+  const catColumnNames = catColumns.map(c => c.name)
+  if (!catColumnNames.includes('category_group')) {
+    db.exec("ALTER TABLE categories ADD COLUMN category_group TEXT NOT NULL DEFAULT 'Other'")
+  }
+
+  // Seed or migrate categories
+  const existingCats = db.prepare('SELECT name FROM categories').all() as Array<{ name: string }>
+  const existingNames = new Set(existingCats.map(c => c.name))
+
+  if (existingCats.length === 0) {
+    // Fresh DB: insert all new categories
+    const insert = db.prepare('INSERT INTO categories (name, color, category_group) VALUES (?, ?, ?)')
     for (const cat of SEED_CATEGORIES) {
-      insert.run(cat.name, cat.color)
+      insert.run(cat.name, cat.color, cat.group)
     }
-  } else if (count.count < 26) {
-    // Update to new categories - insert missing ones
-    const existing = db.prepare('SELECT name FROM categories').all() as Array<{ name: string }>
-    const existingNames = new Set(existing.map(c => c.name))
-    const insert = db.prepare('INSERT OR IGNORE INTO categories (name, color) VALUES (?, ?)')
+  } else if (!existingNames.has('Coffee & Cafes')) {
+    // Old taxonomy detected: migrate old → new names, then insert new categories
+    const rename = db.prepare('UPDATE categories SET name = ?, color = ?, category_group = ? WHERE name = ?')
+    for (const [oldName, newName] of Object.entries(OLD_TO_NEW_CATEGORY)) {
+      const newCat = SEED_CATEGORIES.find(c => c.name === newName)!
+      rename.run(newName, newCat.color, newCat.group, oldName)
+    }
+    // Update group for categories that kept their name
+    const updateGroup = db.prepare('UPDATE categories SET category_group = ?, color = ? WHERE name = ?')
     for (const cat of SEED_CATEGORIES) {
-      if (!existingNames.has(cat.name)) {
-        insert.run(cat.name, cat.color)
+      if (existingNames.has(cat.name) && !OLD_TO_NEW_CATEGORY[cat.name]) {
+        updateGroup.run(cat.group, cat.color, cat.name)
+      }
+    }
+    // Insert new categories that didn't exist before
+    const insert = db.prepare('INSERT OR IGNORE INTO categories (name, color, category_group) VALUES (?, ?, ?)')
+    for (const cat of SEED_CATEGORIES) {
+      if (!existingNames.has(cat.name) && !Object.values(OLD_TO_NEW_CATEGORY).includes(cat.name)) {
+        insert.run(cat.name, cat.color, cat.group)
+      }
+      // Also insert renamed targets that weren't already inserted by the rename
+      if (Object.values(OLD_TO_NEW_CATEGORY).includes(cat.name)) {
+        insert.run(cat.name, cat.color, cat.group)
       }
     }
   }

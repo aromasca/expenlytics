@@ -12,6 +12,7 @@ interface Category {
   id: number
   name: string
   color: string
+  category_group?: string
 }
 
 interface Document {
@@ -137,16 +138,29 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
                 : 'All categories'}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-56 max-h-64 overflow-auto p-2" align="start">
-            {categories.map(cat => (
-              <label key={cat.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer transition-colors">
-                <Checkbox
-                  checked={filters.category_ids.includes(cat.id)}
-                  onCheckedChange={() => toggleCategory(cat.id)}
-                />
-                <span className="text-sm" style={{ color: cat.color }}>{cat.name}</span>
-              </label>
-            ))}
+          <PopoverContent className="w-56 max-h-80 overflow-auto p-2" align="start">
+            {(() => {
+              const groups = new Map<string, Category[]>()
+              for (const cat of categories) {
+                const g = cat.category_group || 'Other'
+                if (!groups.has(g)) groups.set(g, [])
+                groups.get(g)!.push(cat)
+              }
+              return Array.from(groups.entries()).map(([group, cats]) => (
+                <div key={group}>
+                  <div className="text-xs text-muted-foreground font-semibold px-2 pt-2 pb-1">{group}</div>
+                  {cats.map(cat => (
+                    <label key={cat.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer transition-colors">
+                      <Checkbox
+                        checked={filters.category_ids.includes(cat.id)}
+                        onCheckedChange={() => toggleCategory(cat.id)}
+                      />
+                      <span className="text-sm" style={{ color: cat.color }}>{cat.name}</span>
+                    </label>
+                  ))}
+                </div>
+              ))
+            })()}
           </PopoverContent>
         </Popover>
 

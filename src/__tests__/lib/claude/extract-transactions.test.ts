@@ -13,7 +13,7 @@ vi.mock('@anthropic-ai/sdk', () => {
               document_type: 'checking_account',
               transactions: [
                 { date: '2025-01-15', description: 'Whole Foods', amount: 85.50, type: 'debit', category: 'Groceries' },
-                { date: '2025-01-16', description: 'Salary', amount: 3000, type: 'credit', category: 'Income' },
+                { date: '2025-01-16', description: 'Salary', amount: 3000, type: 'credit', category: 'Salary & Wages' },
               ],
             }),
           },
@@ -33,6 +33,6 @@ describe('extractTransactions', () => {
     expect(result.transactions[0].description).toBe('Whole Foods')
     expect(result.transactions[0].category).toBe('Groceries')
     expect(result.transactions[1].type).toBe('credit')
-    expect(result.transactions[1].category).toBe('Income')
+    expect(result.transactions[1].category).toBe('Salary & Wages')
   })
 })

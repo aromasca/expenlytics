@@ -34,10 +34,10 @@ describe('reports', () => {
     // Assign categories
     const categories = getAllCategories(db)
     const groceries = categories.find(c => c.name === 'Groceries')!
-    const dining = categories.find(c => c.name === 'Restaurants & Dining')!
+    const dining = categories.find(c => c.name === 'Restaurants')!
     const utilities = categories.find(c => c.name === 'Utilities')!
-    const shopping = categories.find(c => c.name === 'Shopping')!
-    const income = categories.find(c => c.name === 'Income')!
+    const shopping = categories.find(c => c.name === 'General Merchandise')!
+    const income = categories.find(c => c.name === 'Salary & Wages')!
 
     const all = db.prepare('SELECT id, description FROM transactions ORDER BY date ASC').all() as Array<{ id: number; description: string }>
     updateTransactionCategory(db, all.find(t => t.description === 'Groceries')!.id, groceries.id)

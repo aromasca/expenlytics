@@ -7,7 +7,7 @@ describe('extractionSchema', () => {
       document_type: 'checking_account' as const,
       transactions: [
         { date: '2025-01-15', description: 'Whole Foods', amount: 85.50, type: 'debit', category: 'Groceries' },
-        { date: '2025-01-16', description: 'Employer Inc', amount: 3000, type: 'credit', category: 'Income' },
+        { date: '2025-01-16', description: 'Employer Inc', amount: 3000, type: 'credit', category: 'Salary & Wages' },
       ],
     }
     expect(extractionSchema.parse(valid)).toEqual(valid)
@@ -17,7 +17,7 @@ describe('extractionSchema', () => {
     const invalid = {
       document_type: 'checking_account',
       transactions: [
-        { date: '2025-01-15', description: 'Store', amount: 50, type: 'refund', category: 'Shopping' },
+        { date: '2025-01-15', description: 'Store', amount: 50, type: 'refund', category: 'General Merchandise' },
       ],
     }
     expect(() => extractionSchema.parse(invalid)).toThrow()
@@ -27,7 +27,7 @@ describe('extractionSchema', () => {
     const invalid = {
       document_type: 'unknown_type',
       transactions: [
-        { date: '2025-01-15', description: 'Store', amount: 50, type: 'debit', category: 'Shopping' },
+        { date: '2025-01-15', description: 'Store', amount: 50, type: 'debit', category: 'General Merchandise' },
       ],
     }
     expect(() => extractionSchema.parse(invalid)).toThrow()
@@ -47,9 +47,9 @@ describe('extractionSchema', () => {
     const valid = {
       document_type: 'checking_account' as const,
       transactions: [
-        { date: '2025-01-15', description: 'Dentist', amount: 200, type: 'debit', category: 'Health & Medical' },
+        { date: '2025-01-15', description: 'Dentist', amount: 200, type: 'debit', category: 'Medical & Dental' },
       ],
     }
-    expect(extractionSchema.parse(valid).transactions[0].category).toBe('Health & Medical')
+    expect(extractionSchema.parse(valid).transactions[0].category).toBe('Medical & Dental')
   })
 })

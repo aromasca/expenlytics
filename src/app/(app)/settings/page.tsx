@@ -5,12 +5,14 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { useTheme } from '@/components/theme-provider'
-import { Tags, SlidersHorizontal, Trash2, Moon, Sun } from 'lucide-react'
+import { Tags, SlidersHorizontal, Trash2, Moon, Sun, RefreshCw } from 'lucide-react'
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme()
   const [resetting, setResetting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [reclassifying, setReclassifying] = useState(false)
+  const [reclassifyResult, setReclassifyResult] = useState<string | null>(null)
 
   async function handleReset() {
     setResetting(true)
@@ -54,6 +56,40 @@ export default function SettingsPage() {
               onCheckedChange={toggleTheme}
             />
           </div>
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <div className="flex items-center gap-3 mb-2">
+          <RefreshCw className="h-5 w-5 text-primary" />
+          <h3 className="font-medium">Reclassify Transactions</h3>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Re-run AI classification on all transactions using the latest category taxonomy. Manually categorized transactions will not be changed.
+        </p>
+        <div className="flex items-center gap-3">
+          <Button onClick={async () => {
+            setReclassifying(true)
+            setReclassifyResult(null)
+            try {
+              const res = await fetch('/api/reclassify/backfill', { method: 'POST' })
+              const data = await res.json()
+              if (res.ok) {
+                setReclassifyResult(`Done — ${data.updated} of ${data.total} transactions reclassified.`)
+              } else {
+                setReclassifyResult(`Error: ${data.error}`)
+              }
+            } catch {
+              setReclassifyResult('Failed to connect to server.')
+            } finally {
+              setReclassifying(false)
+            }
+          }} disabled={reclassifying}>
+            {reclassifying ? 'Reclassifying...' : 'Reclassify All'}
+          </Button>
+          {reclassifyResult && (
+            <span className="text-sm text-muted-foreground">{reclassifyResult}</span>
+          )}
         </div>
       </Card>
 

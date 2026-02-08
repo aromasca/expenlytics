@@ -4,8 +4,8 @@ import { detectRecurringGroups } from '@/lib/recurring'
 describe('detectRecurringGroups', () => {
   it('groups transactions by normalized_merchant', () => {
     const transactions = [
-      { id: 1, date: '2025-01-15', description: 'NETFLIX.COM 1234', normalized_merchant: 'Netflix', amount: 15.99, type: 'debit' as const, category_name: 'Subscriptions', category_color: '#0EA5E9' },
-      { id: 2, date: '2025-02-15', description: 'NETFLIX.COM 5678', normalized_merchant: 'Netflix', amount: 15.99, type: 'debit' as const, category_name: 'Subscriptions', category_color: '#0EA5E9' },
+      { id: 1, date: '2025-01-15', description: 'NETFLIX.COM 1234', normalized_merchant: 'Netflix', amount: 15.99, type: 'debit' as const, category_name: 'Streaming Services', category_color: '#0EA5E9' },
+      { id: 2, date: '2025-02-15', description: 'NETFLIX.COM 5678', normalized_merchant: 'Netflix', amount: 15.99, type: 'debit' as const, category_name: 'Streaming Services', category_color: '#0EA5E9' },
       { id: 3, date: '2025-01-20', description: 'Whole Foods', normalized_merchant: 'Whole Foods Market', amount: 85.00, type: 'debit' as const, category_name: 'Groceries', category_color: '#22C55E' },
     ]
 

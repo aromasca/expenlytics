@@ -1,12 +1,41 @@
 import { z } from 'zod'
 
 export const VALID_CATEGORIES = [
-  'Groceries', 'Restaurants & Dining', 'Gas & Fuel', 'Public Transit',
-  'Rideshare & Taxi', 'Parking & Tolls', 'Rent & Mortgage', 'Home Maintenance',
-  'Utilities', 'Subscriptions', 'Shopping', 'Electronics', 'Health & Medical',
-  'Fitness', 'Insurance', 'Childcare & Education', 'Pets', 'Travel',
-  'Entertainment', 'Gifts & Donations', 'Personal Care', 'Income', 'Transfer',
-  'Refund', 'Fees & Charges', 'Other',
+  // Food & Drink
+  'Groceries', 'Restaurants', 'Coffee & Cafes', 'Fast Food', 'Food Delivery', 'Bars & Alcohol',
+  // Transportation
+  'Gas & Fuel', 'Public Transit', 'Rideshare & Taxi', 'Parking & Tolls',
+  'Car Maintenance', 'Car Payment', 'Car Insurance',
+  // Housing
+  'Rent & Mortgage', 'Utilities', 'Internet & Phone', 'Home Maintenance',
+  'Home Improvement', 'Furniture & Decor', 'Home Insurance',
+  // Shopping
+  'Clothing & Accessories', 'Electronics', 'Office Supplies', 'Home Goods',
+  'Books', 'Sporting Goods', 'General Merchandise',
+  // Health & Wellness
+  'Health Insurance', 'Medical & Dental', 'Pharmacy', 'Fitness & Gym',
+  'Mental Health', 'Vision & Eye Care',
+  // Entertainment
+  'Movies & Theater', 'Music & Concerts', 'Gaming', 'Streaming Services',
+  'Sports & Outdoors', 'Hobbies',
+  // Personal
+  'Personal Care & Beauty', 'Haircuts & Salon', 'Laundry & Dry Cleaning',
+  // Education
+  'Tuition & School Fees', 'Books & Supplies', 'Online Courses',
+  // Kids & Family
+  'Childcare', 'Kids Activities', 'Baby & Kids Supplies',
+  // Pets
+  'Pet Food & Supplies', 'Veterinary', 'Pet Services',
+  // Travel
+  'Flights', 'Hotels & Lodging', 'Rental Cars', 'Travel Activities', 'Travel Insurance',
+  // Financial
+  'Fees & Charges', 'Interest & Finance Charges', 'Taxes', 'Investments', 'Savings',
+  // Gifts & Giving
+  'Gifts', 'Charitable Donations',
+  // Income & Transfers
+  'Salary & Wages', 'Freelance Income', 'Refund', 'Transfer', 'ATM Withdrawal',
+  // Other
+  'Other',
 ] as const
 
 export const VALID_DOCUMENT_TYPES = [

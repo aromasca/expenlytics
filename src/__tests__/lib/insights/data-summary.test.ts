@@ -42,8 +42,8 @@ describe('buildDataSummary', () => {
     insertTxn(db, monthsAgo(0), 'Whole Foods', 150, 'Groceries')
     insertTxn(db, monthsAgo(0), 'Trader Joes', 80, 'Groceries')
     insertTxn(db, monthsAgo(1), 'Whole Foods', 100, 'Groceries')
-    insertTxn(db, monthsAgo(0), 'Netflix', 15, 'Subscriptions')
-    insertTxn(db, monthsAgo(1), 'Netflix', 15, 'Subscriptions')
+    insertTxn(db, monthsAgo(0), 'Netflix', 15, 'Streaming Services')
+    insertTxn(db, monthsAgo(1), 'Netflix', 15, 'Streaming Services')
 
     const summary = buildDataSummary(db)
     expect(summary.metadata.transaction_count).toBe(5)

@@ -116,7 +116,7 @@ describe('transactions', () => {
     ])
     const categories = getAllCategories(db)
     const groceries = categories.find(c => c.name === 'Groceries')!
-    const shopping = categories.find(c => c.name === 'Shopping')!
+    const shopping = categories.find(c => c.name === 'General Merchandise')!
 
     // Manually override Store A
     const txns = listTransactions(db, {})
@@ -134,7 +134,7 @@ describe('transactions', () => {
     const updatedA = updated.transactions.find(t => t.description === 'Store A')!
     const updatedB = updated.transactions.find(t => t.description === 'Store B')!
     expect(updatedA.category_name).toBe('Groceries') // preserved manual override
-    expect(updatedB.category_name).toBe('Shopping')   // updated
+    expect(updatedB.category_name).toBe('General Merchandise')   // updated
   })
 
   it('deletes a single transaction', () => {
@@ -207,7 +207,7 @@ describe('transactions', () => {
     ])
     const categories = getAllCategories(db)
     const groceries = categories.find(c => c.name === 'Groceries')!
-    const shopping = categories.find(c => c.name === 'Shopping')!
+    const shopping = categories.find(c => c.name === 'General Merchandise')!
     const txns = listTransactions(db, {})
     updateTransactionCategory(db, txns.transactions[0].id, groceries.id)
     updateTransactionCategory(db, txns.transactions[1].id, shopping.id)
