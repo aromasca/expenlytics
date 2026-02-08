@@ -187,6 +187,32 @@ export function getSpendingTrend(db: Database.Database, filters: ReportFilters):
   `).all(params) as SpendingTrendRow[]
 }
 
+export interface SankeyRow {
+  category: string
+  category_group: string
+  color: string
+  amount: number
+}
+
+export function getSankeyData(db: Database.Database, filters: ReportFilters): SankeyRow[] {
+  const debitFilters = { ...filters, type: 'debit' as const }
+  const { where, params } = buildWhere(debitFilters)
+
+  return db.prepare(`
+    SELECT
+      COALESCE(c.name, 'Uncategorized') as category,
+      COALESCE(c.category_group, 'Other') as category_group,
+      COALESCE(c.color, '#9CA3AF') as color,
+      SUM(t.amount) as amount
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    ${where}
+    GROUP BY t.category_id
+    HAVING amount > 0
+    ORDER BY amount DESC
+  `).all(params) as SankeyRow[]
+}
+
 export function getTopTransactions(
   db: Database.Database,
   filters: ReportFilters,

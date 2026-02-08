@@ -10,6 +10,7 @@ import {
   getCategoryBreakdown,
   getSpendingTrend,
   getTopTransactions,
+  getSankeyData,
 } from '@/lib/db/reports'
 import type { ReportFilters } from '@/lib/db/reports'
 
@@ -120,6 +121,29 @@ describe('reports', () => {
       const data = getTopTransactions(db, { start_date: '2025-02-01', end_date: '2025-03-31' }, 10)
       expect(data).toHaveLength(3)
       expect(data[0].amount).toBe(200)
+    })
+  })
+
+  describe('getSankeyData', () => {
+    it('returns spending grouped by category_group and category', () => {
+      const result = getSankeyData(db, {})
+      expect(result.length).toBeGreaterThan(0)
+      expect(result[0]).toHaveProperty('category')
+      expect(result[0]).toHaveProperty('category_group')
+      expect(result[0]).toHaveProperty('amount')
+    })
+
+    it('only includes debit transactions', () => {
+      const result = getSankeyData(db, {})
+      const totalFromSankey = result.reduce((sum, r) => sum + r.amount, 0)
+      const summary = getSpendingSummary(db, {})
+      expect(totalFromSankey).toBeCloseTo(summary.totalSpent, 2)
+    })
+
+    it('respects date filters', () => {
+      const all = getSankeyData(db, {})
+      const filtered = getSankeyData(db, { start_date: '2025-01-01', end_date: '2025-01-31' })
+      expect(filtered.length).toBeLessThanOrEqual(all.length)
     })
   })
 })
