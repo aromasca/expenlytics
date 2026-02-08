@@ -32,3 +32,16 @@ export function getRecurringCharges(db: Database.Database, filters: RecurringFil
 
   return detectRecurringGroups(rows)
 }
+
+export function getDismissedMerchants(db: Database.Database): Set<string> {
+  const rows = db.prepare('SELECT normalized_merchant FROM dismissed_subscriptions').all() as Array<{ normalized_merchant: string }>
+  return new Set(rows.map(r => r.normalized_merchant))
+}
+
+export function dismissMerchant(db: Database.Database, merchant: string): void {
+  db.prepare('INSERT OR IGNORE INTO dismissed_subscriptions (normalized_merchant) VALUES (?)').run(merchant)
+}
+
+export function restoreMerchant(db: Database.Database, merchant: string): void {
+  db.prepare('DELETE FROM dismissed_subscriptions WHERE normalized_merchant = ?').run(merchant)
+}

@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RecurringChargesTable } from '@/components/recurring-charges-table'
-import { RefreshCw, DollarSign, TrendingUp } from 'lucide-react'
+import { RefreshCw, DollarSign, TrendingUp, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react'
 
 interface RecurringGroup {
   merchantName: string
@@ -23,6 +23,7 @@ interface RecurringGroup {
 
 interface RecurringData {
   groups: RecurringGroup[]
+  dismissedGroups: RecurringGroup[]
   summary: {
     totalSubscriptions: number
     totalMonthly: number
@@ -53,6 +54,7 @@ export default function SubscriptionsPage() {
   const [data, setData] = useState<RecurringData | null>(null)
   const [loading, setLoading] = useState(true)
   const [normalizing, setNormalizing] = useState(false)
+  const [dismissedExpanded, setDismissedExpanded] = useState(false)
 
   const fetchData = () => {
     setLoading(true)
@@ -109,6 +111,56 @@ export default function SubscriptionsPage() {
         fetchData()
       })
       .catch(() => { setNormalizing(false) })
+  }
+
+  const handleDismiss = (merchantName: string) => {
+    if (!data) return
+    // Optimistic update
+    const group = data.groups.find(g => g.merchantName === merchantName)
+    if (!group) return
+    const newGroups = data.groups.filter(g => g.merchantName !== merchantName)
+    const newDismissed = [...data.dismissedGroups, group]
+    const totalMonthly = newGroups.reduce((sum, g) => sum + g.estimatedMonthlyAmount, 0)
+    setData({
+      groups: newGroups,
+      dismissedGroups: newDismissed,
+      summary: {
+        totalSubscriptions: newGroups.length,
+        totalMonthly: Math.round(totalMonthly * 100) / 100,
+        totalYearly: Math.round(totalMonthly * 12 * 100) / 100,
+      },
+    })
+
+    fetch('/api/recurring/dismiss', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ merchant: merchantName }),
+    }).catch(() => { fetchData() })
+  }
+
+  const handleRestore = (merchantName: string) => {
+    if (!data) return
+    // Optimistic update
+    const group = data.dismissedGroups.find(g => g.merchantName === merchantName)
+    if (!group) return
+    const newDismissed = data.dismissedGroups.filter(g => g.merchantName !== merchantName)
+    const newGroups = [...data.groups, group]
+    const totalMonthly = newGroups.reduce((sum, g) => sum + g.estimatedMonthlyAmount, 0)
+    setData({
+      groups: newGroups,
+      dismissedGroups: newDismissed,
+      summary: {
+        totalSubscriptions: newGroups.length,
+        totalMonthly: Math.round(totalMonthly * 100) / 100,
+        totalYearly: Math.round(totalMonthly * 12 * 100) / 100,
+      },
+    })
+
+    fetch('/api/recurring/dismiss', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ merchant: merchantName }),
+    }).catch(() => { fetchData() })
   }
 
   return (
@@ -193,7 +245,43 @@ export default function SubscriptionsPage() {
             </Card>
           </div>
 
-          <RecurringChargesTable groups={data.groups} />
+          <RecurringChargesTable groups={data.groups} onDismiss={handleDismiss} />
+
+          {/* Dismissed section */}
+          {data.dismissedGroups.length > 0 && (
+            <Card className="p-4">
+              <button
+                className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-700 w-full text-left"
+                onClick={() => setDismissedExpanded(e => !e)}
+              >
+                {dismissedExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                Dismissed ({data.dismissedGroups.length})
+              </button>
+              {dismissedExpanded && (
+                <div className="mt-3 space-y-2">
+                  {data.dismissedGroups.map(group => (
+                    <div key={group.merchantName} className="flex items-center justify-between py-2 px-3 rounded-md bg-gray-50 dark:bg-gray-800/50">
+                      <div className="text-sm">
+                        <span className="font-medium">{group.merchantName}</span>
+                        <span className="text-gray-400 ml-2">
+                          {group.occurrences} charges · ${group.estimatedMonthlyAmount.toFixed(2)}/mo
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-gray-400 hover:text-blue-500"
+                        onClick={() => handleRestore(group.merchantName)}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                        Restore
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
         </>
       ) : null}
     </div>

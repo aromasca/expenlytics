@@ -109,6 +109,15 @@ export function initializeSchema(db: Database.Database): void {
     )
   `)
 
+  // Dismissed subscriptions table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS dismissed_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      normalized_merchant TEXT NOT NULL UNIQUE,
+      dismissed_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
+
   // Seed or update categories
   const count = db.prepare('SELECT COUNT(*) as count FROM categories').get() as { count: number }
   if (count.count === 0) {

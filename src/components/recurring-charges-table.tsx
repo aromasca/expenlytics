@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { X } from 'lucide-react'
 
 interface RecurringGroup {
   merchantName: string
@@ -22,6 +23,7 @@ interface RecurringGroup {
 
 interface RecurringChargesTableProps {
   groups: RecurringGroup[]
+  onDismiss?: (merchantName: string) => void
 }
 
 const FREQUENCY_LABELS: Record<string, string> = {
@@ -42,7 +44,7 @@ const FREQUENCY_COLORS: Record<string, string> = {
 
 const PAGE_SIZE = 20
 
-export function RecurringChargesTable({ groups }: RecurringChargesTableProps) {
+export function RecurringChargesTable({ groups, onDismiss }: RecurringChargesTableProps) {
   const [page, setPage] = useState(0)
   const totalPages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE))
   const effectivePage = Math.min(page, totalPages - 1)
@@ -69,6 +71,7 @@ export function RecurringChargesTable({ groups }: RecurringChargesTableProps) {
                 <TableHead className="text-right">Monthly Est.</TableHead>
                 <TableHead className="text-center">Charges</TableHead>
                 <TableHead>Last Charge</TableHead>
+                {onDismiss && <TableHead className="w-10"></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -115,6 +118,19 @@ export function RecurringChargesTable({ groups }: RecurringChargesTableProps) {
                   <TableCell className="text-sm text-gray-500">
                     {group.lastDate}
                   </TableCell>
+                  {onDismiss && (
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-gray-400 hover:text-red-500"
+                        title="Not a subscription"
+                        onClick={() => onDismiss(group.merchantName)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
