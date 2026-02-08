@@ -38,14 +38,6 @@ const FREQUENCY_LABELS: Record<string, string> = {
   irregular: 'Irregular',
 }
 
-const FREQUENCY_COLORS: Record<string, string> = {
-  weekly: '#3B82F6',
-  monthly: '#22C55E',
-  quarterly: '#F97316',
-  yearly: '#A855F7',
-  irregular: '#6B7280',
-}
-
 const PAGE_SIZE = 20
 
 export function RecurringChargesTable({ groups, onDismiss, selectable, selectedMerchants, onSelectionChange }: RecurringChargesTableProps) {
@@ -75,99 +67,63 @@ export function RecurringChargesTable({ groups, onDismiss, selectable, selectedM
   }
 
   return (
-    <Card className="p-4">
-      <h3 className="text-sm font-medium text-gray-500 mb-4">
-        Detected Recurring Charges ({groups.length})
+    <Card className="p-3">
+      <h3 className="text-xs font-medium text-muted-foreground mb-2">
+        Detected ({groups.length})
       </h3>
       {groups.length === 0 ? (
-        <p className="text-center text-gray-400 py-8">
-          No recurring charges detected. Upload more statements to improve detection.
+        <p className="text-center text-muted-foreground py-6 text-xs">
+          No recurring charges detected.
         </p>
       ) : (
         <>
           <Table>
             <TableHeader>
-              <TableRow>
+              <TableRow className="hover:bg-transparent">
                 {selectable && (
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={allPageSelected}
-                      onCheckedChange={toggleAll}
-                    />
+                  <TableHead className="w-8 py-1.5">
+                    <Checkbox checked={allPageSelected} onCheckedChange={toggleAll} />
                   </TableHead>
                 )}
-                <TableHead>Merchant</TableHead>
-                <TableHead>Frequency</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-right">Avg Charge</TableHead>
-                <TableHead className="text-right">Monthly Est.</TableHead>
-                <TableHead className="text-center">Charges</TableHead>
-                <TableHead>Last Charge</TableHead>
-                {onDismiss && <TableHead className="w-10"></TableHead>}
+                <TableHead className="py-1.5 text-xs">Merchant</TableHead>
+                <TableHead className="py-1.5 text-xs">Freq</TableHead>
+                <TableHead className="py-1.5 text-xs">Category</TableHead>
+                <TableHead className="py-1.5 text-xs text-right">Avg</TableHead>
+                <TableHead className="py-1.5 text-xs text-right">Monthly</TableHead>
+                <TableHead className="py-1.5 text-xs text-center">#</TableHead>
+                <TableHead className="py-1.5 text-xs">Last</TableHead>
+                {onDismiss && <TableHead className="w-8 py-1.5"></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {paged.map((group) => (
                 <TableRow key={group.merchantName}>
                   {selectable && (
-                    <TableCell>
-                      <Checkbox
-                        checked={selected.has(group.merchantName)}
-                        onCheckedChange={() => toggleOne(group.merchantName)}
-                      />
+                    <TableCell className="py-1.5">
+                      <Checkbox checked={selected.has(group.merchantName)} onCheckedChange={() => toggleOne(group.merchantName)} />
                     </TableCell>
                   )}
-                  <TableCell className="font-medium text-sm">
-                    {group.merchantName}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      style={{
-                        borderColor: FREQUENCY_COLORS[group.frequency],
-                        color: FREQUENCY_COLORS[group.frequency],
-                      }}
-                    >
+                  <TableCell className="py-1.5 text-xs font-medium">{group.merchantName}</TableCell>
+                  <TableCell className="py-1.5">
+                    <Badge variant="outline" className="text-[11px] px-1.5 py-0">
                       {FREQUENCY_LABELS[group.frequency]}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-gray-500">
+                  <TableCell className="py-1.5 text-xs text-muted-foreground">
                     {group.category ? (
-                      <Badge
-                        variant="outline"
-                        style={{
-                          borderColor: group.categoryColor ?? undefined,
-                          color: group.categoryColor ?? undefined,
-                        }}
-                      >
+                      <Badge variant="outline" className="text-[11px] px-1.5 py-0" style={{ borderColor: group.categoryColor ?? undefined, color: group.categoryColor ?? undefined }}>
                         {group.category}
                       </Badge>
-                    ) : (
-                      'Uncategorized'
-                    )}
+                    ) : '—'}
                   </TableCell>
-                  <TableCell className="text-right text-sm">
-                    ${group.avgAmount.toFixed(2)}
-                  </TableCell>
-                  <TableCell className="text-right text-sm font-medium">
-                    ${group.estimatedMonthlyAmount.toFixed(2)}
-                  </TableCell>
-                  <TableCell className="text-center text-sm text-gray-500">
-                    {group.occurrences}
-                  </TableCell>
-                  <TableCell className="text-sm text-gray-500">
-                    {group.lastDate}
-                  </TableCell>
+                  <TableCell className="py-1.5 text-xs text-right tabular-nums">${group.avgAmount.toFixed(2)}</TableCell>
+                  <TableCell className="py-1.5 text-xs text-right tabular-nums font-medium">${group.estimatedMonthlyAmount.toFixed(2)}</TableCell>
+                  <TableCell className="py-1.5 text-xs text-center tabular-nums text-muted-foreground">{group.occurrences}</TableCell>
+                  <TableCell className="py-1.5 text-xs tabular-nums text-muted-foreground">{group.lastDate}</TableCell>
                   {onDismiss && (
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 text-gray-400 hover:text-red-500"
-                        title="Not a subscription"
-                        onClick={() => onDismiss(group.merchantName)}
-                      >
-                        <X className="h-4 w-4" />
+                    <TableCell className="py-1.5">
+                      <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive" title="Dismiss" onClick={() => onDismiss(group.merchantName)}>
+                        <X className="h-3 w-3" />
                       </Button>
                     </TableCell>
                   )}
@@ -176,17 +132,13 @@ export function RecurringChargesTable({ groups, onDismiss, selectable, selectedM
             </TableBody>
           </Table>
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-3">
-              <span className="text-xs text-gray-500">
-                {effectivePage * PAGE_SIZE + 1}–{Math.min((effectivePage + 1) * PAGE_SIZE, groups.length)} of {groups.length}
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                {effectivePage * PAGE_SIZE + 1}&ndash;{Math.min((effectivePage + 1) * PAGE_SIZE, groups.length)} of {groups.length}
               </span>
               <div className="flex gap-1">
-                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
-                  Previous
-                </Button>
-                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
-                  Next
-                </Button>
+                <Button variant="ghost" size="sm" className="h-6 text-xs" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Prev</Button>
+                <Button variant="ghost" size="sm" className="h-6 text-xs" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Next</Button>
               </div>
             </div>
           )}

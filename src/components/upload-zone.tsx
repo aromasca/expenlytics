@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { Upload } from 'lucide-react'
 
 interface UploadZoneProps {
   onUploadComplete: () => void
@@ -54,27 +54,27 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
   }, [handleUpload])
 
   return (
-    <Card
-      className={`border-2 border-dashed p-8 text-center transition-colors ${
-        isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+    <div
+      className={`border border-dashed rounded-lg px-4 py-3 flex items-center justify-between transition-colors ${
+        isDragging ? 'border-foreground bg-muted' : 'border-border'
       }`}
       onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
       onDragLeave={() => setIsDragging(false)}
       onDrop={handleDrop}
     >
-      <div className="space-y-4">
-        <p className="text-lg font-medium">
-          {isUploading ? 'Processing...' : 'Drop your bank statement PDF here'}
-        </p>
-        <p className="text-sm text-gray-500">or</p>
-        <Button variant="outline" disabled={isUploading} asChild>
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Upload className="h-4 w-4" />
+        {isUploading ? 'Processing...' : 'Drop PDF here'}
+      </div>
+      <div className="flex items-center gap-2">
+        {error && <span className="text-xs text-destructive">{error}</span>}
+        <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={isUploading} asChild>
           <label className="cursor-pointer">
-            Browse files
+            Browse
             <input type="file" accept=".pdf" className="hidden" onChange={handleFileInput} />
           </label>
         </Button>
-        {error && <p className="text-sm text-red-500">{error}</p>}
       </div>
-    </Card>
+    </div>
   )
 }

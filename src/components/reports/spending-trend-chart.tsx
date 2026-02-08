@@ -12,56 +12,31 @@ export function SpendingTrendChart({ data }: SpendingTrendChartProps) {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
 
-  // Theme-aware colors with explicit values for better Recharts compatibility
-  const textColor = isDark ? '#FAF5F2' : '#3D2520'
-  const gridColor = isDark ? '#594D49' : '#F4E5E0'
-  const cardBg = isDark ? '#3A2A26' : '#FFFFFF'
+  const textColor = isDark ? '#A1A1AA' : '#737373'
+  const gridColor = isDark ? '#27272A' : '#E5E5E5'
+  const cardBg = isDark ? '#111113' : '#FFFFFF'
+  const fgColor = isDark ? '#FAFAFA' : '#0A0A0A'
 
   return (
-    <Card className="p-4">
-      <h3 className="text-sm font-medium text-muted-foreground mb-4">Spending Trend</h3>
+    <Card className="p-3">
+      <h3 className="text-xs font-medium text-muted-foreground mb-3">Spending Trend</h3>
       {data.length === 0 ? (
-        <p className="text-center text-muted-foreground py-8">No data</p>
+        <p className="text-center text-muted-foreground py-6 text-xs">No data</p>
       ) : (
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={240}>
           <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-            <XAxis
-              dataKey="period"
-              fontSize={12}
-              stroke={textColor}
-              tick={{ fill: textColor }}
-              axisLine={{ stroke: textColor }}
-            />
-            <YAxis
-              fontSize={12}
-              tickFormatter={(v) => `$${v}`}
-              stroke={textColor}
-              tick={{ fill: textColor }}
-              axisLine={{ stroke: textColor }}
-            />
+            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+            <XAxis dataKey="period" fontSize={11} stroke={textColor} tick={{ fill: textColor }} axisLine={false} tickLine={false} />
+            <YAxis fontSize={11} tickFormatter={(v) => `$${v}`} stroke={textColor} tick={{ fill: textColor }} axisLine={false} tickLine={false} />
             <Tooltip
               formatter={(value) => `$${Number(value).toFixed(2)}`}
-              contentStyle={{
-                backgroundColor: cardBg,
-                border: `1px solid ${gridColor}`,
-                borderRadius: '8px',
-                color: textColor
-              }}
-              labelStyle={{
-                color: textColor
-              }}
-              itemStyle={{
-                color: textColor
-              }}
+              contentStyle={{ backgroundColor: cardBg, border: `1px solid ${gridColor}`, borderRadius: '6px', fontSize: '12px', color: fgColor }}
+              labelStyle={{ color: fgColor }}
+              itemStyle={{ color: fgColor }}
             />
-            <Legend
-              wrapperStyle={{
-                color: textColor
-              }}
-            />
-            <Line type="monotone" dataKey="debits" stroke="var(--chart-1)" name="Spending" strokeWidth={2} />
-            <Line type="monotone" dataKey="credits" stroke="var(--chart-2)" name="Income" strokeWidth={2} />
+            <Legend wrapperStyle={{ color: textColor, fontSize: '12px' }} />
+            <Line type="monotone" dataKey="debits" stroke={fgColor} name="Spending" strokeWidth={1.5} dot={false} />
+            <Line type="monotone" dataKey="credits" stroke={isDark ? '#34D399' : '#10B981'} name="Income" strokeWidth={1.5} dot={false} />
           </LineChart>
         </ResponsiveContainer>
       )}

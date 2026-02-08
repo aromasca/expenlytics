@@ -70,41 +70,37 @@ export default function InsightsPage() {
   const hasAny = llmInsights.length > 0 || hasStats
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-8">
+    <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Insights</h1>
-          <p className="text-sm text-muted-foreground">
-            AI-powered financial analysis
-          </p>
-        </div>
+        <h1 className="text-lg font-semibold">Insights</h1>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
+          className="h-7 text-xs text-muted-foreground"
           onClick={fetchInsights}
           disabled={loading}
         >
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
 
       {loading && !data && (
-        <div className="flex items-center justify-center py-20">
-          <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="flex items-center justify-center py-16">
+          <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       )}
 
       {!loading && !hasAny && (
-        <div className="text-center py-20 space-y-3">
-          <p className="text-lg font-medium">No insights yet</p>
-          <p className="text-sm text-muted-foreground">
-            Upload some bank statements to start seeing spending patterns and trends.
+        <div className="text-center py-16 space-y-2">
+          <p className="text-sm font-medium">No insights yet</p>
+          <p className="text-xs text-muted-foreground">
+            Upload bank statements to see spending patterns.
           </p>
           <Link href="/transactions">
-            <Button variant="outline" className="mt-4">
-              <Receipt className="h-4 w-4 mr-2" />
-              Go to Transactions
+            <Button variant="outline" size="sm" className="mt-3">
+              <Receipt className="h-3.5 w-3.5 mr-1.5" />
+              Transactions
             </Button>
           </Link>
         </div>
@@ -112,7 +108,6 @@ export default function InsightsPage() {
 
       {data && hasAny && (
         <>
-          {/* LLM Insights — paginated, 3 per page */}
           {llmInsights.length > 0 && (() => {
             const pageSize = 3
             const pageCount = Math.ceil(llmInsights.length / pageSize)
@@ -120,48 +115,48 @@ export default function InsightsPage() {
             const visible = llmInsights.slice(page * pageSize, page * pageSize + pageSize)
             return (
               <section>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className="h-6 w-6"
                       disabled={page === 0}
                       onClick={() => setCarouselIndex((i) => i - 1)}
                     >
-                      <ChevronLeft className="h-4 w-4" />
+                      <ChevronLeft className="h-3.5 w-3.5" />
                     </Button>
-                    <span className="text-sm text-muted-foreground tabular-nums">
-                      {page * pageSize + 1}&ndash;{Math.min((page + 1) * pageSize, llmInsights.length)} of {llmInsights.length}
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {page * pageSize + 1}&ndash;{Math.min((page + 1) * pageSize, llmInsights.length)} / {llmInsights.length}
                     </span>
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="icon"
-                      className="h-8 w-8"
+                      className="h-6 w-6"
                       disabled={page >= pageCount - 1}
                       onClick={() => setCarouselIndex((i) => i + 1)}
                     >
-                      <ChevronRight className="h-4 w-4" />
+                      <ChevronRight className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                   {(data.dismissedCount ?? 0) > 0 && (
                     <button
                       onClick={handleClearDismissals}
-                      className="text-xs text-muted-foreground hover:text-foreground underline"
+                      className="text-xs text-muted-foreground hover:text-foreground"
                     >
-                      {data.dismissedCount} dismissed &mdash; reset
+                      {data.dismissedCount} dismissed
                     </button>
                   )}
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {visible.map((insight) => (
-                    <div key={insight.id} className="relative">
+                    <div key={insight.id} className="relative group">
                       <button
                         onClick={() => handleDismiss(insight.id)}
-                        className="absolute top-3 right-3 z-10 p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
-                        title="Dismiss this insight"
+                        className="absolute top-2 right-2 z-10 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                        title="Dismiss"
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-3.5 w-3.5" />
                       </button>
                       <InsightCardComponent
                         insight={insight}
@@ -175,31 +170,26 @@ export default function InsightsPage() {
             )
           })()}
 
-          {/* Dismissed count when no LLM insights left */}
           {llmInsights.length === 0 && (data.dismissedCount ?? 0) > 0 && (
-            <div className="text-center py-8 text-sm text-muted-foreground">
-              All AI insights dismissed.{' '}
-              <button
-                onClick={handleClearDismissals}
-                className="underline hover:text-foreground"
-              >
-                Reset {data.dismissedCount} dismissed
+            <div className="text-center py-6 text-xs text-muted-foreground">
+              All dismissed.{' '}
+              <button onClick={handleClearDismissals} className="underline hover:text-foreground">
+                Reset
               </button>
             </div>
           )}
 
-          {/* Statistical Analysis — collapsible */}
           {hasStats && (
             <section>
               <button
                 onClick={() => setStatsOpen((o) => !o)}
-                className="flex items-center gap-2 w-full text-left"
+                className="flex items-center gap-1.5 w-full text-left"
               >
-                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${statsOpen ? '' : '-rotate-90'}`} />
-                <h2 className="text-lg font-semibold">Statistical Analysis</h2>
+                <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${statsOpen ? '' : '-rotate-90'}`} />
+                <h2 className="text-sm font-medium">Statistical Analysis</h2>
               </button>
               {statsOpen && (
-                <div className="mt-4">
+                <div className="mt-3">
                   <InsightGrid
                     categoryTrends={data.categoryTrends}
                     lifestyleInflation={data.lifestyleInflation}
@@ -213,32 +203,29 @@ export default function InsightsPage() {
             </section>
           )}
 
-          {/* Quick Actions */}
-          <section className="pt-4 border-t">
-            <div className="flex flex-wrap gap-3">
-              <Link href="/reports">
-                <Button variant="outline" size="sm">
-                  <BarChart3 className="h-4 w-4 mr-2" />
-                  Reports
-                </Button>
-              </Link>
-              <Link href="/transactions">
-                <Button variant="outline" size="sm">
-                  <Receipt className="h-4 w-4 mr-2" />
-                  Transactions
-                </Button>
-              </Link>
-              <Link href="/subscriptions">
-                <Button variant="outline" size="sm">
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Subscriptions
-                </Button>
-              </Link>
-            </div>
+          <section className="pt-3 border-t flex flex-wrap items-center gap-2">
+            <Link href="/reports">
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
+                <BarChart3 className="h-3.5 w-3.5 mr-1" />
+                Reports
+              </Button>
+            </Link>
+            <Link href="/transactions">
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
+                <Receipt className="h-3.5 w-3.5 mr-1" />
+                Transactions
+              </Button>
+            </Link>
+            <Link href="/subscriptions">
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
+                <CreditCard className="h-3.5 w-3.5 mr-1" />
+                Recurring
+              </Button>
+            </Link>
             {data.generatedAt && (
-              <p className="text-xs text-muted-foreground mt-3">
-                Last updated: {new Date(data.generatedAt).toLocaleString()}
-              </p>
+              <span className="text-[11px] text-muted-foreground ml-auto tabular-nums">
+                {new Date(data.generatedAt).toLocaleString()}
+              </span>
             )}
           </section>
         </>

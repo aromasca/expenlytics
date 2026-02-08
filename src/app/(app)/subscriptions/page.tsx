@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { RecurringChargesTable } from '@/components/recurring-charges-table'
-import { RefreshCw, DollarSign, TrendingUp, ChevronDown, ChevronRight, RotateCcw, Merge } from 'lucide-react'
+import { RefreshCw, ChevronDown, ChevronRight, RotateCcw, Merge } from 'lucide-react'
 
 interface RecurringGroup {
   merchantName: string
@@ -199,92 +199,56 @@ export default function SubscriptionsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Subscriptions & Recurring</h2>
-          <p className="text-gray-500 text-sm mt-1">
-            Automatically detected recurring charges from your statements
-          </p>
-        </div>
+        <h2 className="text-lg font-semibold">Recurring</h2>
         <div className="flex items-center gap-2">
           {selectedMerchants.size >= 2 && (
-            <Button variant="default" size="sm" onClick={openMergeDialog}>
-              <Merge className="h-4 w-4 mr-1" />
-              Merge {selectedMerchants.size} Merchants
+            <Button size="sm" className="h-7 text-xs" onClick={openMergeDialog}>
+              <Merge className="h-3.5 w-3.5 mr-1" />
+              Merge {selectedMerchants.size}
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={handleNormalize} disabled={normalizing}>
-            {normalizing ? 'Analyzing...' : 'Re-analyze Merchants'}
+          <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={handleNormalize} disabled={normalizing}>
+            {normalizing ? 'Analyzing...' : 'Re-analyze'}
           </Button>
         </div>
       </div>
 
-      {/* Date filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-500">From</label>
-          <Input
-            type="date"
-            value={startDate}
-            onChange={e => setStartDate(e.target.value)}
-            className="w-40"
-          />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">From</span>
+          <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-32 h-8 text-xs" />
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-500">To</label>
-          <Input
-            type="date"
-            value={endDate}
-            onChange={e => setEndDate(e.target.value)}
-            className="w-40"
-          />
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">To</span>
+          <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-32 h-8 text-xs" />
         </div>
         <div className="flex gap-1">
-          <Button variant="outline" size="sm" onClick={() => applyPreset('last12Months')}>Last 12mo</Button>
-          <Button variant="outline" size="sm" onClick={() => applyPreset('thisYear')}>This year</Button>
-          <Button variant="outline" size="sm" onClick={() => applyPreset('all')}>All time</Button>
+          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => applyPreset('last12Months')}>12mo</Button>
+          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => applyPreset('thisYear')}>YTD</Button>
+          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => applyPreset('all')}>All</Button>
         </div>
       </div>
 
       {loading ? (
-        <p className="text-center text-gray-400 py-8">Loading...</p>
+        <div className="flex justify-center py-8">
+          <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+        </div>
       ) : data ? (
         <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-full bg-blue-50 p-2">
-                  <RefreshCw className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Recurring Charges</p>
-                  <p className="text-2xl font-bold">{data.summary.totalSubscriptions}</p>
-                </div>
-              </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Card className="p-3">
+              <p className="text-xs text-muted-foreground">Recurring</p>
+              <p className="text-xl font-semibold tabular-nums mt-0.5">{data.summary.totalSubscriptions}</p>
             </Card>
-            <Card className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-full bg-red-50 p-2">
-                  <DollarSign className="h-5 w-5 text-red-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Est. Monthly Cost</p>
-                  <p className="text-2xl font-bold">${data.summary.totalMonthly.toFixed(2)}</p>
-                </div>
-              </div>
+            <Card className="p-3">
+              <p className="text-xs text-muted-foreground">Monthly</p>
+              <p className="text-xl font-semibold tabular-nums mt-0.5">${data.summary.totalMonthly.toFixed(2)}</p>
             </Card>
-            <Card className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-full bg-purple-50 p-2">
-                  <TrendingUp className="h-5 w-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Est. Yearly Cost</p>
-                  <p className="text-2xl font-bold">${data.summary.totalYearly.toFixed(2)}</p>
-                </div>
-              </div>
+            <Card className="p-3">
+              <p className="text-xs text-muted-foreground">Yearly</p>
+              <p className="text-xl font-semibold tabular-nums mt-0.5">${data.summary.totalYearly.toFixed(2)}</p>
             </Card>
           </div>
 
@@ -296,94 +260,69 @@ export default function SubscriptionsPage() {
             onSelectionChange={setSelectedMerchants}
           />
 
-          {/* Dismissed section */}
           {data.dismissedGroups.length > 0 && (
-            <Card className="p-4">
+            <div className="border rounded-lg">
               <button
-                className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-700 w-full text-left"
+                className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground hover:text-foreground w-full text-left"
                 onClick={() => setDismissedExpanded(e => !e)}
               >
-                {dismissedExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                {dismissedExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                 Dismissed ({data.dismissedGroups.length})
               </button>
               {dismissedExpanded && (
-                <div className="mt-3 space-y-2">
+                <div className="px-3 pb-2 space-y-1">
                   {data.dismissedGroups.map(group => (
-                    <div key={group.merchantName} className="flex items-center justify-between py-2 px-3 rounded-md bg-gray-50 dark:bg-gray-800/50">
-                      <div className="text-sm">
+                    <div key={group.merchantName} className="flex items-center justify-between py-1.5 px-2 rounded text-xs bg-muted/50">
+                      <div>
                         <span className="font-medium">{group.merchantName}</span>
-                        <span className="text-gray-400 ml-2">
-                          {group.occurrences} charges · ${group.estimatedMonthlyAmount.toFixed(2)}/mo
+                        <span className="text-muted-foreground ml-2">
+                          {group.occurrences}x &middot; ${group.estimatedMonthlyAmount.toFixed(2)}/mo
                         </span>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-gray-400 hover:text-blue-500"
+                        className="h-6 text-xs text-muted-foreground"
                         onClick={() => handleRestore(group.merchantName)}
                       >
-                        <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                        <RotateCcw className="h-3 w-3 mr-1" />
                         Restore
                       </Button>
                     </div>
                   ))}
                 </div>
               )}
-            </Card>
+            </div>
           )}
         </>
       ) : null}
 
-      {/* Merge Dialog */}
       <Dialog open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Merge Merchants</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-gray-500 mb-3">
-            Choose which merchant name to keep. All transactions will be updated to use the selected name.
+          <p className="text-xs text-muted-foreground mb-3">
+            Choose which merchant name to keep.
           </p>
-          <div className="space-y-2">
+          <div className="space-y-1">
             {Array.from(selectedMerchants).map(name => (
-              <label key={name} className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
-                <input
-                  type="radio"
-                  name="mergeTarget"
-                  value={name}
-                  checked={mergeTarget === name}
-                  onChange={() => setMergeTarget(name)}
-                  className="accent-blue-600"
-                />
-                <span className="text-sm font-medium">{name}</span>
+              <label key={name} className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer text-sm">
+                <input type="radio" name="mergeTarget" value={name} checked={mergeTarget === name} onChange={() => setMergeTarget(name)} />
+                {name}
               </label>
             ))}
-            <label className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
-              <input
-                type="radio"
-                name="mergeTarget"
-                value="__custom__"
-                checked={mergeTarget === '__custom__'}
-                onChange={() => setMergeTarget('__custom__')}
-                className="accent-blue-600"
-              />
-              <span className="text-sm">Custom name:</span>
+            <label className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer text-sm">
+              <input type="radio" name="mergeTarget" value="__custom__" checked={mergeTarget === '__custom__'} onChange={() => setMergeTarget('__custom__')} />
+              Custom name
             </label>
             {mergeTarget === '__custom__' && (
-              <Input
-                value={customTarget}
-                onChange={e => setCustomTarget(e.target.value)}
-                placeholder="Enter merchant name"
-                className="ml-6"
-                autoFocus
-              />
+              <Input value={customTarget} onChange={e => setCustomTarget(e.target.value)} placeholder="Merchant name" className="ml-6 h-8 text-sm" autoFocus />
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMergeDialogOpen(false)}>Cancel</Button>
-            <Button
-              onClick={handleMerge}
-              disabled={merging || (mergeTarget === '__custom__' && !customTarget.trim())}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setMergeDialogOpen(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleMerge} disabled={merging || (mergeTarget === '__custom__' && !customTarget.trim())}>
               {merging ? 'Merging...' : 'Merge'}
             </Button>
           </DialogFooter>

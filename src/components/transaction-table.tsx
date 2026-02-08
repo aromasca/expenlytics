@@ -64,13 +64,11 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
     return () => { cancelled = true }
   }, [])
 
-  // Reset page and selection when filters or refreshKey change
   useEffect(() => {
     setPage(0)
     setSelected(new Set())
   }, [filters, refreshKey])
 
-  // Fetch transactions
   const fetchTransactions = useCallback(async (currentPage: number) => {
     const params = buildParams(filters, currentPage)
     const data = await fetch(`/api/transactions?${params}`).then(r => r.json())
@@ -137,19 +135,19 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
   const end = Math.min((page + 1) * PAGE_SIZE, total)
 
   return (
-    <div className="space-y-4">
-      {/* Bulk action bar */}
+    <div className="space-y-2">
       {selected.size > 0 && (
-        <div className="flex items-center gap-4 rounded-md bg-blue-50 px-4 py-2">
-          <span className="text-sm font-medium">{selected.size} selected</span>
+        <div className="flex items-center gap-3 rounded-md bg-muted px-3 py-1.5 text-xs">
+          <span className="font-medium">{selected.size} selected</span>
           <Button
             variant="destructive"
             size="sm"
+            className="h-6 text-xs"
             onClick={() => setDeleteDialog({ type: 'bulk', ids: Array.from(selected) })}
           >
-            <Trash2 className="h-4 w-4 mr-1" /> Delete selected
+            <Trash2 className="h-3 w-3 mr-1" /> Delete
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
+          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setSelected(new Set())}>
             Cancel
           </Button>
         </div>
@@ -157,62 +155,62 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
 
       <Table>
         <TableHeader>
-          <TableRow>
-            <TableHead className="w-10">
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="w-8 py-2">
               <Checkbox
                 checked={transactions.length > 0 && selected.size === transactions.length}
                 onCheckedChange={toggleSelectAll}
               />
             </TableHead>
-            <TableHead>Date</TableHead>
-            <TableHead>Description</TableHead>
-            <TableHead className="text-right">Amount</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead className="w-10"></TableHead>
+            <TableHead className="py-2 text-xs">Date</TableHead>
+            <TableHead className="py-2 text-xs">Description</TableHead>
+            <TableHead className="py-2 text-xs text-right">Amount</TableHead>
+            <TableHead className="py-2 text-xs">Type</TableHead>
+            <TableHead className="py-2 text-xs">Category</TableHead>
+            <TableHead className="w-8 py-2"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {transactions.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+              <TableCell colSpan={7} className="text-center text-muted-foreground py-6 text-xs">
                 No transactions found.
               </TableCell>
             </TableRow>
           ) : (
             transactions.map((txn) => (
-              <TableRow key={txn.id} className={selected.has(txn.id) ? 'bg-blue-50/50' : ''}>
-                <TableCell>
+              <TableRow key={txn.id} className={selected.has(txn.id) ? 'bg-muted/50' : ''}>
+                <TableCell className="py-1.5">
                   <Checkbox
                     checked={selected.has(txn.id)}
                     onCheckedChange={() => toggleSelect(txn.id)}
                   />
                 </TableCell>
-                <TableCell>{txn.date}</TableCell>
-                <TableCell>{txn.description}</TableCell>
-                <TableCell className={`text-right ${txn.type === 'credit' ? 'text-green-600' : ''}`}>
+                <TableCell className="py-1.5 text-xs tabular-nums text-muted-foreground">{txn.date}</TableCell>
+                <TableCell className="py-1.5 text-xs">{txn.description}</TableCell>
+                <TableCell className={`py-1.5 text-xs text-right tabular-nums font-medium ${txn.type === 'credit' ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
                   {txn.type === 'credit' ? '+' : '-'}${txn.amount.toFixed(2)}
                 </TableCell>
-                <TableCell>
-                  <span className={`text-xs uppercase ${txn.type === 'credit' ? 'text-green-600' : 'text-red-500'}`}>
+                <TableCell className="py-1.5">
+                  <span className={`text-[11px] uppercase tracking-wide ${txn.type === 'credit' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
                     {txn.type}
                   </span>
                 </TableCell>
-                <TableCell>
+                <TableCell className="py-1.5">
                   <CategorySelect
                     categories={categories}
                     value={txn.category_id}
                     onValueChange={(catId) => updateCategory(txn.id, catId)}
                   />
                 </TableCell>
-                <TableCell>
+                <TableCell className="py-1.5">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-gray-400 hover:text-red-500"
+                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
                     onClick={() => setDeleteDialog({ type: 'single', ids: [txn.id] })}
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3 w-3" />
                   </Button>
                 </TableCell>
               </TableRow>
@@ -221,37 +219,33 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
         </TableBody>
       </Table>
 
-      {/* Pagination */}
       {total > 0 && (
         <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-500">
-            Showing {start}-{end} of {total}
+          <span className="text-[11px] text-muted-foreground tabular-nums">
+            {start}&ndash;{end} of {total}
           </span>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
-              Previous
+          <div className="flex gap-1">
+            <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+              Prev
             </Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
               Next
             </Button>
           </div>
         </div>
       )}
 
-      {/* Delete confirmation dialog */}
       <Dialog open={deleteDialog !== null} onOpenChange={(open) => { if (!open) setDeleteDialog(null) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete {deleteDialog?.type === 'bulk' ? `${deleteDialog.ids.length} transactions` : 'transaction'}?</DialogTitle>
             <DialogDescription>
-              This action cannot be undone. {deleteDialog?.type === 'bulk'
-                ? `${deleteDialog.ids.length} transactions will be permanently deleted.`
-                : 'This transaction will be permanently deleted.'}
+              This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialog(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmDelete}>Delete</Button>
+            <Button variant="ghost" size="sm" onClick={() => setDeleteDialog(null)}>Cancel</Button>
+            <Button variant="destructive" size="sm" onClick={confirmDelete}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

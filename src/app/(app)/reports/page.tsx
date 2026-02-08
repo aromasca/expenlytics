@@ -89,24 +89,20 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Reports</h2>
-        <p className="text-sm text-gray-500">Spending analytics and visualizations</p>
-      </div>
+    <div className="p-4 space-y-4">
+      <h2 className="text-lg font-semibold">Reports</h2>
 
-      {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
-          <span className="text-xs text-gray-500">From</span>
-          <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-36 text-sm" />
+          <span className="text-xs text-muted-foreground">From</span>
+          <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-32 h-8 text-xs" />
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-xs text-gray-500">To</span>
-          <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-36 text-sm" />
+          <span className="text-xs text-muted-foreground">To</span>
+          <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-32 h-8 text-xs" />
         </div>
         <Select value={groupBy} onValueChange={(v) => setGroupBy(v as 'month' | 'quarter' | 'year')}>
-          <SelectTrigger className="w-32">
+          <SelectTrigger className="w-28 h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -119,12 +115,12 @@ export default function ReportsPage() {
           {[
             { label: 'This month', value: 'thisMonth' },
             { label: 'Last month', value: 'lastMonth' },
-            { label: 'This quarter', value: 'thisQuarter' },
-            { label: 'This year', value: 'thisYear' },
-            { label: 'Last 12mo', value: 'last12Months' },
-            { label: 'All time', value: 'all' },
+            { label: 'Q', value: 'thisQuarter' },
+            { label: 'YTD', value: 'thisYear' },
+            { label: '12mo', value: 'last12Months' },
+            { label: 'All', value: 'all' },
           ].map(p => (
-            <Button key={p.value} variant="outline" size="sm" onClick={() => applyPreset(p.value)}>
+            <Button key={p.value} variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground" onClick={() => applyPreset(p.value)}>
               {p.label}
             </Button>
           ))}
@@ -132,7 +128,7 @@ export default function ReportsPage() {
       </div>
 
       {loading ? (
-        <p className="text-gray-500">Loading...</p>
+        <p className="text-sm text-muted-foreground py-8 text-center">Loading...</p>
       ) : data ? (
         <>
           <SummaryCards
@@ -142,7 +138,7 @@ export default function ReportsPage() {
             topCategory={data.summary.topCategory}
           />
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <SpendingBarChart data={data.spendingOverTime} />
             <CategoryPieChart data={data.categoryBreakdown} />
           </div>

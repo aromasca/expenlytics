@@ -14,11 +14,8 @@ export default function TransactionsPage() {
   }, [])
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Transactions</h2>
-        <p className="text-sm text-gray-500">Manage your imported transactions</p>
-      </div>
+    <div className="p-4 space-y-4">
+      <h2 className="text-lg font-semibold">Transactions</h2>
       <UploadZone onUploadComplete={handleUploadComplete} />
       <FilterBar filters={filters} onFiltersChange={setFilters} />
       <TransactionTable refreshKey={refreshKey} filters={filters} />

@@ -102,36 +102,36 @@ function CategoryFilterPopover({ categories, selectedIds, onToggle }: { categori
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="w-44 justify-start">
+        <Button variant="outline" size="sm" className="h-8 text-xs justify-start w-36">
           {selectedIds.length > 0
             ? `${selectedIds.length} categories`
             : 'All categories'}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-56 p-2" align="start">
+      <PopoverContent className="w-52 p-2" align="start">
         <Input
-          placeholder="Search categories..."
+          placeholder="Search..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="mb-2 h-8 text-sm"
+          className="mb-1.5 h-7 text-xs"
         />
-        <div className="max-h-64 overflow-auto">
+        <div className="max-h-56 overflow-auto">
           {Array.from(filtered.entries()).map(([group, cats]) => (
             <div key={group}>
-              <div className="text-xs text-muted-foreground font-semibold px-2 pt-2 pb-1">{group}</div>
+              <div className="text-[11px] text-muted-foreground font-medium px-2 pt-2 pb-0.5 uppercase tracking-wider">{group}</div>
               {cats.map(cat => (
-                <label key={cat.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer transition-colors">
+                <label key={cat.id} className="flex items-center gap-2 rounded px-2 py-1 hover:bg-accent cursor-pointer transition-colors">
                   <Checkbox
                     checked={selectedIds.includes(cat.id)}
                     onCheckedChange={() => onToggle(cat.id)}
                   />
-                  <span className="text-sm" style={{ color: cat.color }}>{cat.name}</span>
+                  <span className="text-xs" style={{ color: cat.color }}>{cat.name}</span>
                 </label>
               ))}
             </div>
           ))}
           {filtered.size === 0 && (
-            <div className="text-sm text-muted-foreground px-2 py-4 text-center">No categories found.</div>
+            <div className="text-xs text-muted-foreground px-2 py-3 text-center">No results</div>
           )}
         </div>
       </PopoverContent>
@@ -171,93 +171,74 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Search */}
-        <Input
-          placeholder="Search transactions..."
-          value={filters.search}
-          onChange={(e) => update({ search: e.target.value })}
-          className="w-56"
-        />
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
+        placeholder="Search..."
+        value={filters.search}
+        onChange={(e) => update({ search: e.target.value })}
+        className="w-48 h-8 text-xs"
+      />
 
-        {/* Type */}
-        <Select value={filters.type || 'all'} onValueChange={(v) => update({ type: v === 'all' ? '' : v as 'debit' | 'credit' })}>
-          <SelectTrigger className="w-32">
-            <SelectValue placeholder="All types" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All types</SelectItem>
-            <SelectItem value="debit">Debits</SelectItem>
-            <SelectItem value="credit">Credits</SelectItem>
-          </SelectContent>
-        </Select>
+      <Select value={filters.type || 'all'} onValueChange={(v) => update({ type: v === 'all' ? '' : v as 'debit' | 'credit' })}>
+        <SelectTrigger className="w-24 h-8 text-xs">
+          <SelectValue placeholder="All" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All</SelectItem>
+          <SelectItem value="debit">Debits</SelectItem>
+          <SelectItem value="credit">Credits</SelectItem>
+        </SelectContent>
+      </Select>
 
-        {/* Category multi-select */}
-        <CategoryFilterPopover
-          categories={categories}
-          selectedIds={filters.category_ids}
-          onToggle={toggleCategory}
-        />
+      <CategoryFilterPopover
+        categories={categories}
+        selectedIds={filters.category_ids}
+        onToggle={toggleCategory}
+      />
 
-        {/* Source document */}
-        <Select value={filters.document_id || 'all'} onValueChange={(v) => update({ document_id: v === 'all' ? '' : v })}>
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="All files" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All files</SelectItem>
-            {documents.map(doc => (
-              <SelectItem key={doc.id} value={doc.id.toString()}>{doc.filename}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Clear filters */}
-        {hasActiveFilters(filters) && (
-          <Button variant="ghost" size="sm" onClick={() => onFiltersChange(EMPTY_FILTERS)}>
-            <X className="h-4 w-4 mr-1" /> Clear
-          </Button>
-        )}
-      </div>
-
-      {/* Date range row */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-muted-foreground">From</span>
-          <Input
-            type="date"
-            value={filters.start_date}
-            onChange={(e) => update({ start_date: e.target.value })}
-            className="w-36 text-sm"
-          />
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-muted-foreground">To</span>
-          <Input
-            type="date"
-            value={filters.end_date}
-            onChange={(e) => update({ end_date: e.target.value })}
-            className="w-36 text-sm"
-          />
-        </div>
-        <div className="flex gap-1">
-          {[
-            { label: 'Last 30d', value: 'last30' },
-            { label: 'This month', value: 'thisMonth' },
-            { label: 'Last 3mo', value: 'last3Months' },
-            { label: 'This year', value: 'thisYear' },
-            { label: 'All time', value: 'all' },
-          ].map(p => (
-            <Button key={p.value} variant="outline" size="sm" onClick={() => {
-              if (p.value === 'all') { update({ start_date: '', end_date: '' }) }
-              else { applyPreset(p.value) }
-            }}>
-              {p.label}
-            </Button>
+      <Select value={filters.document_id || 'all'} onValueChange={(v) => update({ document_id: v === 'all' ? '' : v })}>
+        <SelectTrigger className="w-36 h-8 text-xs">
+          <SelectValue placeholder="All files" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All files</SelectItem>
+          {documents.map(doc => (
+            <SelectItem key={doc.id} value={doc.id.toString()}>{doc.filename}</SelectItem>
           ))}
-        </div>
+        </SelectContent>
+      </Select>
+
+      <div className="flex items-center gap-1">
+        <span className="text-[11px] text-muted-foreground">From</span>
+        <Input type="date" value={filters.start_date} onChange={(e) => update({ start_date: e.target.value })} className="w-32 h-8 text-xs" />
       </div>
+      <div className="flex items-center gap-1">
+        <span className="text-[11px] text-muted-foreground">To</span>
+        <Input type="date" value={filters.end_date} onChange={(e) => update({ end_date: e.target.value })} className="w-32 h-8 text-xs" />
+      </div>
+
+      <div className="flex gap-0.5">
+        {[
+          { label: '30d', value: 'last30' },
+          { label: 'Mo', value: 'thisMonth' },
+          { label: '3mo', value: 'last3Months' },
+          { label: 'YTD', value: 'thisYear' },
+          { label: 'All', value: 'all' },
+        ].map(p => (
+          <Button key={p.value} variant="ghost" size="sm" className="h-7 px-1.5 text-[11px] text-muted-foreground hover:text-foreground" onClick={() => {
+            if (p.value === 'all') { update({ start_date: '', end_date: '' }) }
+            else { applyPreset(p.value) }
+          }}>
+            {p.label}
+          </Button>
+        ))}
+      </div>
+
+      {hasActiveFilters(filters) && (
+        <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => onFiltersChange(EMPTY_FILTERS)}>
+          <X className="h-3 w-3 mr-1" /> Clear
+        </Button>
+      )}
     </div>
   )
 }

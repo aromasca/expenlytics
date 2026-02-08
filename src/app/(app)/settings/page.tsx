@@ -28,103 +28,88 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Settings</h2>
-        <p className="text-sm text-muted-foreground">App configuration and preferences</p>
-      </div>
+    <div className="p-4 space-y-3 max-w-2xl">
+      <h2 className="text-lg font-semibold">Settings</h2>
 
-      <Card className="p-6">
+      <Card className="p-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {theme === 'dark' ? (
-              <Moon className="h-5 w-5 text-primary" />
-            ) : (
-              <Sun className="h-5 w-5 text-primary" />
-            )}
+          <div className="flex items-center gap-2.5">
+            {theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
             <div>
-              <h3 className="font-medium">Appearance</h3>
-              <p className="text-sm text-muted-foreground">
-                {theme === 'dark' ? 'Dark mode enabled' : 'Light mode enabled'}
-              </p>
+              <h3 className="text-sm font-medium">Appearance</h3>
+              <p className="text-xs text-muted-foreground">{theme === 'dark' ? 'Dark' : 'Light'} mode</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">Dark Mode</span>
-            <Switch
-              checked={theme === 'dark'}
-              onCheckedChange={toggleTheme}
-            />
-          </div>
+          <Switch checked={theme === 'dark'} onCheckedChange={toggleTheme} />
         </div>
       </Card>
 
-      <Card className="p-6">
-        <div className="flex items-center gap-3 mb-2">
-          <RefreshCw className="h-5 w-5 text-primary" />
-          <h3 className="font-medium">Reclassify Transactions</h3>
+      <Card className="p-4">
+        <div className="flex items-center gap-2.5 mb-2">
+          <RefreshCw className="h-4 w-4" />
+          <h3 className="text-sm font-medium">Reclassify Transactions</h3>
         </div>
-        <p className="text-sm text-muted-foreground mb-4">
-          Re-run AI classification on all transactions using the latest category taxonomy. Manually categorized transactions will not be changed.
+        <p className="text-xs text-muted-foreground mb-3">
+          Re-run AI classification using the latest taxonomy. Manual overrides preserved.
         </p>
-        <div className="flex items-center gap-3">
-          <Button onClick={async () => {
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={async () => {
             setReclassifying(true)
             setReclassifyResult(null)
             try {
               const res = await fetch('/api/reclassify/backfill', { method: 'POST' })
               const data = await res.json()
               if (res.ok) {
-                setReclassifyResult(`Done — ${data.updated} of ${data.total} transactions reclassified.`)
+                setReclassifyResult(`${data.updated}/${data.total} reclassified`)
               } else {
                 setReclassifyResult(`Error: ${data.error}`)
               }
             } catch {
-              setReclassifyResult('Failed to connect to server.')
+              setReclassifyResult('Failed to connect')
             } finally {
               setReclassifying(false)
             }
           }} disabled={reclassifying}>
-            {reclassifying ? 'Reclassifying...' : 'Reclassify All'}
+            {reclassifying ? 'Running...' : 'Reclassify All'}
           </Button>
           {reclassifyResult && (
-            <span className="text-sm text-muted-foreground">{reclassifyResult}</span>
+            <span className="text-xs text-muted-foreground">{reclassifyResult}</span>
           )}
         </div>
       </Card>
 
-      <Card className="p-6 opacity-60">
-        <div className="flex items-center gap-3 mb-2">
-          <Tags className="h-5 w-5 text-muted-foreground" />
-          <h3 className="font-medium text-muted-foreground">Category Management</h3>
+      <Card className="p-4 opacity-50">
+        <div className="flex items-center gap-2.5 mb-1">
+          <Tags className="h-4 w-4" />
+          <h3 className="text-sm font-medium">Category Management</h3>
         </div>
-        <p className="text-sm text-muted-foreground">Add, edit, and organize spending categories. Coming soon.</p>
+        <p className="text-xs text-muted-foreground">Coming soon</p>
       </Card>
 
-      <Card className="p-6 opacity-60">
-        <div className="flex items-center gap-3 mb-2">
-          <SlidersHorizontal className="h-5 w-5 text-muted-foreground" />
-          <h3 className="font-medium text-muted-foreground">Preferences</h3>
+      <Card className="p-4 opacity-50">
+        <div className="flex items-center gap-2.5 mb-1">
+          <SlidersHorizontal className="h-4 w-4" />
+          <h3 className="text-sm font-medium">Preferences</h3>
         </div>
-        <p className="text-sm text-muted-foreground">Currency, date format, and display options. Coming soon.</p>
+        <p className="text-xs text-muted-foreground">Coming soon</p>
       </Card>
 
-      <Card className="p-6 border-destructive/30 bg-destructive/5">
-        <div className="flex items-center gap-3 mb-2">
-          <Trash2 className="h-5 w-5 text-destructive" />
-          <h3 className="font-medium text-destructive">Danger Zone</h3>
+      <Card className="p-4 border-destructive/20">
+        <div className="flex items-center gap-2.5 mb-1">
+          <Trash2 className="h-4 w-4 text-destructive" />
+          <h3 className="text-sm font-medium text-destructive">Danger Zone</h3>
         </div>
-        <p className="text-sm text-muted-foreground mb-4">Delete all transactions and uploaded documents. This cannot be undone.</p>
+        <p className="text-xs text-muted-foreground mb-3">Delete all data. This cannot be undone.</p>
         {!confirmOpen ? (
-          <Button variant="destructive" onClick={() => setConfirmOpen(true)}>
+          <Button variant="destructive" size="sm" onClick={() => setConfirmOpen(true)}>
             Reset Database
           </Button>
         ) : (
-          <div className="flex items-center gap-3">
-            <Button variant="destructive" onClick={handleReset} disabled={resetting}>
-              {resetting ? 'Resetting...' : 'Yes, delete everything'}
+          <div className="flex items-center gap-2">
+            <Button variant="destructive" size="sm" onClick={handleReset} disabled={resetting}>
+              {resetting ? 'Resetting...' : 'Confirm Delete'}
             </Button>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={resetting}>
+            <Button variant="ghost" size="sm" onClick={() => setConfirmOpen(false)} disabled={resetting}>
               Cancel
             </Button>
           </div>
