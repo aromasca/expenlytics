@@ -9,6 +9,7 @@ import { SpendingBarChart } from '@/components/reports/spending-bar-chart'
 import { CategoryPieChart } from '@/components/reports/category-pie-chart'
 import { SpendingTrendChart } from '@/components/reports/spending-trend-chart'
 import { TopTransactionsTable } from '@/components/reports/top-transactions-table'
+import { SankeyChart } from '@/components/reports/sankey-chart'
 
 interface ReportData {
   summary: {
@@ -21,6 +22,7 @@ interface ReportData {
   categoryBreakdown: Array<{ category: string; color: string; amount: number; percentage: number }>
   trend: Array<{ period: string; debits: number; credits: number }>
   topTransactions: Array<{ id: number; date: string; description: string; amount: number; type: string; category: string | null }>
+  sankeyData: Array<{ category: string; category_group: string; color: string; amount: number }>
 }
 
 function getDatePreset(preset: string): { start: string; end: string } {
@@ -143,6 +145,7 @@ export default function ReportsPage() {
             <CategoryPieChart data={data.categoryBreakdown} />
           </div>
 
+          <SankeyChart data={data.sankeyData} totalIncome={data.summary.totalIncome} />
           <SpendingTrendChart data={data.trend} />
           <TopTransactionsTable data={data.topTransactions} />
         </>
