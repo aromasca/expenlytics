@@ -27,7 +27,9 @@
 - `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, reports, subscriptions, settings
 - `src/app/page.tsx` — Redirects to `/insights`
 - `src/components/` — React client components using shadcn/ui
-- `src/components/reports/` — Recharts chart components for reports dashboard
+- `src/components/reports/` — Recharts chart components + d3-sankey Sankey diagram for reports dashboard
+- `src/components/reports/sankey-chart.tsx` — d3-sankey Sankey diagram (Income → Category Groups → Categories + Savings)
+- `src/lib/db/reports.ts` — `getSankeyData` (debits) + `getSankeyIncomeData` (credits excl. Transfer/Refund)
 - `src/lib/claude/normalize-merchants.ts` — LLM merchant normalization (Claude Haiku)
 - `src/lib/recurring.ts` — Pure recurring charge detection logic (no DB dependency)
 - `src/lib/db/recurring.ts` — DB query layer for recurring charges
@@ -59,6 +61,8 @@
 - shadcn/ui Select supports `SelectGroup` and `SelectLabel` for grouped dropdowns
 - shadcn/ui components installed: button, card, table, input, select, badge, checkbox, dialog, popover, switch, command
 - Category picker uses Popover + Command (cmdk) combobox pattern, not Radix Select
+- Custom SVG charts: use `useRef` + relative container div for hover tooltips (not native `<title>`); `pointer-events: none` on text labels
+- d3-sankey + d3-shape for custom Sankey diagram (not Recharts)
 
 ## Design System
 - Aesthetic: minimal, data-dense dashboard (neutral monochrome, not warm/coral)
