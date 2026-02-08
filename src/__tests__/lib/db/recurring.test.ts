@@ -3,7 +3,7 @@ import Database from 'better-sqlite3'
 import { initializeSchema } from '@/lib/db/schema'
 import { createDocument } from '@/lib/db/documents'
 import { insertTransactions } from '@/lib/db/transactions'
-import { getRecurringCharges } from '@/lib/db/recurring'
+import { getRecurringCharges, mergeMerchants, dismissMerchant, getDismissedMerchants } from '@/lib/db/recurring'
 
 describe('getRecurringCharges', () => {
   let db: Database.Database
@@ -65,5 +65,53 @@ describe('getRecurringCharges', () => {
 
     const groups = getRecurringCharges(db, {})
     expect(groups.length).toBe(0)
+  })
+})
+
+describe('mergeMerchants', () => {
+  let db: Database.Database
+  let docId: number
+
+  beforeEach(() => {
+    db = new Database(':memory:')
+    initializeSchema(db)
+    docId = createDocument(db, 'test.pdf', '/path/test.pdf')
+  })
+
+  it('updates normalized_merchant for all merged merchants', () => {
+    insertTransactions(db, docId, [
+      { date: '2025-01-15', description: 'NETFLIX.COM', amount: 15.99, type: 'debit' },
+      { date: '2025-02-15', description: 'Netflix Inc', amount: 15.99, type: 'debit' },
+      { date: '2025-03-15', description: 'Spotify', amount: 9.99, type: 'debit' },
+    ])
+    db.prepare("UPDATE transactions SET normalized_merchant = 'Netflix' WHERE description = 'NETFLIX.COM'").run()
+    db.prepare("UPDATE transactions SET normalized_merchant = 'Netflix Inc' WHERE description = 'Netflix Inc'").run()
+    db.prepare("UPDATE transactions SET normalized_merchant = 'Spotify' WHERE description = 'Spotify'").run()
+
+    const updated = mergeMerchants(db, ['Netflix', 'Netflix Inc'], 'Netflix')
+    expect(updated).toBe(2)
+
+    const rows = db.prepare("SELECT normalized_merchant FROM transactions WHERE normalized_merchant = 'Netflix'").all() as Array<{ normalized_merchant: string }>
+    expect(rows.length).toBe(2)
+
+    // Spotify unchanged
+    const spotify = db.prepare("SELECT normalized_merchant FROM transactions WHERE normalized_merchant = 'Spotify'").all()
+    expect(spotify.length).toBe(1)
+  })
+
+  it('cleans up dismissed entries for merged-away merchants', () => {
+    insertTransactions(db, docId, [
+      { date: '2025-01-15', description: 'A', amount: 10, type: 'debit' },
+      { date: '2025-02-15', description: 'B', amount: 10, type: 'debit' },
+    ])
+    db.prepare("UPDATE transactions SET normalized_merchant = 'Merchant A' WHERE description = 'A'").run()
+    db.prepare("UPDATE transactions SET normalized_merchant = 'Merchant B' WHERE description = 'B'").run()
+
+    dismissMerchant(db, 'Merchant B')
+    expect(getDismissedMerchants(db).has('Merchant B')).toBe(true)
+
+    mergeMerchants(db, ['Merchant A', 'Merchant B'], 'Merchant A')
+
+    expect(getDismissedMerchants(db).has('Merchant B')).toBe(false)
   })
 })

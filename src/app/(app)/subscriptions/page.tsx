@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { RecurringChargesTable } from '@/components/recurring-charges-table'
-import { RefreshCw, DollarSign, TrendingUp, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react'
+import { RefreshCw, DollarSign, TrendingUp, ChevronDown, ChevronRight, RotateCcw, Merge } from 'lucide-react'
 
 interface RecurringGroup {
   merchantName: string
@@ -55,6 +56,11 @@ export default function SubscriptionsPage() {
   const [loading, setLoading] = useState(true)
   const [normalizing, setNormalizing] = useState(false)
   const [dismissedExpanded, setDismissedExpanded] = useState(false)
+  const [selectedMerchants, setSelectedMerchants] = useState<Set<string>>(new Set())
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false)
+  const [mergeTarget, setMergeTarget] = useState('')
+  const [customTarget, setCustomTarget] = useState('')
+  const [merging, setMerging] = useState(false)
 
   const fetchData = () => {
     setLoading(true)
@@ -115,7 +121,6 @@ export default function SubscriptionsPage() {
 
   const handleDismiss = (merchantName: string) => {
     if (!data) return
-    // Optimistic update
     const group = data.groups.find(g => g.merchantName === merchantName)
     if (!group) return
     const newGroups = data.groups.filter(g => g.merchantName !== merchantName)
@@ -130,6 +135,11 @@ export default function SubscriptionsPage() {
         totalYearly: Math.round(totalMonthly * 12 * 100) / 100,
       },
     })
+    setSelectedMerchants(prev => {
+      const next = new Set(prev)
+      next.delete(merchantName)
+      return next
+    })
 
     fetch('/api/recurring/dismiss', {
       method: 'POST',
@@ -140,7 +150,6 @@ export default function SubscriptionsPage() {
 
   const handleRestore = (merchantName: string) => {
     if (!data) return
-    // Optimistic update
     const group = data.dismissedGroups.find(g => g.merchantName === merchantName)
     if (!group) return
     const newDismissed = data.dismissedGroups.filter(g => g.merchantName !== merchantName)
@@ -163,6 +172,32 @@ export default function SubscriptionsPage() {
     }).catch(() => { fetchData() })
   }
 
+  const openMergeDialog = () => {
+    const merchants = Array.from(selectedMerchants)
+    setMergeTarget(merchants[0])
+    setCustomTarget('')
+    setMergeDialogOpen(true)
+  }
+
+  const handleMerge = () => {
+    const target = mergeTarget === '__custom__' ? customTarget.trim() : mergeTarget
+    if (!target) return
+    setMerging(true)
+    fetch('/api/recurring/merge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ merchants: Array.from(selectedMerchants), target }),
+    })
+      .then(r => r.json())
+      .then(() => {
+        setMerging(false)
+        setMergeDialogOpen(false)
+        setSelectedMerchants(new Set())
+        fetchData()
+      })
+      .catch(() => { setMerging(false) })
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -172,9 +207,17 @@ export default function SubscriptionsPage() {
             Automatically detected recurring charges from your statements
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleNormalize} disabled={normalizing}>
-          {normalizing ? 'Analyzing...' : 'Re-analyze Merchants'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedMerchants.size >= 2 && (
+            <Button variant="default" size="sm" onClick={openMergeDialog}>
+              <Merge className="h-4 w-4 mr-1" />
+              Merge {selectedMerchants.size} Merchants
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={handleNormalize} disabled={normalizing}>
+            {normalizing ? 'Analyzing...' : 'Re-analyze Merchants'}
+          </Button>
+        </div>
       </div>
 
       {/* Date filters */}
@@ -245,7 +288,13 @@ export default function SubscriptionsPage() {
             </Card>
           </div>
 
-          <RecurringChargesTable groups={data.groups} onDismiss={handleDismiss} />
+          <RecurringChargesTable
+            groups={data.groups}
+            onDismiss={handleDismiss}
+            selectable
+            selectedMerchants={selectedMerchants}
+            onSelectionChange={setSelectedMerchants}
+          />
 
           {/* Dismissed section */}
           {data.dismissedGroups.length > 0 && (
@@ -284,6 +333,62 @@ export default function SubscriptionsPage() {
           )}
         </>
       ) : null}
+
+      {/* Merge Dialog */}
+      <Dialog open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Merge Merchants</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-500 mb-3">
+            Choose which merchant name to keep. All transactions will be updated to use the selected name.
+          </p>
+          <div className="space-y-2">
+            {Array.from(selectedMerchants).map(name => (
+              <label key={name} className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
+                <input
+                  type="radio"
+                  name="mergeTarget"
+                  value={name}
+                  checked={mergeTarget === name}
+                  onChange={() => setMergeTarget(name)}
+                  className="accent-blue-600"
+                />
+                <span className="text-sm font-medium">{name}</span>
+              </label>
+            ))}
+            <label className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
+              <input
+                type="radio"
+                name="mergeTarget"
+                value="__custom__"
+                checked={mergeTarget === '__custom__'}
+                onChange={() => setMergeTarget('__custom__')}
+                className="accent-blue-600"
+              />
+              <span className="text-sm">Custom name:</span>
+            </label>
+            {mergeTarget === '__custom__' && (
+              <Input
+                value={customTarget}
+                onChange={e => setCustomTarget(e.target.value)}
+                placeholder="Enter merchant name"
+                className="ml-6"
+                autoFocus
+              />
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMergeDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleMerge}
+              disabled={merging || (mergeTarget === '__custom__' && !customTarget.trim())}
+            >
+              {merging ? 'Merging...' : 'Merge'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

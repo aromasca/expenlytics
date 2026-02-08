@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { X } from 'lucide-react'
 
@@ -24,6 +25,9 @@ interface RecurringGroup {
 interface RecurringChargesTableProps {
   groups: RecurringGroup[]
   onDismiss?: (merchantName: string) => void
+  selectable?: boolean
+  selectedMerchants?: Set<string>
+  onSelectionChange?: (selected: Set<string>) => void
 }
 
 const FREQUENCY_LABELS: Record<string, string> = {
@@ -44,11 +48,31 @@ const FREQUENCY_COLORS: Record<string, string> = {
 
 const PAGE_SIZE = 20
 
-export function RecurringChargesTable({ groups, onDismiss }: RecurringChargesTableProps) {
+export function RecurringChargesTable({ groups, onDismiss, selectable, selectedMerchants, onSelectionChange }: RecurringChargesTableProps) {
   const [page, setPage] = useState(0)
   const totalPages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE))
   const effectivePage = Math.min(page, totalPages - 1)
   const paged = groups.slice(effectivePage * PAGE_SIZE, (effectivePage + 1) * PAGE_SIZE)
+
+  const selected = selectedMerchants ?? new Set<string>()
+  const allPageSelected = paged.length > 0 && paged.every(g => selected.has(g.merchantName))
+
+  const toggleOne = (merchantName: string) => {
+    const next = new Set(selected)
+    if (next.has(merchantName)) next.delete(merchantName)
+    else next.add(merchantName)
+    onSelectionChange?.(next)
+  }
+
+  const toggleAll = () => {
+    const next = new Set(selected)
+    if (allPageSelected) {
+      paged.forEach(g => next.delete(g.merchantName))
+    } else {
+      paged.forEach(g => next.add(g.merchantName))
+    }
+    onSelectionChange?.(next)
+  }
 
   return (
     <Card className="p-4">
@@ -64,6 +88,14 @@ export function RecurringChargesTable({ groups, onDismiss }: RecurringChargesTab
           <Table>
             <TableHeader>
               <TableRow>
+                {selectable && (
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allPageSelected}
+                      onCheckedChange={toggleAll}
+                    />
+                  </TableHead>
+                )}
                 <TableHead>Merchant</TableHead>
                 <TableHead>Frequency</TableHead>
                 <TableHead>Category</TableHead>
@@ -77,6 +109,14 @@ export function RecurringChargesTable({ groups, onDismiss }: RecurringChargesTab
             <TableBody>
               {paged.map((group) => (
                 <TableRow key={group.merchantName}>
+                  {selectable && (
+                    <TableCell>
+                      <Checkbox
+                        checked={selected.has(group.merchantName)}
+                        onCheckedChange={() => toggleOne(group.merchantName)}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="font-medium text-sm">
                     {group.merchantName}
                   </TableCell>

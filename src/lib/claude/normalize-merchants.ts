@@ -21,18 +21,15 @@ Return ONLY valid JSON:
 Descriptions to normalize:
 {descriptions_json}`
 
-export async function normalizeMerchants(descriptions: string[]): Promise<Map<string, string>> {
-  const unique = [...new Set(descriptions)]
-  if (unique.length === 0) return new Map()
+const BATCH_SIZE = 80
 
-  const client = new Anthropic()
-
+async function normalizeBatch(client: Anthropic, batch: string[]): Promise<Map<string, string>> {
   const prompt = NORMALIZATION_PROMPT
-    .replace('{descriptions_json}', JSON.stringify(unique, null, 2))
+    .replace('{descriptions_json}', JSON.stringify(batch, null, 2))
 
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 4096,
+    max_tokens: 8192,
     messages: [{ role: 'user', content: prompt }],
   })
 
@@ -53,6 +50,23 @@ export async function normalizeMerchants(descriptions: string[]): Promise<Map<st
   const map = new Map<string, string>()
   for (const { description, merchant } of result.normalizations) {
     map.set(description, merchant)
+  }
+  return map
+}
+
+export async function normalizeMerchants(descriptions: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(descriptions)]
+  if (unique.length === 0) return new Map()
+
+  const client = new Anthropic()
+  const map = new Map<string, string>()
+
+  for (let i = 0; i < unique.length; i += BATCH_SIZE) {
+    const batch = unique.slice(i, i + BATCH_SIZE)
+    const batchResult = await normalizeBatch(client, batch)
+    for (const [desc, merchant] of batchResult) {
+      map.set(desc, merchant)
+    }
   }
 
   return map

@@ -8,15 +8,10 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
   const force = body.force === true
 
-  // If force, reset all normalized_merchant values first
-  if (force) {
-    db.prepare("UPDATE transactions SET normalized_merchant = NULL").run()
-  }
-
-  // Find transactions without normalized_merchant
-  const rows = db.prepare(
-    "SELECT DISTINCT description FROM transactions WHERE normalized_merchant IS NULL"
-  ).all() as Array<{ description: string }>
+  // Get all distinct descriptions that need normalization
+  const rows = force
+    ? db.prepare("SELECT DISTINCT description FROM transactions").all() as Array<{ description: string }>
+    : db.prepare("SELECT DISTINCT description FROM transactions WHERE normalized_merchant IS NULL").all() as Array<{ description: string }>
 
   if (rows.length === 0) {
     return NextResponse.json({ normalized: 0, message: 'All transactions already normalized' })
@@ -27,8 +22,9 @@ export async function POST(request: NextRequest) {
   try {
     const merchantMap = await normalizeMerchants(descriptions)
 
+    // Only update DB after LLM succeeds — never wipe data before confirming success
     const update = db.prepare(
-      'UPDATE transactions SET normalized_merchant = ? WHERE description = ? AND normalized_merchant IS NULL'
+      'UPDATE transactions SET normalized_merchant = ? WHERE description = ?'
     )
     const updateMany = db.transaction(() => {
       for (const [description, merchant] of merchantMap) {

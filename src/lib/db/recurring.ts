@@ -45,3 +45,25 @@ export function dismissMerchant(db: Database.Database, merchant: string): void {
 export function restoreMerchant(db: Database.Database, merchant: string): void {
   db.prepare('DELETE FROM dismissed_subscriptions WHERE normalized_merchant = ?').run(merchant)
 }
+
+export function mergeMerchants(db: Database.Database, merchants: string[], targetName: string): number {
+  const transaction = db.transaction(() => {
+    const placeholders = merchants.map(() => '?').join(', ')
+    const result = db.prepare(
+      `UPDATE transactions SET normalized_merchant = ? WHERE normalized_merchant IN (${placeholders})`
+    ).run(targetName, ...merchants)
+
+    // Clean up dismissed entries for merged-away merchants
+    const mergedAway = merchants.filter(m => m !== targetName)
+    if (mergedAway.length > 0) {
+      const dismissPlaceholders = mergedAway.map(() => '?').join(', ')
+      db.prepare(
+        `DELETE FROM dismissed_subscriptions WHERE normalized_merchant IN (${dismissPlaceholders})`
+      ).run(...mergedAway)
+    }
+
+    return result.changes
+  })
+
+  return transaction()
+}
