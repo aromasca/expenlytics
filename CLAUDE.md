@@ -60,6 +60,17 @@
 - shadcn/ui components installed: button, card, table, input, select, badge, checkbox, dialog, popover, switch, command
 - Category picker uses Popover + Command (cmdk) combobox pattern, not Radix Select
 
+## Design System
+- Aesthetic: minimal, data-dense dashboard (neutral monochrome, not warm/coral)
+- Color palette: near-black/near-white with zinc grays; emerald for income/credits; no color for debits
+- Recharts theme colors: derive from `isDark` toggle — light: text `#737373`, grid `#E5E5E5`, bars `#0A0A0A`; dark: text `#A1A1AA`, grid `#27272A`, bars `#FAFAFA`
+- Charts: `axisLine={false} tickLine={false} vertical={false}` on CartesianGrid for clean look; height 240px standard
+- Spacing: `p-4 space-y-4` for pages, `p-3` for cards, `py-1.5` for table rows
+- Typography: text-xs for data, text-[11px] for labels/counters, `tabular-nums` on all financial figures
+- Buttons: `variant="ghost"` + `h-7 text-xs text-muted-foreground` for secondary actions
+- Page headers: `text-lg font-semibold` (not text-2xl font-bold)
+- Sidebar: w-48 desktop, w-12 mobile; text-[13px] nav items
+
 ## SQLite Migrations
 - `CREATE TABLE IF NOT EXISTS` doesn't modify existing tables - only creates new ones
 - Pattern: base CREATE TABLE (original columns) → PRAGMA table_info to check columns → ALTER TABLE for new columns → CREATE INDEX
