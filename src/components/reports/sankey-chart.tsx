@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { sankey, sankeyLinkHorizontal, SankeyNode, SankeyLink } from 'd3-sankey'
 import { useTheme } from '@/components/theme-provider'
 import { Card } from '@/components/ui/card'
@@ -36,6 +36,8 @@ export function SankeyChart({ data, incomeData, totalIncome }: SankeyChartProps)
   const { theme } = useTheme()
   const isDark = theme === 'dark'
   const [hoveredLink, setHoveredLink] = useState<number | null>(null)
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; label: string; amount: string } | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
 
   const textColor = isDark ? '#A1A1AA' : '#737373'
   const incomeColor = isDark ? '#34D399' : '#10B981'
@@ -125,6 +127,17 @@ export function SankeyChart({ data, incomeData, totalIncome }: SankeyChartProps)
     return { ...graph, width, height }
   }, [data, incomeData, totalIncome, incomeColor, savingsColor, groupColor])
 
+  const showTooltip = (e: React.MouseEvent, label: string, amount: string) => {
+    const svg = svgRef.current
+    if (!svg) return
+    const rect = svg.getBoundingClientRect()
+    setTooltip({ x: e.clientX - rect.left, y: e.clientY - rect.top - 8, label, amount })
+  }
+
+  const hideTooltip = () => {
+    setTooltip(null)
+  }
+
   if (data.length === 0) {
     return (
       <Card className="p-3">
@@ -141,77 +154,93 @@ export function SankeyChart({ data, incomeData, totalIncome }: SankeyChartProps)
   return (
     <Card className="p-3">
       <h3 className="text-xs font-medium text-muted-foreground mb-2">Money Flow</h3>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="w-full"
-        style={{ maxHeight: 500 }}
-        preserveAspectRatio="xMidYMid meet"
-      >
-        {/* Links */}
-        {(links as SLink[]).map((link, i) => {
-          const path = sankeyLinkHorizontal()(link)
-          if (!path) return null
-          const opacity =
-            hoveredLink === null ? 0.3 : hoveredLink === i ? 0.6 : 0.1
-          const source = link.source as SNode
-          const target = link.target as SNode
-          return (
-            <path
-              key={i}
-              d={path}
-              fill="none"
-              stroke={source.color}
-              strokeWidth={Math.max(1, link.width ?? 0)}
-              opacity={opacity}
-              onMouseEnter={() => setHoveredLink(i)}
-              onMouseLeave={() => setHoveredLink(null)}
-              style={{ transition: 'opacity 0.15s' }}
-            >
-              <title>{`${source.name} → ${target.name}: ${fmt.format(link.value)}`}</title>
-            </path>
-          )
-        })}
+      <div className="relative">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${width} ${height}`}
+          className="w-full"
+          style={{ maxHeight: 500 }}
+          preserveAspectRatio="xMidYMid meet"
+          onMouseLeave={() => { setHoveredLink(null); hideTooltip() }}
+        >
+          {/* Links */}
+          {(links as SLink[]).map((link, i) => {
+            const path = sankeyLinkHorizontal()(link)
+            if (!path) return null
+            const opacity =
+              hoveredLink === null ? 0.3 : hoveredLink === i ? 0.6 : 0.1
+            const source = link.source as SNode
+            const target = link.target as SNode
+            return (
+              <path
+                key={i}
+                d={path}
+                fill="none"
+                stroke={source.color}
+                strokeWidth={Math.max(1, link.width ?? 0)}
+                opacity={opacity}
+                onMouseEnter={(e) => {
+                  setHoveredLink(i)
+                  showTooltip(e, `${source.name} → ${target.name}`, fmt.format(link.value))
+                }}
+                onMouseMove={(e) => showTooltip(e, `${source.name} → ${target.name}`, fmt.format(link.value))}
+                onMouseLeave={() => { setHoveredLink(null); hideTooltip() }}
+                style={{ transition: 'opacity 0.15s' }}
+              />
+            )
+          })}
 
-        {/* Nodes */}
-        {(nodes as SNode[]).map((node, i) => {
-          const x0 = node.x0 ?? 0
-          const x1 = node.x1 ?? 0
-          const y0 = node.y0 ?? 0
-          const y1 = node.y1 ?? 0
-          const nodeHeight = y1 - y0
-          const isLeft = node.depth === 0
-          const isRight = node.depth === (nodes as SNode[]).reduce((max, n) => Math.max(max, n.depth ?? 0), 0)
+          {/* Nodes */}
+          {(nodes as SNode[]).map((node, i) => {
+            const x0 = node.x0 ?? 0
+            const x1 = node.x1 ?? 0
+            const y0 = node.y0 ?? 0
+            const y1 = node.y1 ?? 0
+            const nodeHeight = y1 - y0
+            const isLeft = node.depth === 0
+            const isRight = node.depth === (nodes as SNode[]).reduce((max, n) => Math.max(max, n.depth ?? 0), 0)
 
-          return (
-            <g key={i}>
-              <rect
-                x={x0}
-                y={y0}
-                width={x1 - x0}
-                height={Math.max(1, nodeHeight)}
-                fill={node.color}
-                rx={1}
-              >
-                <title>{`${node.name}: ${fmt.format(node.value ?? 0)}`}</title>
-              </rect>
-              {nodeHeight > 8 && (
-                <text
-                  x={isLeft ? x0 - 4 : isRight ? x1 + 4 : x1 + 4}
-                  y={(y0 + y1) / 2}
-                  dy="0.35em"
-                  textAnchor={isLeft ? 'end' : 'start'}
-                  fill={textColor}
-                  fontSize={9}
-                  fontFamily="system-ui, sans-serif"
-                  style={{ fontVariantNumeric: 'tabular-nums' }}
-                >
-                  {node.name}
-                </text>
-              )}
-            </g>
-          )
-        })}
-      </svg>
+            return (
+              <g key={i}>
+                <rect
+                  x={x0}
+                  y={y0}
+                  width={x1 - x0}
+                  height={Math.max(1, nodeHeight)}
+                  fill={node.color}
+                  rx={1}
+                  onMouseEnter={(e) => showTooltip(e, node.name, fmt.format(node.value ?? 0))}
+                  onMouseMove={(e) => showTooltip(e, node.name, fmt.format(node.value ?? 0))}
+                  onMouseLeave={hideTooltip}
+                />
+                {nodeHeight > 8 && (
+                  <text
+                    x={isLeft ? x0 - 4 : isRight ? x1 + 4 : x1 + 4}
+                    y={(y0 + y1) / 2}
+                    dy="0.35em"
+                    textAnchor={isLeft ? 'end' : 'start'}
+                    fill={textColor}
+                    fontSize={9}
+                    fontFamily="system-ui, sans-serif"
+                    style={{ fontVariantNumeric: 'tabular-nums', pointerEvents: 'none' }}
+                  >
+                    {node.name}
+                  </text>
+                )}
+              </g>
+            )
+          })}
+        </svg>
+        {tooltip && (
+          <div
+            className="pointer-events-none absolute z-10 rounded border bg-popover px-2 py-1 shadow-sm"
+            style={{ left: tooltip.x, top: tooltip.y, transform: 'translate(-50%, -100%)' }}
+          >
+            <div className="text-[11px] text-muted-foreground">{tooltip.label}</div>
+            <div className="text-xs font-medium tabular-nums">{tooltip.amount}</div>
+          </div>
+        )}
+      </div>
     </Card>
   )
 }
