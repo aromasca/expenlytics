@@ -91,6 +91,24 @@ export function initializeSchema(db: Database.Database): void {
   // Create index on file_hash after migration
   db.exec('CREATE INDEX IF NOT EXISTS idx_documents_hash ON documents(file_hash)')
 
+  // Insight cache table for LLM-generated insights
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS insight_cache (
+      cache_key TEXT UNIQUE NOT NULL,
+      insight_data TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL
+    )
+  `)
+
+  // Dismissed insights table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS dismissed_insights (
+      insight_id TEXT UNIQUE NOT NULL,
+      dismissed_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
+
   // Seed or update categories
   const count = db.prepare('SELECT COUNT(*) as count FROM categories').get() as { count: number }
   if (count.count === 0) {

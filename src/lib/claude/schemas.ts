@@ -40,6 +40,24 @@ export const normalizationSchema = z.object({
   })),
 })
 
+export const llmInsightSchema = z.object({
+  insights: z.array(z.object({
+    headline: z.string(),
+    category: z.string(),
+    severity: z.enum(['concerning', 'notable', 'favorable', 'informational']),
+    key_metric: z.string(),
+    explanation: z.string(),
+    evidence: z.object({
+      category_a: z.string().optional(),
+      category_b: z.string().optional(),
+      merchant_names: z.array(z.string()).optional(),
+    }),
+    action_suggestion: z.string().optional(),
+  })),
+})
+
+export type LLMInsightData = z.infer<typeof llmInsightSchema>
+
 export type ExtractionResult = z.infer<typeof extractionSchema>
 export type TransactionData = z.infer<typeof transactionSchema>
 export type ReclassificationResult = z.infer<typeof reclassificationSchema>

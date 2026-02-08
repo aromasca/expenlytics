@@ -1,5 +1,5 @@
 export type InsightSeverity = 'concerning' | 'notable' | 'favorable' | 'informational'
-export type InsightType = 'category_trend' | 'lifestyle_inflation' | 'recurring_charges' | 'spending_shift'
+export type InsightType = 'category_trend' | 'lifestyle_inflation' | 'recurring_charges' | 'spending_shift' | 'llm_insight'
 
 export interface SparklinePoint {
   label: string
@@ -39,5 +39,7 @@ export interface InsightsResponse {
   lifestyleInflation: InsightCard[]
   recurringCharges: InsightCard[]
   spendingShifts: InsightCard[]
+  llmInsights: InsightCard[]
+  dismissedCount: number
   generatedAt: string
 }

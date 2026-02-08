@@ -1,6 +1,9 @@
 import type Database from 'better-sqlite3'
 import type { InsightCard, SparklinePoint, InsightDetail, InsightTransaction } from './types'
 import { scoreInsight } from './ranking'
+import { generateCacheKey, getCachedInsights, setCachedInsights } from '@/lib/db/insight-cache'
+import { buildDataSummary } from './data-summary'
+import { generateInsights } from '@/lib/claude/generate-insights'
 
 interface PeriodSpending {
   period: string
@@ -485,4 +488,96 @@ export function detectSpendingShifts(db: Database.Database): InsightCard[] {
   insights.push(card)
 
   return insights
+}
+
+export async function detectLLMInsights(db: Database.Database): Promise<InsightCard[]> {
+  // Check minimum transaction count
+  const countRow = db.prepare('SELECT COUNT(*) as count FROM transactions WHERE type = ?').get(['debit']) as { count: number }
+  if (countRow.count < 30) return []
+
+  // Check cache
+  const cacheKey = generateCacheKey(db)
+  const cached = getCachedInsights(db, cacheKey)
+  if (cached) return cached
+
+  // Build summary and call LLM
+  const summary = buildDataSummary(db)
+  const result = await generateInsights(summary)
+
+  // Map LLM insights to InsightCard[]
+  const cards: InsightCard[] = result.insights.map((insight, i) => {
+    // Query relevant transactions based on evidence
+    const transactions: InsightTransaction[] = []
+    const evidence = insight.evidence
+
+    if (evidence.merchant_names && evidence.merchant_names.length > 0) {
+      const placeholders = evidence.merchant_names.map(() => '?').join(',')
+      const txns = db.prepare(`
+        SELECT t.date, t.description, t.amount, COALESCE(c.name, 'Uncategorized') as category
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        WHERE t.type = 'debit'
+          AND (t.normalized_merchant IN (${placeholders}) OR t.description IN (${placeholders}))
+          AND t.date >= date('now', '-3 months')
+        ORDER BY t.date DESC LIMIT 5
+      `).all([...evidence.merchant_names, ...evidence.merchant_names]) as InsightTransaction[]
+      transactions.push(...txns)
+    }
+
+    if (transactions.length === 0 && evidence.category_a) {
+      const txns = db.prepare(`
+        SELECT t.date, t.description, t.amount, COALESCE(c.name, 'Uncategorized') as category
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        WHERE t.type = 'debit'
+          AND COALESCE(c.name, 'Uncategorized') = ?
+          AND t.date >= date('now', '-3 months')
+        ORDER BY t.amount DESC LIMIT 5
+      `).all([evidence.category_a]) as InsightTransaction[]
+      transactions.push(...txns)
+    }
+
+    // Build sparkline from primary category time series
+    let sparkline: SparklinePoint[] = []
+    const sparklineCat = evidence.category_a ?? insight.category
+    if (sparklineCat) {
+      const rows = db.prepare(`
+        SELECT strftime('%Y-%m', t.date) as period, SUM(t.amount) as amount
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        WHERE t.type = 'debit'
+          AND COALESCE(c.name, 'Uncategorized') = ?
+          AND t.date >= date('now', '-6 months')
+        GROUP BY period ORDER BY period ASC
+      `).all([sparklineCat]) as Array<{ period: string; amount: number }>
+      sparkline = rows.map(r => ({ label: r.period, value: r.amount }))
+    }
+
+    const detail: InsightDetail = {
+      periodLabel: 'Last 6 months',
+      breakdown: [],
+      explanation: insight.explanation + (insight.action_suggestion ? `\n\nSuggestion: ${insight.action_suggestion}` : ''),
+      transactions,
+    }
+
+    const card: InsightCard = {
+      id: `llm-insight-${i}`,
+      type: 'llm_insight',
+      severity: insight.severity,
+      headline: insight.headline,
+      metric: insight.key_metric,
+      percentChange: 0,
+      dollarChange: 0,
+      score: 0,
+      sparkline,
+      detail,
+    }
+    card.score = scoreInsight(card, 0) // treat as most recent
+    return card
+  })
+
+  // Cache results
+  setCachedInsights(db, cacheKey, cards)
+
+  return cards
 }

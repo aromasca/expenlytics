@@ -24,13 +24,15 @@
 - `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib)
 - `src/lib/claude/` — Claude API extraction with Zod validation
 - `src/app/api/` — Next.js API routes (upload, transactions, categories, documents, reports, recurring)
-- `src/app/(app)/` — Route group with sidebar layout; pages: transactions, reports, subscriptions, settings
-- `src/app/page.tsx` — Redirects to `/transactions`
+- `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, reports, subscriptions, settings
+- `src/app/page.tsx` — Redirects to `/insights`
 - `src/components/` — React client components using shadcn/ui
 - `src/components/reports/` — Recharts chart components for reports dashboard
 - `src/lib/claude/normalize-merchants.ts` — LLM merchant normalization (Claude Haiku)
 - `src/lib/recurring.ts` — Pure recurring charge detection logic (no DB dependency)
 - `src/lib/db/recurring.ts` — DB query layer for recurring charges
+- `src/lib/insights/` — Insight detection (detection.ts), ranking (ranking.ts), types (types.ts)
+- `src/components/insights/` — Dashboard UI: insight cards, hero section, grid layout
 - `src/__tests__/` — mirrors src structure
 - `data/` — gitignored; SQLite DB and uploaded PDFs
 
@@ -59,3 +61,4 @@
 - Check existing columns: `db.prepare("PRAGMA table_info(table_name)").all()` returns `Array<{ name: string }>`
 - Example: `if (!columnNames.includes('new_col')) { db.exec('ALTER TABLE t ADD COLUMN new_col TYPE') }`
 - Restart dev server after schema changes for migrations to apply to existing `data/expenlytics.db`
+- SQLite: prefer `strftime('%Y-%m', t.date)` grouping over `date('now', '-1 month', 'start of month')` boundaries — the latter breaks in tests where data uses computed dates

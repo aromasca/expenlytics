@@ -24,33 +24,30 @@ export function InsightGrid({ categoryTrends, lifestyleInflation, recurringCharg
   const data = { categoryTrends, lifestyleInflation, recurringCharges, spendingShifts }
 
   return (
-    <section>
-      <h2 className="text-lg font-semibold mb-3">Detailed Analysis</h2>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {sections.map(({ key, title, subtitle, icon: Icon }) => (
-          <div key={key}>
-            <div className="flex items-center gap-2 mb-2">
-              <Icon className="h-4 w-4 text-muted-foreground" />
-              <h3 className="font-medium text-sm">{title}</h3>
-            </div>
-            <p className="text-xs text-muted-foreground mb-3">{subtitle}</p>
-            {data[key].length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">No significant changes detected</p>
-            ) : (
-              <div className="space-y-2">
-                {data[key].slice(0, 3).map((insight) => (
-                  <InsightCardComponent
-                    key={insight.id}
-                    insight={insight}
-                    expanded={expandedId === insight.id}
-                    onToggle={() => onToggle(insight.id)}
-                  />
-                ))}
-              </div>
-            )}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {sections.map(({ key, title, subtitle, icon: Icon }) => (
+        <div key={key}>
+          <div className="flex items-center gap-2 mb-2">
+            <Icon className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-medium text-sm">{title}</h3>
           </div>
-        ))}
-      </div>
-    </section>
+          <p className="text-xs text-muted-foreground mb-3">{subtitle}</p>
+          {data[key].length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">No significant changes detected</p>
+          ) : (
+            <div className="space-y-2">
+              {data[key].slice(0, 3).map((insight) => (
+                <InsightCardComponent
+                  key={insight.id}
+                  insight={insight}
+                  expanded={expandedId === insight.id}
+                  onToggle={() => onToggle(insight.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
   )
 }
