@@ -6,6 +6,7 @@ import {
   getCategoryBreakdown,
   getSpendingTrend,
   getTopTransactions,
+  getSankeyData,
 } from '@/lib/db/reports'
 import type { ReportFilters } from '@/lib/db/reports'
 
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
   const categoryBreakdown = getCategoryBreakdown(db, filters)
   const trend = getSpendingTrend(db, filters)
   const topTransactions = getTopTransactions(db, filters, 50)
+  const sankeyData = getSankeyData(db, filters)
 
   return NextResponse.json({
     summary,
@@ -39,5 +41,6 @@ export async function GET(request: NextRequest) {
     categoryBreakdown,
     trend,
     topTransactions,
+    sankeyData,
   })
 }
