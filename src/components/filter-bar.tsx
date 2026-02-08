@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -75,6 +75,70 @@ function hasActiveFilters(filters: Filters): boolean {
 
 export { EMPTY_FILTERS, hasActiveFilters }
 
+function CategoryFilterPopover({ categories, selectedIds, onToggle }: { categories: Category[]; selectedIds: number[]; onToggle: (id: number) => void }) {
+  const [search, setSearch] = useState('')
+
+  const grouped = useMemo(() => {
+    const groups = new Map<string, Category[]>()
+    for (const cat of categories) {
+      const g = cat.category_group || 'Other'
+      if (!groups.has(g)) groups.set(g, [])
+      groups.get(g)!.push(cat)
+    }
+    return groups
+  }, [categories])
+
+  const filtered = useMemo(() => {
+    if (!search) return grouped
+    const q = search.toLowerCase()
+    const result = new Map<string, Category[]>()
+    for (const [group, cats] of grouped) {
+      const matching = cats.filter(c => c.name.toLowerCase().includes(q))
+      if (matching.length > 0) result.set(group, matching)
+    }
+    return result
+  }, [grouped, search])
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="w-44 justify-start">
+          {selectedIds.length > 0
+            ? `${selectedIds.length} categories`
+            : 'All categories'}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-2" align="start">
+        <Input
+          placeholder="Search categories..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="mb-2 h-8 text-sm"
+        />
+        <div className="max-h-64 overflow-auto">
+          {Array.from(filtered.entries()).map(([group, cats]) => (
+            <div key={group}>
+              <div className="text-xs text-muted-foreground font-semibold px-2 pt-2 pb-1">{group}</div>
+              {cats.map(cat => (
+                <label key={cat.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer transition-colors">
+                  <Checkbox
+                    checked={selectedIds.includes(cat.id)}
+                    onCheckedChange={() => onToggle(cat.id)}
+                  />
+                  <span className="text-sm" style={{ color: cat.color }}>{cat.name}</span>
+                </label>
+              ))}
+            </div>
+          ))}
+          {filtered.size === 0 && (
+            <div className="text-sm text-muted-foreground px-2 py-4 text-center">No categories found.</div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
   const [categories, setCategories] = useState<Category[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
@@ -130,39 +194,11 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
         </Select>
 
         {/* Category multi-select */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="w-44 justify-start">
-              {filters.category_ids.length > 0
-                ? `${filters.category_ids.length} categories`
-                : 'All categories'}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 max-h-80 overflow-auto p-2" align="start">
-            {(() => {
-              const groups = new Map<string, Category[]>()
-              for (const cat of categories) {
-                const g = cat.category_group || 'Other'
-                if (!groups.has(g)) groups.set(g, [])
-                groups.get(g)!.push(cat)
-              }
-              return Array.from(groups.entries()).map(([group, cats]) => (
-                <div key={group}>
-                  <div className="text-xs text-muted-foreground font-semibold px-2 pt-2 pb-1">{group}</div>
-                  {cats.map(cat => (
-                    <label key={cat.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer transition-colors">
-                      <Checkbox
-                        checked={filters.category_ids.includes(cat.id)}
-                        onCheckedChange={() => toggleCategory(cat.id)}
-                      />
-                      <span className="text-sm" style={{ color: cat.color }}>{cat.name}</span>
-                    </label>
-                  ))}
-                </div>
-              ))
-            })()}
-          </PopoverContent>
-        </Popover>
+        <CategoryFilterPopover
+          categories={categories}
+          selectedIds={filters.category_ids}
+          onToggle={toggleCategory}
+        />
 
         {/* Source document */}
         <Select value={filters.document_id || 'all'} onValueChange={(v) => update({ document_id: v === 'all' ? '' : v })}>

@@ -83,6 +83,9 @@ const SEED_CATEGORIES = [
   { name: 'Refund', color: '#047857', group: 'Income & Transfers' },
   { name: 'Transfer', color: '#6B7280', group: 'Income & Transfers' },
   { name: 'ATM Withdrawal', color: '#4B5563', group: 'Income & Transfers' },
+  // Software & Services
+  { name: 'AI & Productivity Software', color: '#6366F1', group: 'Software & Services' },
+  { name: 'SaaS & Subscriptions', color: '#818CF8', group: 'Software & Services' },
   // Other
   { name: 'Other', color: '#9CA3AF', group: 'Other' },
 ]
@@ -236,5 +239,11 @@ export function initializeSchema(db: Database.Database): void {
         insert.run(cat.name, cat.color, cat.group)
       }
     }
+  }
+
+  // Always insert any missing seed categories (handles newly added categories)
+  const insertMissing = db.prepare('INSERT OR IGNORE INTO categories (name, color, category_group) VALUES (?, ?, ?)')
+  for (const cat of SEED_CATEGORIES) {
+    insertMissing.run(cat.name, cat.color, cat.group)
   }
 }

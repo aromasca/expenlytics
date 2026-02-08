@@ -34,6 +34,8 @@ export const VALID_CATEGORIES = [
   'Gifts', 'Charitable Donations',
   // Income & Transfers
   'Salary & Wages', 'Freelance Income', 'Refund', 'Transfer', 'ATM Withdrawal',
+  // Software & Services
+  'AI & Productivity Software', 'SaaS & Subscriptions',
   // Other
   'Other',
 ] as const

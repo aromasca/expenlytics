@@ -5,7 +5,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { CategoryBadge } from './category-badge'
 import { CategorySelect } from './category-select'
 import { Trash2 } from 'lucide-react'
 import type { Filters } from '@/components/filter-bar'
@@ -200,22 +199,11 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
                   </span>
                 </TableCell>
                 <TableCell>
-                  {txn.category_name ? (
-                    <div className="flex items-center gap-2">
-                      <CategoryBadge name={txn.category_name} color={txn.category_color!} />
-                      <CategorySelect
-                        categories={categories}
-                        value={txn.category_id}
-                        onValueChange={(catId) => updateCategory(txn.id, catId)}
-                      />
-                    </div>
-                  ) : (
-                    <CategorySelect
-                      categories={categories}
-                      value={null}
-                      onValueChange={(catId) => updateCategory(txn.id, catId)}
-                    />
-                  )}
+                  <CategorySelect
+                    categories={categories}
+                    value={txn.category_id}
+                    onValueChange={(catId) => updateCategory(txn.id, catId)}
+                  />
                 </TableCell>
                 <TableCell>
                   <Button

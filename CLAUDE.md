@@ -57,13 +57,15 @@
 - Categories: 69 entries across 15 groups; `category_group` column on categories table for UI grouping
 - `VALID_CATEGORIES` in `schemas.ts` and `SEED_CATEGORIES` in `schema.ts` must stay in sync
 - shadcn/ui Select supports `SelectGroup` and `SelectLabel` for grouped dropdowns
-- shadcn/ui components installed: button, card, table, input, select, badge, checkbox, dialog, popover, switch
+- shadcn/ui components installed: button, card, table, input, select, badge, checkbox, dialog, popover, switch, command
+- Category picker uses Popover + Command (cmdk) combobox pattern, not Radix Select
 
 ## SQLite Migrations
 - `CREATE TABLE IF NOT EXISTS` doesn't modify existing tables - only creates new ones
 - Pattern: base CREATE TABLE (original columns) → PRAGMA table_info to check columns → ALTER TABLE for new columns → CREATE INDEX
 - Check existing columns: `db.prepare("PRAGMA table_info(table_name)").all()` returns `Array<{ name: string }>`
 - Example: `if (!columnNames.includes('new_col')) { db.exec('ALTER TABLE t ADD COLUMN new_col TYPE') }`
+- New seed data: unconditional `INSERT OR IGNORE` pass at end of `initializeSchema` handles newly added categories on existing DBs
 - Restart dev server after schema changes for migrations to apply to existing `data/expenlytics.db`
 - `.worktrees/` is excluded in `vitest.config.ts` — stale worktree test copies cause false failures
 - SQLite: prefer `strftime('%Y-%m', t.date)` grouping over `date('now', '-1 month', 'start of month')` boundaries — the latter breaks in tests where data uses computed dates
