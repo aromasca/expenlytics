@@ -45,7 +45,7 @@ export async function generateInsights(summary: DataSummary): Promise<LLMInsight
 
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 2048,
+    max_tokens: 4096,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: prompt }],
   })
@@ -55,11 +55,9 @@ export async function generateInsights(summary: DataSummary): Promise<LLMInsight
     throw new Error('No text response from Claude')
   }
 
-  let jsonStr = textBlock.text
-  const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
-  if (jsonMatch) {
-    jsonStr = jsonMatch[1]
-  }
+  let jsonStr = textBlock.text.trim()
+  // Strip markdown code fences (handles variable backtick counts and labels)
+  jsonStr = jsonStr.replace(/^`{3,}(?:json)?\s*\n?/, '').replace(/\n?`{3,}\s*$/, '')
 
   const parsed = JSON.parse(jsonStr.trim())
   return llmInsightSchema.parse(parsed)
