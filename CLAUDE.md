@@ -44,6 +44,7 @@
 - React 19: avoid calling setState synchronously in useEffect; use `.then()` pattern
 - better-sqlite3: pass params as array to `.get([...])` and `.all([...])` when using dynamic params; `.run()` uses positional args
 - `next.config.ts` has `serverExternalPackages: ['better-sqlite3']`
+- Bash/zsh: quote paths containing parentheses, e.g. `"src/app/(app)/..."` — zsh treats `()` as glob
 - API routes: validate query params with allowlists before passing to DB functions (never trust `as` casts for SQL-interpolated values like `sort_by`)
 - Optional LLM calls (normalization, etc.) should be wrapped in try/catch so failures don't block core operations
 - Always add `.catch()` to fetch promise chains in React to prevent stuck loading states
