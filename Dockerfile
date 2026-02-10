@@ -2,15 +2,19 @@
 FROM node:22 AS builder
 WORKDIR /app
 
-# Copy all files
-COPY . .
+# Copy dependency files first for better caching
+COPY package.json package-lock.json ./
 
 # Install dependencies
-# Using npm install instead of ci to be more resilient to lockfile/platform mismatches
-RUN npm install
+RUN npm ci
+
+# Copy the rest of the application code
+COPY . .
 
 # Disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED=1
+# Enable standalone output for Docker
+ENV BUILD_STANDALONE=true
 
 RUN npm run build
 
