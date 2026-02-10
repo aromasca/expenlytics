@@ -90,6 +90,43 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Docker
+
+You can run Expenlytics as a Docker container.
+
+### Build the Image
+
+```bash
+docker build -t aromasca/expenlytics:latest .
+```
+
+### Run the Container
+
+```bash
+docker run -d \
+  -p 3000:3000 \
+  -e ANTHROPIC_API_KEY=your_key_here \
+  -v $(pwd)/data:/app/data \
+  --rm \
+  --name expenlytics \
+  aromasca/expenlytics:latest
+```
+
+### Persistence and Configuration
+
+- **Data Persistence**: The SQLite database and uploaded PDFs are stored in `/app/data`. Ensure you mount a volume to this path to persist data across container restarts.
+- **Permissions**: The container runs as a non-root user (`nextjs` with UID `1001`). If you are mounting a host directory on Linux, you may need to adjust permissions: `chown -R 1001:1001 ./data`.
+- **API Key**: The `ANTHROPIC_API_KEY` environment variable is required at runtime for AI features (PDF extraction, categorization, insights).
+- **Network**: The application listens on port 3000 by default.
+
+### Potential Issues & Troubleshooting
+
+- **SQLite Locking**: Avoid mounting the `data` volume on network file systems (like NFS or SMB/CIFS) as SQLite's WAL (Write-Ahead Logging) mode requires features that these file systems often don't support correctly, leading to "database is locked" errors.
+- **Permission Denied**: If the app fails to start or can't save files, it's likely a permission mismatch between the host and the container's `nextjs` user. Ensure the host `data` directory is writable by UID `1001`.
+- **Memory Limits**: PDF extraction and AI insight generation can be memory-intensive. Ensure your Docker host/container has at least 1GB of RAM allocated.
+- **No Hot Reloading**: The Docker image is a production build. For development with hot-reloading, use the local `npm run dev` workflow instead.
+- **Database Migrations**: When updating the image to a newer version, the application will automatically attempt to migrate the SQLite schema on startup. Always back up your `data/expenlytics.db` before major updates.
+
 ## Usage
 
 1. **Upload a statement** — Go to Transactions, drag-and-drop or browse for a PDF bank or credit card statement. Claude extracts and categorizes transactions automatically.
