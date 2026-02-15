@@ -1,6 +1,8 @@
 import type Database from 'better-sqlite3'
-import type { InsightCard } from '@/lib/insights/types'
 import { createHash } from 'crypto'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CacheData = any
 
 export function generateCacheKey(db: Database.Database): string {
   const row = db.prepare(`
@@ -12,7 +14,7 @@ export function generateCacheKey(db: Database.Database): string {
   return createHash('sha256').update(raw).digest('hex').slice(0, 16)
 }
 
-export function getCachedInsights(db: Database.Database, key: string): InsightCard[] | null {
+export function getCachedInsights(db: Database.Database, key: string): CacheData | null {
   const row = db.prepare(
     `SELECT insight_data FROM insight_cache WHERE cache_key = ? AND expires_at > datetime('now')`
   ).get([key]) as { insight_data: string } | undefined
@@ -21,7 +23,7 @@ export function getCachedInsights(db: Database.Database, key: string): InsightCa
   return JSON.parse(row.insight_data)
 }
 
-export function setCachedInsights(db: Database.Database, key: string, insights: InsightCard[], ttlHours = 24): void {
+export function setCachedInsights(db: Database.Database, key: string, insights: CacheData, ttlHours = 24): void {
   // Clean expired entries
   db.prepare(`DELETE FROM insight_cache WHERE expires_at <= datetime('now')`).run()
 

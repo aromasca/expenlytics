@@ -35,8 +35,11 @@
 - `src/lib/pipeline.ts` — Background document processing pipeline (extraction → classification → normalization)
 - `src/lib/recurring.ts` — Pure recurring charge detection logic (no DB dependency)
 - `src/lib/db/recurring.ts` — DB query layer for recurring charges
-- `src/lib/insights/` — Insight detection (detection.ts), ranking (ranking.ts), types (types.ts)
-- `src/components/insights/` — Dashboard UI: insight cards, hero section, grid layout
+- `src/lib/insights/compact-data.ts` — SQL-based data compaction for LLM context (`buildCompactData`)
+- `src/lib/insights/types.ts` — Types for health assessment, patterns, deep insights, monthly flow
+- `src/lib/claude/analyze-finances.ts` — Haiku-powered health score, patterns, deep insights (two LLM calls, ~$0.03/analysis)
+- `src/lib/db/health.ts` — `getMonthlyIncomeVsSpending` for income/outflow chart
+- `src/components/insights/` — Dashboard UI: health score, pattern grid, income/outflow chart, deep insight cards
 - `src/__tests__/` — mirrors src structure
 - `data/` — gitignored; SQLite DB and uploaded PDFs
 
@@ -72,6 +75,7 @@
 - Reprocess = re-run classification + normalization from existing DB transactions (not re-extraction). Retry = full pipeline from PDF.
 - When mocking multiple `@/lib/*` modules in tests, use module-level `vi.fn()` variables with `vi.mock()` factory functions (not class-based mocks)
 - Mock `fs/promises` with `vi.mock('fs/promises', ...)` when testing pipeline code (PDF files don't exist in test)
+- `insight_cache` table stores arbitrary JSON via stringify/parse — use `as unknown as` casts when changing cached data shape
 
 ## Design System
 - Aesthetic: minimal, data-dense dashboard (neutral monochrome, not warm/coral)

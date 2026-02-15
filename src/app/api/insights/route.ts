@@ -1,48 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
-import { detectCategoryTrends, detectLifestyleInflation, detectRecurringGrowth, detectSpendingShifts, detectLLMInsights } from '@/lib/insights/detection'
-import { rankInsights } from '@/lib/insights/ranking'
-import { clearInsightCache, getDismissedInsightIds } from '@/lib/db/insight-cache'
-import type { InsightsResponse } from '@/lib/insights/types'
+import { buildCompactData } from '@/lib/insights/compact-data'
+import { getMonthlyIncomeVsSpending } from '@/lib/db/health'
+import { analyzeHealthAndPatterns, analyzeDeepInsights } from '@/lib/claude/analyze-finances'
+import { generateCacheKey, getCachedInsights, setCachedInsights, clearInsightCache, getDismissedInsightIds } from '@/lib/db/insight-cache'
+import type { InsightsResponse, HealthAssessment, PatternCard, DeepInsight } from '@/lib/insights/types'
 
 export async function GET(request: NextRequest) {
   try {
     const db = getDb()
 
-    // Support cache refresh
     const refresh = request.nextUrl.searchParams.get('refresh')
     if (refresh === 'true') {
       clearInsightCache(db)
     }
 
-    const categoryTrends = detectCategoryTrends(db)
-    const lifestyleInflation = detectLifestyleInflation(db)
-    const recurringCharges = detectRecurringGrowth(db)
-    const spendingShifts = detectSpendingShifts(db)
+    const monthlyFlow = getMonthlyIncomeVsSpending(db)
 
-    // LLM insights — wrapped in try/catch so failures don't break the page
-    let llmInsights: InsightsResponse['llmInsights'] = []
-    try {
-      llmInsights = await detectLLMInsights(db)
-    } catch (error) {
-      console.error('LLM insights failed (non-fatal):', error)
+    const cacheKey = generateCacheKey(db)
+    const cached = getCachedInsights(db, cacheKey)
+
+    let health: HealthAssessment | null = null
+    let patterns: PatternCard[] = []
+    let insights: DeepInsight[] = []
+
+    if (cached) {
+      const cachedData = cached as unknown as { health: HealthAssessment; patterns: PatternCard[]; insights: DeepInsight[] }
+      health = cachedData.health
+      patterns = cachedData.patterns
+      insights = cachedData.insights
+    } else {
+      const compactData = buildCompactData(db)
+      const totalTxns = compactData.monthly.reduce((s, m) => s + m.spending, 0)
+
+      if (totalTxns > 0) {
+        try {
+          const healthAndPatterns = await analyzeHealthAndPatterns(compactData)
+          health = healthAndPatterns.health
+          patterns = healthAndPatterns.patterns
+        } catch (error) {
+          console.error('Health/patterns analysis failed:', error)
+        }
+
+        if (health) {
+          try {
+            insights = await analyzeDeepInsights(compactData, health)
+          } catch (error) {
+            console.error('Deep insights analysis failed:', error)
+          }
+        }
+
+        if (health || patterns.length > 0 || insights.length > 0) {
+          setCachedInsights(db, cacheKey, { health, patterns, insights })
+        }
+      }
     }
 
-    // Filter dismissed LLM insights
     const dismissedIds = new Set(getDismissedInsightIds(db))
-    const filteredLlm = llmInsights.filter(i => !dismissedIds.has(i.id))
-    const dismissedCount = llmInsights.length - filteredLlm.length
-
-    const allInsights = [...filteredLlm, ...categoryTrends, ...lifestyleInflation, ...recurringCharges, ...spendingShifts]
-    const hero = rankInsights(allInsights).slice(0, 5)
+    const filteredInsights = insights.filter(i => !dismissedIds.has(i.id))
+    const dismissedCount = insights.length - filteredInsights.length
 
     const response: InsightsResponse = {
-      hero,
-      categoryTrends,
-      lifestyleInflation,
-      recurringCharges,
-      spendingShifts,
-      llmInsights: filteredLlm,
+      health,
+      monthlyFlow,
+      patterns,
+      insights: filteredInsights,
       dismissedCount,
       generatedAt: new Date().toISOString(),
     }

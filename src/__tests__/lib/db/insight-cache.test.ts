@@ -2,24 +2,18 @@ import { describe, it, expect } from 'vitest'
 import Database from 'better-sqlite3'
 import { initializeSchema } from '@/lib/db/schema'
 import { generateCacheKey, getCachedInsights, setCachedInsights, clearInsightCache, dismissInsight, getDismissedInsightIds, clearDismissedInsights } from '@/lib/db/insight-cache'
-import type { InsightCard } from '@/lib/insights/types'
-
 function createDb() {
   const db = new Database(':memory:')
   initializeSchema(db)
   return db
 }
 
-const mockInsight: InsightCard = {
+const mockInsight = {
   id: 'test-1',
-  type: 'llm_insight',
-  severity: 'notable',
   headline: 'Test insight',
-  metric: '$100/mo',
-  percentChange: 0,
-  dollarChange: 0,
-  score: 50,
-  sparkline: [],
+  severity: 'notable',
+  key_metric: '$100/mo',
+  explanation: 'Test explanation',
 }
 
 describe('insight-cache', () => {
