@@ -105,3 +105,4 @@
 - Restart dev server after schema changes for migrations to apply to existing `data/expenlytics.db`
 - `.worktrees/` is excluded in `vitest.config.ts` — stale worktree test copies cause false failures
 - SQLite: prefer `strftime('%Y-%m', t.date)` grouping over `date('now', '-1 month', 'start of month')` boundaries — the latter breaks in tests where data uses computed dates
+- SQLite: never `GROUP BY alias` when the alias is a computed expression (e.g., `COALESCE(a, b) as name` then `GROUP BY name`) — SQLite may resolve the alias non-deterministically, producing wrong group labels. Always `GROUP BY` the full expression instead.

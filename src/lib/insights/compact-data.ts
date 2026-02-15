@@ -77,7 +77,7 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     WHERE t.type = 'debit' AND t.date >= date('now', '-12 months')
       AND COALESCE(c.exclude_from_totals, 0) = 0
       AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
-    GROUP BY name
+    GROUP BY COALESCE(t.normalized_merchant, t.description)
     ORDER BY count DESC, total DESC
     LIMIT 30
   `).all() as CompactFinancialData['merchants']
@@ -147,7 +147,7 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     WHERE t.type = 'debit'
       AND t.date >= date('now', '-12 months')
       AND t.normalized_merchant IS NOT NULL
-    GROUP BY merchant
+    GROUP BY COALESCE(t.normalized_merchant, t.description)
     HAVING occurrences >= 2
       AND (MAX(t.amount) - MIN(t.amount)) / NULLIF(AVG(t.amount), 0) < 0.3
     ORDER BY amount DESC

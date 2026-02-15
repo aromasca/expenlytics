@@ -14,11 +14,22 @@ const HEALTH_AND_PATTERNS_SYSTEM = `You are an expert financial analyst. Given c
    - Spending velocity: front-loading vs back-loading within months
    - Unusual recent behavior vs historical baseline
 
+ACCURACY RULES — MANDATORY:
+- Every number you cite (dollar amounts, transaction counts, percentages) MUST be derived directly from the provided JSON data.
+- For merchants: the "total", "count", and "avg" fields in the merchants array are the ONLY valid figures. Do NOT invent transaction counts or totals.
+- Do NOT mention merchants that are not present in the data.
+- If a merchant has count:1, it is a single transaction — do not describe it as recurring or frequent.
+- When computing percentages, use the monthly totals from the data. Show your math if needed.
+
 Be specific with numbers. "Fridays cost $120/day vs $75 average" is better than "you spend more on Fridays."
 Don't repeat obvious facts. Find what's surprising or actionable.`
 
 const HEALTH_AND_PATTERNS_USER = `Here is the compact financial data. Analyze it and return JSON.
 
+KEY TOTALS (pre-computed from the data — use these as ground truth):
+{summary_stats}
+
+FULL DATA:
 {data_json}
 
 Return ONLY valid JSON in this exact format:
@@ -46,6 +57,13 @@ const DEEP_INSIGHTS_SYSTEM = `You are an expert financial advisor reviewing some
 
 Now produce 8-12 deep, narrative insights. Each should be genuinely surprising and actionable — the kind of observation that makes someone say "I had no idea."
 
+ACCURACY RULES — MANDATORY:
+- Every number you cite (dollar amounts, transaction counts, percentages) MUST be derived directly from the provided JSON data.
+- For merchants: use ONLY the "total", "count", and "avg" fields from the merchants array. Do NOT invent figures.
+- Do NOT mention merchants that are not present in the data.
+- If a merchant has count:1, it is a single transaction — do not describe it as recurring or frequent.
+- When computing percentages, use the monthly totals from the data.
+
 Quality criteria:
 - Cross-correlations between spending categories
 - Merchant-level intelligence (unused subscriptions, loyalty patterns)
@@ -57,6 +75,10 @@ Do NOT repeat the health assessment or pattern observations. Go deeper.`
 
 const DEEP_INSIGHTS_USER = `Here is the compact financial data:
 
+KEY TOTALS (pre-computed from the data — use these as ground truth):
+{summary_stats}
+
+FULL DATA:
 {data_json}
 
 Return ONLY valid JSON:
@@ -77,13 +99,42 @@ Return ONLY valid JSON:
   ]
 }`
 
+function buildSummaryStats(data: CompactFinancialData): string {
+  const totalIncome = data.monthly.reduce((s, m) => s + m.income, 0)
+  const totalSpending = data.monthly.reduce((s, m) => s + m.spending, 0)
+  const months = data.monthly.length
+  const topMerchants = data.merchants.slice(0, 10).map(m =>
+    `  - ${m.name}: $${m.total.toFixed(2)} total, ${m.count} transactions, $${m.avg} avg`
+  ).join('\n')
+  const topCategories = data.categories.slice(0, 10).map(c => {
+    const total = Object.values(c.amounts).reduce((s, v) => s + v, 0)
+    return `  - ${c.category}: $${total.toFixed(2)} total`
+  }).join('\n')
+
+  return [
+    `Total income (${months} months): $${totalIncome.toFixed(2)}`,
+    `Total spending (${months} months): $${totalSpending.toFixed(2)}`,
+    `Avg monthly income: $${(totalIncome / months).toFixed(2)}`,
+    `Avg monthly spending: $${(totalSpending / months).toFixed(2)}`,
+    `Top merchants by frequency:`,
+    topMerchants,
+    `Top categories by spend:`,
+    topCategories,
+    `Total merchants in data: ${data.merchants.length}`,
+    `Total recurring charges: ${data.recurring.length}`,
+  ].join('\n')
+}
+
 function stripCodeFences(text: string): string {
   return text.trim().replace(/^`{3,}(?:json)?\s*\n?/, '').replace(/\n?`{3,}\s*$/, '')
 }
 
 export async function analyzeHealthAndPatterns(data: CompactFinancialData, model = 'claude-haiku-4-5-20251001'): Promise<HealthAndPatternsResult> {
   const client = new Anthropic()
-  const prompt = HEALTH_AND_PATTERNS_USER.replace('{data_json}', JSON.stringify(data))
+  const stats = buildSummaryStats(data)
+  const prompt = HEALTH_AND_PATTERNS_USER
+    .replace('{summary_stats}', stats)
+    .replace('{data_json}', JSON.stringify(data))
 
   const response = await client.messages.create({
     model,
@@ -108,7 +159,10 @@ export async function analyzeDeepInsights(
   const system = DEEP_INSIGHTS_SYSTEM
     .replace('{score}', String(health.score))
     .replace('{summary}', health.summary)
-  const prompt = DEEP_INSIGHTS_USER.replace('{data_json}', JSON.stringify(data))
+  const stats = buildSummaryStats(data)
+  const prompt = DEEP_INSIGHTS_USER
+    .replace('{summary_stats}', stats)
+    .replace('{data_json}', JSON.stringify(data))
 
   const response = await client.messages.create({
     model,
