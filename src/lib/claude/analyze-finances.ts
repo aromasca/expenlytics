@@ -22,7 +22,14 @@ ACCURACY RULES — MANDATORY:
 - When computing percentages, use the monthly totals from the data. Show your math if needed.
 
 Be specific with numbers. "Fridays cost $120/day vs $75 average" is better than "you spend more on Fridays."
-Don't repeat obvious facts. Find what's surprising or actionable.`
+Don't repeat obvious facts. Find what's surprising or actionable.
+
+FOCUS ON ACTIONABLE INSIGHTS:
+- Identify specific spending trends the user can act on
+- Compare month-over-month changes with concrete numbers
+- Flag unusual transactions by amount (not by vague "patterns")
+- Don't repeat category breakdowns — the user can see those on the Reports page
+- Each insight should tell the user something they don't already know`
 
 const HEALTH_AND_PATTERNS_USER = `Here is the compact financial data. Analyze it and return JSON.
 
@@ -71,7 +78,13 @@ Quality criteria:
 - Actionable recommendations tied to specific dollar amounts
 - Positive trends worth reinforcing
 
-Do NOT repeat the health assessment or pattern observations. Go deeper.`
+Do NOT repeat the health assessment or pattern observations. Go deeper.
+
+QUALITY RULES:
+- Every insight must reference specific merchants or categories from the data
+- Don't make generic financial advice — be specific to THIS user's data
+- If a category increased, say which merchants drove it and by how much
+- Savings rate insights must use actual income and spending numbers from the data`
 
 const DEEP_INSIGHTS_USER = `Here is the compact financial data:
 

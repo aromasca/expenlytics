@@ -4,6 +4,7 @@ import { getAllCategories } from '@/lib/db/categories'
 import { extractRawTransactions, classifyTransactions } from '@/lib/claude/extract-transactions'
 import { normalizeMerchants } from '@/lib/claude/normalize-merchants'
 import { getModelForTask } from '@/lib/claude/models'
+import { getMerchantCategoryMap, setMerchantCategory, backfillMerchantCategories, applyMerchantCategories } from '@/lib/db/merchant-categories'
 import { readFile } from 'fs/promises'
 
 // Sequential processing queue — only one document processes at a time
@@ -58,34 +59,84 @@ export async function processDocument(db: Database.Database, documentId: number)
   updateDocumentType(db, documentId, rawResult.document_type)
   updateDocumentTransactionCount(db, documentId, rawResult.transactions.length)
 
-  // Phase 2: Classification
-  updateDocumentPhase(db, documentId, 'classification')
-  let classifications
-  try {
-    const classResult = await classifyTransactions(rawResult.document_type, rawResult.transactions, classificationModel)
-    classifications = classResult.classifications
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    updateDocumentStatus(db, documentId, 'failed', `Classification failed: ${message}`)
-    return
-  }
-
   // Build category map
   const categories = getAllCategories(db)
   const categoryMap = new Map(categories.map(c => [c.name.toLowerCase(), c.id]))
+  const categoryNameMap = new Map(categories.map(c => [c.id, c.name]))
   const otherCategoryId = categoryMap.get('other')!
 
-  // Phase 3: Normalization (non-blocking — failures don't prevent completion)
+  // Seed merchant_categories from existing data on first run
+  backfillMerchantCategories(db)
+
+  // Phase 2: Normalization (moved before classification)
   updateDocumentPhase(db, documentId, 'normalization')
   let merchantMap = new Map<string, string>()
   try {
+    const existingMerchants = db.prepare(
+      'SELECT DISTINCT normalized_merchant FROM merchant_categories'
+    ).all().map((r: { normalized_merchant: string }) => r.normalized_merchant)
     const descriptions = rawResult.transactions.map(t => t.description)
-    merchantMap = await normalizeMerchants(descriptions, normalizationModel)
+    merchantMap = await normalizeMerchants(descriptions, normalizationModel, existingMerchants)
   } catch {
     // Normalization failure shouldn't block transaction insertion
   }
 
-  // Insert transactions into DB
+  // Phase 3: Merchant Lookup + Classification
+  updateDocumentPhase(db, documentId, 'classification')
+  const knownCategoryMap = getMerchantCategoryMap(db)
+
+  // Split into known (from merchant memory) and unknown (need LLM classification)
+  const knownCategories = new Map<number, number>() // index → category_id
+  const unknownIndices: number[] = []
+
+  for (let i = 0; i < rawResult.transactions.length; i++) {
+    const t = rawResult.transactions[i]
+    const normalizedMerchant = merchantMap.get(t.description)
+    if (normalizedMerchant) {
+      const known = knownCategoryMap.get(normalizedMerchant)
+      if (known && known.confidence >= 0.6) {
+        knownCategories.set(i, known.category_id)
+        continue
+      }
+    }
+    unknownIndices.push(i)
+  }
+
+  // Classify only unknown transactions via LLM
+  let llmClassifications = new Map<number, string>() // original index → category name
+  if (unknownIndices.length > 0) {
+    try {
+      const unknownTransactions = unknownIndices.map(i => rawResult.transactions[i])
+
+      // Build known mappings for context injection
+      const knownMappings: Array<{ merchant: string; category: string }> = []
+      for (const [merchant, entry] of knownCategoryMap) {
+        const name = categoryNameMap.get(entry.category_id)
+        if (name) knownMappings.push({ merchant, category: name })
+      }
+
+      const classResult = await classifyTransactions(
+        rawResult.document_type,
+        unknownTransactions,
+        classificationModel,
+        knownMappings.length > 0 ? knownMappings : undefined
+      )
+
+      // Remap LLM result indices back to original indices
+      for (const c of classResult.classifications) {
+        const originalIndex = unknownIndices[c.index]
+        if (originalIndex !== undefined) {
+          llmClassifications.set(originalIndex, c.category)
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      updateDocumentStatus(db, documentId, 'failed', `Classification failed: ${message}`)
+      return
+    }
+  }
+
+  // Phase 4: Insert + Learn
   const insert = db.prepare(
     'INSERT INTO transactions (document_id, date, description, amount, type, category_id, normalized_merchant, transaction_class) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   )
@@ -93,16 +144,42 @@ export async function processDocument(db: Database.Database, documentId: number)
   const insertAll = db.transaction(() => {
     for (let i = 0; i < rawResult.transactions.length; i++) {
       const t = rawResult.transactions[i]
-      const classification = classifications.find(c => c.index === i)
-      const categoryId = classification
-        ? (categoryMap.get(classification.category.toLowerCase()) ?? otherCategoryId)
-        : otherCategoryId
-
       const normalizedMerchant = merchantMap.get(t.description) ?? null
+
+      // Determine category: known from memory or LLM-classified
+      let categoryId: number
+      if (knownCategories.has(i)) {
+        categoryId = knownCategories.get(i)!
+      } else {
+        const llmCategory = llmClassifications.get(i)
+        categoryId = llmCategory
+          ? (categoryMap.get(llmCategory.toLowerCase()) ?? otherCategoryId)
+          : otherCategoryId
+      }
+
       insert.run(documentId, t.date, t.description, t.amount, t.type, categoryId, normalizedMerchant, t.transaction_class ?? null)
+
+      // Learn: update merchant_categories for newly LLM-classified transactions
+      if (normalizedMerchant && llmClassifications.has(i)) {
+        const existing = knownCategoryMap.get(normalizedMerchant)
+        if (!existing) {
+          // New merchant — store initial mapping
+          setMerchantCategory(db, normalizedMerchant, categoryId, 'auto', 0.6)
+        } else if (existing.source !== 'manual') {
+          if (existing.category_id === categoryId) {
+            // Same category — boost confidence
+            const newConfidence = Math.min(existing.confidence + 0.1, 0.95)
+            setMerchantCategory(db, normalizedMerchant, categoryId, existing.source, newConfidence)
+          }
+          // Different category with auto source — leave it (don't flip-flop)
+        }
+      }
     }
   })
   insertAll()
+
+  // Apply learned categories to all past transactions for consistency
+  applyMerchantCategories(db)
 
   // Mark complete
   updateDocumentPhase(db, documentId, 'complete')

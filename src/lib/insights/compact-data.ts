@@ -12,6 +12,7 @@ export interface CompactFinancialData {
   daily_recent: Array<{ date: string; amount: number; is_income_day: boolean }>
   recurring: Array<{ merchant: string; amount: number; frequency: string; months: number }>
   outliers: Array<{ date: string; description: string; amount: number; category: string }>
+  top_merchants_by_category: Array<{ category: string; merchants: Array<{ name: string; total: number; count: number }> }>
 }
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -188,5 +189,32 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     LIMIT 10
   `).all() as Array<{ date: string; description: string; amount: number; category: string }>
 
-  return { monthly, categories, merchants, day_of_week, daily_recent, recurring, outliers }
+  // Top merchants per category (top 5 merchants for top 10 categories)
+  const merchantByCatRows = db.prepare(`
+    SELECT COALESCE(c.name, 'Uncategorized') as category,
+           COALESCE(t.normalized_merchant, t.description) as merchant_name,
+           SUM(t.amount) as total,
+           COUNT(*) as count
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.type = 'debit' AND t.date >= date('now', '-6 months')
+      AND COALESCE(c.exclude_from_totals, 0) = 0
+      AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
+    GROUP BY COALESCE(c.name, 'Uncategorized'), COALESCE(t.normalized_merchant, t.description)
+    ORDER BY category, total DESC
+  `).all() as Array<{ category: string; merchant_name: string; total: number; count: number }>
+
+  const catMerchantMap = new Map<string, Array<{ name: string; total: number; count: number }>>()
+  for (const r of merchantByCatRows) {
+    if (!catMerchantMap.has(r.category)) catMerchantMap.set(r.category, [])
+    const arr = catMerchantMap.get(r.category)!
+    if (arr.length < 5) {
+      arr.push({ name: r.merchant_name, total: Math.round(r.total * 100) / 100, count: r.count })
+    }
+  }
+  const top_merchants_by_category = topCats.slice(0, 10)
+    .filter(cat => catMerchantMap.has(cat))
+    .map(cat => ({ category: cat, merchants: catMerchantMap.get(cat)! }))
+
+  return { monthly, categories, merchants, day_of_week, daily_recent, recurring, outliers, top_merchants_by_category }
 }

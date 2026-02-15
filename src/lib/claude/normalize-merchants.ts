@@ -11,7 +11,12 @@ RULES:
 - For unrecognizable merchants, clean up the name as best you can
 - Every input description MUST appear exactly once in the output
 
-Return ONLY valid JSON:
+SPECIFIC RULES:
+- "BA Electronic Payment" = Bank of America (NOT British Airways)
+- Normalize case consistently (use title case)
+- Collapse apostrophe/accent variants: "Due Cucina" = "Due' Cucina"
+
+{existing_merchants_block}Return ONLY valid JSON:
 {
   "normalizations": [
     {"description": "<original>", "merchant": "<normalized>"}
@@ -23,8 +28,15 @@ Descriptions to normalize:
 
 const BATCH_SIZE = 80
 
-async function normalizeBatch(client: Anthropic, batch: string[], model: string): Promise<Map<string, string>> {
+async function normalizeBatch(client: Anthropic, batch: string[], model: string, existingMerchants?: string[]): Promise<Map<string, string>> {
+  let existingMerchantsBlock = ''
+  if (existingMerchants && existingMerchants.length > 0) {
+    const list = JSON.stringify(existingMerchants.slice(0, 100))
+    existingMerchantsBlock = `EXISTING MERCHANT NAMES (match to these when the description refers to the same business):\n${list}\n\n`
+  }
+
   const prompt = NORMALIZATION_PROMPT
+    .replace('{existing_merchants_block}', existingMerchantsBlock)
     .replace('{descriptions_json}', JSON.stringify(batch, null, 2))
 
   const response = await client.messages.create({
@@ -54,7 +66,7 @@ async function normalizeBatch(client: Anthropic, batch: string[], model: string)
   return map
 }
 
-export async function normalizeMerchants(descriptions: string[], model = 'claude-haiku-4-5-20251001'): Promise<Map<string, string>> {
+export async function normalizeMerchants(descriptions: string[], model = 'claude-haiku-4-5-20251001', existingMerchants?: string[]): Promise<Map<string, string>> {
   const unique = [...new Set(descriptions)]
   if (unique.length === 0) return new Map()
 
@@ -63,7 +75,7 @@ export async function normalizeMerchants(descriptions: string[], model = 'claude
 
   for (let i = 0; i < unique.length; i += BATCH_SIZE) {
     const batch = unique.slice(i, i + BATCH_SIZE)
-    const batchResult = await normalizeBatch(client, batch, model)
+    const batchResult = await normalizeBatch(client, batch, model, existingMerchants)
     for (const [desc, merchant] of batchResult) {
       map.set(desc, merchant)
     }

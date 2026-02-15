@@ -212,6 +212,18 @@ export function initializeSchema(db: Database.Database): void {
     )
   `)
 
+  // Merchant classification memory — records merchant→category mappings
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS merchant_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      normalized_merchant TEXT NOT NULL UNIQUE,
+      category_id INTEGER NOT NULL REFERENCES categories(id),
+      source TEXT NOT NULL DEFAULT 'auto',
+      confidence REAL NOT NULL DEFAULT 1.0,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
+
   // Dismissed subscriptions table
   db.exec(`
     CREATE TABLE IF NOT EXISTS dismissed_subscriptions (

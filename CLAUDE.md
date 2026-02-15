@@ -84,6 +84,9 @@
 - LLM functions accept optional `model` param with defaults — callers use `getModelForTask(db, task)` to read user-configured model from `settings` table
 - `settings` table: key-value store with `INSERT ... ON CONFLICT DO UPDATE` upsert pattern
 - TypeScript: `new Set(arr)` from `as const` arrays infers narrow literal types — use `new Set<string>(...)` when checking `string` args with `.has()`
+- Zod schemas for LLM-generated JSON: use `.transform()` with fallback mapping instead of strict `.enum()` — LLMs return unexpected values (e.g., `"positive"` instead of `"good"`, a string instead of `string[]`). Use `z.union([z.array(z.string()), z.string().transform(v => [v])])` for array fields. Strict validation causes silent failures + infinite LLM retry loops when nothing gets cached.
+- `data-sample/` directory may contain real financial data (bank PDFs, SQLite DBs) — always verify `git status` for untracked sensitive files before committing
+- Prefer automatic background operations over Settings page buttons for data maintenance tasks (backfill, consistency fixes). Wire into existing pipeline or schema init instead.
 
 ## Design System
 - Aesthetic: minimal, data-dense dashboard (neutral monochrome, not warm/coral)

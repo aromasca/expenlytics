@@ -122,6 +122,28 @@ export type RawTransactionData = z.infer<typeof rawTransactionSchema>
 export type ReclassificationResult = z.infer<typeof reclassificationSchema>
 export type NormalizationResult = z.infer<typeof normalizationSchema>
 
+// LLMs sometimes return unexpected enum values — coerce to closest match or default
+const sentimentSchema = z.string().transform(v => {
+  if (['good', 'neutral', 'bad'].includes(v)) return v as 'good' | 'neutral' | 'bad'
+  if (['positive', 'favorable'].includes(v)) return 'good' as const
+  if (['negative', 'concerning', 'poor'].includes(v)) return 'bad' as const
+  return 'neutral' as const
+})
+
+const severitySchema = z.string().transform(v => {
+  if (['concerning', 'notable', 'favorable', 'informational'].includes(v)) return v as 'concerning' | 'notable' | 'favorable' | 'informational'
+  if (['positive', 'good'].includes(v)) return 'favorable' as const
+  if (['negative', 'bad', 'warning'].includes(v)) return 'concerning' as const
+  if (['neutral', 'mixed'].includes(v)) return 'notable' as const
+  return 'informational' as const
+})
+
+// LLMs sometimes return a single string instead of an array — coerce
+const stringOrArraySchema = z.union([
+  z.array(z.string()),
+  z.string().transform(v => [v]),
+]).optional()
+
 export const healthAssessmentSchema = z.object({
   score: z.number().min(0).max(100),
   summary: z.string(),
@@ -130,7 +152,7 @@ export const healthAssessmentSchema = z.object({
     label: z.string(),
     value: z.string(),
     trend: z.enum(['up', 'down', 'stable']),
-    sentiment: z.enum(['good', 'neutral', 'bad']),
+    sentiment: sentimentSchema,
   })),
 })
 
@@ -139,11 +161,14 @@ export const patternCardSchema = z.object({
   headline: z.string(),
   metric: z.string(),
   explanation: z.string(),
-  category: z.enum(['timing', 'merchant', 'behavioral', 'subscription', 'correlation']),
-  severity: z.enum(['concerning', 'notable', 'favorable', 'informational']),
+  category: z.string().transform(v => {
+    if (['timing', 'merchant', 'behavioral', 'subscription', 'correlation'].includes(v)) return v
+    return 'behavioral'
+  }),
+  severity: severitySchema,
   evidence: z.object({
-    merchants: z.array(z.string()).optional(),
-    categories: z.array(z.string()).optional(),
+    merchants: stringOrArraySchema,
+    categories: stringOrArraySchema,
     time_period: z.string().optional(),
   }),
 })
@@ -156,14 +181,17 @@ export const healthAndPatternsSchema = z.object({
 export const deepInsightSchema = z.object({
   insights: z.array(z.object({
     headline: z.string(),
-    severity: z.enum(['concerning', 'notable', 'favorable', 'informational']),
+    severity: severitySchema,
     key_metric: z.string(),
     explanation: z.string(),
     action_suggestion: z.string().optional(),
     evidence: z.object({
       category_a: z.string().optional(),
       category_b: z.string().optional(),
-      merchant_names: z.array(z.string()).optional(),
+      merchant_names: z.union([
+        z.array(z.string()),
+        z.string().transform(v => [v]),
+      ]).optional(),
     }),
   })),
 })

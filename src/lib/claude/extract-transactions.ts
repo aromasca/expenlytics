@@ -386,6 +386,21 @@ KEY DISAMBIGUATION:
 - Internet/cable/phone → Internet & Phone (not Utilities)
 - Auto insurance → Car Insurance | Home insurance → Home Insurance | Health insurance → Health Insurance
 
+ADDITIONAL DISAMBIGUATION:
+- Bakeries (Paris Baguette, Panera): "Coffee & Cafes" (cafe-style service)
+- Shake Shack, Five Guys, Chipotle, Sweetgreen: "Fast Food" (counter service)
+- Apple.com/Bill recurring charges: "SaaS & Subscriptions" (iCloud, Apple services)
+- One-time Apple purchases (apple.com/us, large amounts): "Electronics"
+- OpenAI, ChatGPT, Claude, Copilot: "AI & Productivity Software"
+- Hosting (Bluehost, DreamHost, DigitalOcean): "SaaS & Subscriptions"
+- Indoor play (Urban Air, trampoline parks, bowling): "Kids Activities"
+- Museums, galleries, exhibits: "Hobbies"
+- School district charges: "Tuition & School Fees"
+- Vending machines: "Fast Food"
+- Pet insurance (Healthy Paws, Trupanion): "Veterinary"
+- Childcare apps (Brightwheel): always "Childcare"
+- "Other" is a LAST RESORT — if ANY recognizable word exists, classify specifically
+
 Return ONLY valid JSON:
 {
   "classifications": [
@@ -442,7 +457,22 @@ KEY DISAMBIGUATION:
 - Internet/cable/phone → Internet & Phone (not Utilities)
 - Auto insurance → Car Insurance | Home insurance → Home Insurance | Health insurance → Health Insurance
 
-Return ONLY valid JSON:
+ADDITIONAL DISAMBIGUATION:
+- Bakeries (Paris Baguette, Panera): "Coffee & Cafes" (cafe-style service)
+- Shake Shack, Five Guys, Chipotle, Sweetgreen: "Fast Food" (counter service)
+- Apple.com/Bill recurring charges: "SaaS & Subscriptions" (iCloud, Apple services)
+- One-time Apple purchases (apple.com/us, large amounts): "Electronics"
+- OpenAI, ChatGPT, Claude, Copilot: "AI & Productivity Software"
+- Hosting (Bluehost, DreamHost, DigitalOcean): "SaaS & Subscriptions"
+- Indoor play (Urban Air, trampoline parks, bowling): "Kids Activities"
+- Museums, galleries, exhibits: "Hobbies"
+- School district charges: "Tuition & School Fees"
+- Vending machines: "Fast Food"
+- Pet insurance (Healthy Paws, Trupanion): "Veterinary"
+- Childcare apps (Brightwheel): always "Childcare"
+- "Other" is a LAST RESORT — if ANY recognizable word exists, classify specifically
+
+{known_mappings}Return ONLY valid JSON:
 {
   "classifications": [
     {"index": 0, "category": "<category>"}
@@ -455,13 +485,20 @@ Transactions to classify:
 export async function classifyTransactions(
   documentType: string,
   transactions: RawTransactionData[],
-  model = 'claude-sonnet-4-5-20250929'
+  model = 'claude-sonnet-4-5-20250929',
+  knownMappings?: Array<{ merchant: string; category: string }>
 ): Promise<ClassificationResult> {
   const client = new Anthropic()
 
   const indexed = transactions.map((t, i) => ({ index: i, ...t }))
+  let knownMappingsBlock = ''
+  if (knownMappings && knownMappings.length > 0) {
+    const lines = knownMappings.slice(0, 50).map(m => `- ${m.merchant} → ${m.category}`)
+    knownMappingsBlock = `KNOWN MERCHANT CLASSIFICATIONS (use these for consistency with previously classified transactions):\n${lines.join('\n')}\nWhen you encounter similar merchants, use the established category. Only classify independently for genuinely new merchants.\n\n`
+  }
   const prompt = CLASSIFY_PROMPT
     .replace('{document_type}', documentType)
+    .replace('{known_mappings}', knownMappingsBlock)
     .replace('{transactions_json}', JSON.stringify(indexed, null, 2))
 
   const response = await client.messages.create({
