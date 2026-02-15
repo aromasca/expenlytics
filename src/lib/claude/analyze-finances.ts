@@ -81,12 +81,12 @@ function stripCodeFences(text: string): string {
   return text.trim().replace(/^`{3,}(?:json)?\s*\n?/, '').replace(/\n?`{3,}\s*$/, '')
 }
 
-export async function analyzeHealthAndPatterns(data: CompactFinancialData): Promise<HealthAndPatternsResult> {
+export async function analyzeHealthAndPatterns(data: CompactFinancialData, model = 'claude-haiku-4-5-20251001'): Promise<HealthAndPatternsResult> {
   const client = new Anthropic()
   const prompt = HEALTH_AND_PATTERNS_USER.replace('{data_json}', JSON.stringify(data))
 
   const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model,
     max_tokens: 4096,
     system: HEALTH_AND_PATTERNS_SYSTEM,
     messages: [{ role: 'user', content: prompt }],
@@ -101,7 +101,8 @@ export async function analyzeHealthAndPatterns(data: CompactFinancialData): Prom
 
 export async function analyzeDeepInsights(
   data: CompactFinancialData,
-  health: HealthAssessment
+  health: HealthAssessment,
+  model = 'claude-haiku-4-5-20251001'
 ): Promise<DeepInsight[]> {
   const client = new Anthropic()
   const system = DEEP_INSIGHTS_SYSTEM
@@ -110,7 +111,7 @@ export async function analyzeDeepInsights(
   const prompt = DEEP_INSIGHTS_USER.replace('{data_json}', JSON.stringify(data))
 
   const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model,
     max_tokens: 4096,
     system,
     messages: [{ role: 'user', content: prompt }],

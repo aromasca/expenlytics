@@ -4,18 +4,23 @@ import { getAllCategories } from '@/lib/db/categories'
 import { findDuplicateTransaction, bulkUpdateCategories } from '@/lib/db/transactions'
 import { extractRawTransactions, classifyTransactions } from '@/lib/claude/extract-transactions'
 import { normalizeMerchants } from '@/lib/claude/normalize-merchants'
+import { getModelForTask } from '@/lib/claude/models'
 import { readFile } from 'fs/promises'
 
 export async function processDocument(db: Database.Database, documentId: number): Promise<void> {
   const doc = getDocument(db, documentId)
   if (!doc) throw new Error(`Document ${documentId} not found`)
 
+  const extractionModel = getModelForTask(db, 'extraction')
+  const classificationModel = getModelForTask(db, 'classification')
+  const normalizationModel = getModelForTask(db, 'normalization')
+
   // Phase 1: Extraction
   updateDocumentPhase(db, documentId, 'extraction')
   let rawResult
   try {
     const pdfBuffer = await readFile(doc.filepath)
-    rawResult = await extractRawTransactions(pdfBuffer)
+    rawResult = await extractRawTransactions(pdfBuffer, extractionModel)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     updateDocumentStatus(db, documentId, 'failed', `Extraction failed: ${message}`)
@@ -31,7 +36,7 @@ export async function processDocument(db: Database.Database, documentId: number)
   updateDocumentPhase(db, documentId, 'classification')
   let classifications
   try {
-    const classResult = await classifyTransactions(rawResult.document_type, rawResult.transactions)
+    const classResult = await classifyTransactions(rawResult.document_type, rawResult.transactions, classificationModel)
     classifications = classResult.classifications
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
@@ -49,7 +54,7 @@ export async function processDocument(db: Database.Database, documentId: number)
   let merchantMap = new Map<string, string>()
   try {
     const descriptions = rawResult.transactions.map(t => t.description)
-    merchantMap = await normalizeMerchants(descriptions)
+    merchantMap = await normalizeMerchants(descriptions, normalizationModel)
   } catch {
     // Normalization failure shouldn't block transaction insertion
   }

@@ -5,6 +5,7 @@ import { getTransactionsByDocumentId, bulkUpdateCategories } from '@/lib/db/tran
 import { getAllCategories } from '@/lib/db/categories'
 import { reclassifyTransactions } from '@/lib/claude/extract-transactions'
 import { normalizeMerchants } from '@/lib/claude/normalize-merchants'
+import { getModelForTask } from '@/lib/claude/models'
 
 export async function POST(
   _request: NextRequest,
@@ -22,6 +23,9 @@ export async function POST(
     return NextResponse.json({ error: 'Document is currently processing' }, { status: 409 })
   }
 
+  const classificationModel = getModelForTask(db, 'classification')
+  const normalizationModel = getModelForTask(db, 'normalization')
+
   updateDocumentStatus(db, Number(id), 'processing')
   updateDocumentPhase(db, Number(id), 'classification')
 
@@ -37,7 +41,7 @@ export async function POST(
       return NextResponse.json({ updated: 0, message: 'All transactions have manual overrides' })
     }
 
-    const result = await reclassifyTransactions(doc.document_type ?? 'other', reclassifyInput)
+    const result = await reclassifyTransactions(doc.document_type ?? 'other', reclassifyInput, classificationModel)
 
     const categories = getAllCategories(db)
     const categoryMap = new Map(categories.map(c => [c.name.toLowerCase(), c.id]))
@@ -53,7 +57,7 @@ export async function POST(
     updateDocumentPhase(db, Number(id), 'normalization')
     try {
       const descriptions = transactions.map(t => t.description)
-      const merchantMap = await normalizeMerchants(descriptions)
+      const merchantMap = await normalizeMerchants(descriptions, normalizationModel)
       const normalizeStmt = db.prepare('UPDATE transactions SET normalized_merchant = ? WHERE id = ? AND manual_category = 0')
       for (const t of transactions) {
         const normalized = merchantMap.get(t.description)

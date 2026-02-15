@@ -207,11 +207,11 @@ Important:
 - Think: which GROUP does this belong to? Then pick the most specific category in that group.
 - Use "Other" only as an absolute last resort`
 
-export async function extractRawTransactions(pdfBuffer: Buffer): Promise<RawExtractionResult> {
+export async function extractRawTransactions(pdfBuffer: Buffer, model = 'claude-sonnet-4-5-20250929'): Promise<RawExtractionResult> {
   const client = new Anthropic()
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-5-20250929',
+    model,
     max_tokens: 8192,
     messages: [
       {
@@ -249,11 +249,11 @@ export async function extractRawTransactions(pdfBuffer: Buffer): Promise<RawExtr
   return rawExtractionSchema.parse(parsed)
 }
 
-export async function extractTransactions(pdfBuffer: Buffer): Promise<ExtractionResult> {
+export async function extractTransactions(pdfBuffer: Buffer, model = 'claude-sonnet-4-5-20250929'): Promise<ExtractionResult> {
   const client = new Anthropic()
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-5-20250929',
+    model,
     max_tokens: 8192,
     messages: [
       {
@@ -405,7 +405,8 @@ Transactions to classify:
 
 export async function classifyTransactions(
   documentType: string,
-  transactions: RawTransactionData[]
+  transactions: RawTransactionData[],
+  model = 'claude-sonnet-4-5-20250929'
 ): Promise<ClassificationResult> {
   const client = new Anthropic()
 
@@ -415,7 +416,7 @@ export async function classifyTransactions(
     .replace('{transactions_json}', JSON.stringify(indexed, null, 2))
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-5-20250929',
+    model,
     max_tokens: 4096,
     messages: [{ role: 'user', content: prompt }],
   })
@@ -437,7 +438,8 @@ export async function classifyTransactions(
 
 export async function reclassifyTransactions(
   documentType: string,
-  transactions: ReclassifyInput[]
+  transactions: ReclassifyInput[],
+  model = 'claude-sonnet-4-5-20250929'
 ): Promise<ReclassificationResult> {
   const client = new Anthropic()
 
@@ -446,7 +448,7 @@ export async function reclassifyTransactions(
     .replace('{transactions_json}', JSON.stringify(transactions, null, 2))
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-5-20250929',
+    model,
     max_tokens: 4096,
     messages: [{ role: 'user', content: prompt }],
   })

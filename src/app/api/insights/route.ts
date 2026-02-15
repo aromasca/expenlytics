@@ -4,11 +4,13 @@ import { buildCompactData } from '@/lib/insights/compact-data'
 import { getMonthlyIncomeVsSpending } from '@/lib/db/health'
 import { analyzeHealthAndPatterns, analyzeDeepInsights } from '@/lib/claude/analyze-finances'
 import { generateCacheKey, getCachedInsights, setCachedInsights, clearInsightCache, getDismissedInsightIds } from '@/lib/db/insight-cache'
+import { getModelForTask } from '@/lib/claude/models'
 import type { InsightsResponse, HealthAssessment, PatternCard, DeepInsight } from '@/lib/insights/types'
 
 export async function GET(request: NextRequest) {
   try {
     const db = getDb()
+    const insightsModel = getModelForTask(db, 'insights')
 
     const refresh = request.nextUrl.searchParams.get('refresh')
     if (refresh === 'true') {
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
 
       if (totalTxns > 0) {
         try {
-          const healthAndPatterns = await analyzeHealthAndPatterns(compactData)
+          const healthAndPatterns = await analyzeHealthAndPatterns(compactData, insightsModel)
           health = healthAndPatterns.health
           patterns = healthAndPatterns.patterns
         } catch (error) {
@@ -44,7 +46,7 @@ export async function GET(request: NextRequest) {
 
         if (health) {
           try {
-            insights = await analyzeDeepInsights(compactData, health)
+            insights = await analyzeDeepInsights(compactData, health, insightsModel)
           } catch (error) {
             console.error('Deep insights analysis failed:', error)
           }

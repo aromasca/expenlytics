@@ -197,6 +197,15 @@ export function initializeSchema(db: Database.Database): void {
     )
   `)
 
+  // Settings table for configurable options (e.g., model selection)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
+
   // Dismissed subscriptions table
   db.exec(`
     CREATE TABLE IF NOT EXISTS dismissed_subscriptions (

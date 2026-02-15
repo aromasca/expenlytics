@@ -8,6 +8,7 @@ import { getAllCategories } from '@/lib/db/categories'
 import { getTransactionsByDocumentId, bulkUpdateCategories } from '@/lib/db/transactions'
 import { reclassifyTransactions } from '@/lib/claude/extract-transactions'
 import { processDocument } from '@/lib/pipeline'
+import { getModelForTask } from '@/lib/claude/models'
 
 function computeHash(buffer: Buffer): string {
   return createHash('sha256').update(buffer).digest('hex')
@@ -53,7 +54,8 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      const result = await reclassifyTransactions(existingDoc.document_type ?? 'other', reclassifyInput)
+      const classificationModel = getModelForTask(db, 'classification')
+      const result = await reclassifyTransactions(existingDoc.document_type ?? 'other', reclassifyInput, classificationModel)
 
       const categories = getAllCategories(db)
       const categoryMap = new Map(categories.map(c => [c.name.toLowerCase(), c.id]))

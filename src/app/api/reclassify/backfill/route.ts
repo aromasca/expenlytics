@@ -3,6 +3,7 @@ import { getDb } from '@/lib/db'
 import { getAllCategories } from '@/lib/db/categories'
 import { bulkUpdateCategories } from '@/lib/db/transactions'
 import { reclassifyTransactions } from '@/lib/claude/extract-transactions'
+import { getModelForTask } from '@/lib/claude/models'
 
 interface TransactionRow {
   id: number
@@ -17,6 +18,7 @@ const BATCH_SIZE = 50
 
 export async function POST() {
   const db = getDb()
+  const classificationModel = getModelForTask(db, 'classification')
 
   // Get all non-manual transactions
   const transactions = db.prepare(`
@@ -54,7 +56,7 @@ export async function POST() {
           id: t.id, date: t.date, description: t.description, amount: t.amount, type: t.type,
         }))
 
-        const result = await reclassifyTransactions(docType, input)
+        const result = await reclassifyTransactions(docType, input, classificationModel)
         const updates = result.classifications.map(c => ({
           transactionId: c.id,
           categoryId: categoryMap.get(c.category.toLowerCase()) ?? otherCategoryId,

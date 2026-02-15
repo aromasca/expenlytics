@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { normalizeMerchants } from '@/lib/claude/normalize-merchants'
+import { getModelForTask } from '@/lib/claude/models'
 
 export async function POST(request: NextRequest) {
   const db = getDb()
@@ -20,7 +21,8 @@ export async function POST(request: NextRequest) {
   const descriptions = rows.map(r => r.description)
 
   try {
-    const merchantMap = await normalizeMerchants(descriptions)
+    const normalizationModel = getModelForTask(db, 'normalization')
+    const merchantMap = await normalizeMerchants(descriptions, normalizationModel)
 
     // Only update DB after LLM succeeds — never wipe data before confirming success
     const update = db.prepare(

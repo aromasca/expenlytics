@@ -23,7 +23,7 @@
 - Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`)
 - `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib)
 - `src/lib/claude/` — Claude API extraction with Zod validation
-- `src/app/api/` — Next.js API routes (upload, transactions, categories, documents, documents/[id], documents/[id]/reprocess, documents/[id]/retry, reports, recurring, reclassify/backfill)
+- `src/app/api/` — Next.js API routes (upload, transactions, categories, documents, documents/[id], documents/[id]/reprocess, documents/[id]/retry, reports, recurring, reclassify/backfill, settings)
 - `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, documents, reports, subscriptions, settings
 - `src/app/page.tsx` — Redirects to `/insights`
 - `src/components/` — React client components using shadcn/ui
@@ -38,6 +38,8 @@
 - `src/lib/insights/compact-data.ts` — SQL-based data compaction for LLM context (`buildCompactData`)
 - `src/lib/insights/types.ts` — Types for health assessment, patterns, deep insights, monthly flow
 - `src/lib/claude/analyze-finances.ts` — Haiku-powered health score, patterns, deep insights (two LLM calls, ~$0.03/analysis)
+- `src/lib/claude/models.ts` — `AVAILABLE_MODELS`, `MODEL_TASKS` config, `getModelForTask(db, task)` for per-task model selection
+- `src/lib/db/settings.ts` — `getSetting`, `setSetting`, `getAllSettings` for key-value settings table
 - `src/lib/db/health.ts` — `getMonthlyIncomeVsSpending` for income/outflow chart
 - `src/components/insights/` — Dashboard UI: health score, pattern grid, income/outflow chart, deep insight cards
 - `src/__tests__/` — mirrors src structure
@@ -78,6 +80,9 @@
 - When mocking multiple `@/lib/*` modules in tests, use module-level `vi.fn()` variables with `vi.mock()` factory functions (not class-based mocks)
 - Mock `fs/promises` with `vi.mock('fs/promises', ...)` when testing pipeline code (PDF files don't exist in test)
 - `insight_cache` table stores arbitrary JSON via stringify/parse — use `as unknown as` casts when changing cached data shape
+- LLM functions accept optional `model` param with defaults — callers use `getModelForTask(db, task)` to read user-configured model from `settings` table
+- `settings` table: key-value store with `INSERT ... ON CONFLICT DO UPDATE` upsert pattern
+- TypeScript: `new Set(arr)` from `as const` arrays infers narrow literal types — use `new Set<string>(...)` when checking `string` args with `.has()`
 
 ## Design System
 - Aesthetic: minimal, data-dense dashboard (neutral monochrome, not warm/coral)
