@@ -26,7 +26,7 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     WHERE t.date >= date('now', '-12 months')
-      AND COALESCE(c.name, '') NOT IN ('Transfer', 'Refund')
+      AND COALESCE(c.exclude_from_totals, 0) = 0
     GROUP BY month
     ORDER BY month ASC
   `).all() as Array<{ month: string; income: number; spending: number }>
@@ -46,6 +46,7 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     WHERE t.type = 'debit' AND t.date >= date('now', '-6 months')
+      AND COALESCE(c.exclude_from_totals, 0) = 0
     GROUP BY category, month
     ORDER BY amount DESC
   `).all() as Array<{ category: string; month: string; amount: number }>
@@ -70,7 +71,9 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
            MIN(t.date) as first_seen,
            COUNT(DISTINCT strftime('%Y-%m', t.date)) as months_active
     FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
     WHERE t.type = 'debit' AND t.date >= date('now', '-12 months')
+      AND COALESCE(c.exclude_from_totals, 0) = 0
     GROUP BY name
     ORDER BY count DESC, total DESC
     LIMIT 30
@@ -86,7 +89,9 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
              SUM(t.amount) as daily_total,
              COUNT(*) as daily_count
       FROM transactions t
+      LEFT JOIN categories c ON t.category_id = c.id
       WHERE t.type = 'debit' AND t.date >= date('now', '-6 months')
+        AND COALESCE(c.exclude_from_totals, 0) = 0
       GROUP BY t.date
     )
     GROUP BY CAST(strftime('%w', date) AS INTEGER)
@@ -110,11 +115,13 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
   )
 
   const dailyRows = db.prepare(`
-    SELECT date, SUM(amount) as amount
-    FROM transactions
-    WHERE type = 'debit' AND date >= date('now', '-60 days')
-    GROUP BY date
-    ORDER BY date ASC
+    SELECT t.date, SUM(t.amount) as amount
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.type = 'debit' AND t.date >= date('now', '-60 days')
+      AND COALESCE(c.exclude_from_totals, 0) = 0
+    GROUP BY t.date
+    ORDER BY t.date ASC
   `).all() as Array<{ date: string; amount: number }>
 
   const daily_recent = dailyRows.map(r => ({
@@ -159,14 +166,17 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     JOIN (
-      SELECT category_id, AVG(amount) as avg_amount
-      FROM transactions
-      WHERE type = 'debit' AND date >= date('now', '-6 months')
-      GROUP BY category_id
+      SELECT t2.category_id, AVG(t2.amount) as avg_amount
+      FROM transactions t2
+      LEFT JOIN categories c2 ON t2.category_id = c2.id
+      WHERE t2.type = 'debit' AND t2.date >= date('now', '-6 months')
+        AND COALESCE(c2.exclude_from_totals, 0) = 0
+      GROUP BY t2.category_id
     ) cat_avg ON t.category_id = cat_avg.category_id
     WHERE t.type = 'debit'
       AND t.date >= date('now', '-3 months')
       AND t.amount > cat_avg.avg_amount * 2
+      AND COALESCE(c.exclude_from_totals, 0) = 0
     ORDER BY t.amount DESC
     LIMIT 10
   `).all() as Array<{ date: string; description: string; amount: number; category: string }>

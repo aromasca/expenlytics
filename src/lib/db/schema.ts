@@ -206,11 +206,14 @@ export function initializeSchema(db: Database.Database): void {
     )
   `)
 
-  // Migrate categories table - add category_group column if missing
+  // Migrate categories table - add new columns if missing
   const catColumns = db.prepare("PRAGMA table_info(categories)").all() as Array<{ name: string }>
   const catColumnNames = catColumns.map(c => c.name)
   if (!catColumnNames.includes('category_group')) {
     db.exec("ALTER TABLE categories ADD COLUMN category_group TEXT NOT NULL DEFAULT 'Other'")
+  }
+  if (!catColumnNames.includes('exclude_from_totals')) {
+    db.exec('ALTER TABLE categories ADD COLUMN exclude_from_totals INTEGER DEFAULT 0')
   }
 
   // Seed or migrate categories
@@ -255,4 +258,7 @@ export function initializeSchema(db: Database.Database): void {
   for (const cat of SEED_CATEGORIES) {
     insertMissing.run(cat.name, cat.color, cat.group)
   }
+
+  // Set exclude_from_totals flag for transfer/non-spending categories
+  db.exec(`UPDATE categories SET exclude_from_totals = 1 WHERE name IN ('Transfer', 'Refund', 'Savings', 'Investments')`)
 }

@@ -168,6 +168,15 @@ CATEGORY GUIDE (organized by group):
 [Other]
 - Other: anything that truly doesn't fit above — use sparingly
 
+TRANSFER IDENTIFICATION (debit side — critical for accurate totals):
+- Credit card bill payments from checking → "Transfer"
+- Transfers to savings/investment accounts → "Savings" or "Investments"
+- P2P payments to yourself (Venmo, Zelle, PayPal self-transfers) → "Transfer"
+- ACH transfers between own accounts → "Transfer"
+- Wire transfers between own accounts → "Transfer"
+- 401k/brokerage contributions → "Investments"
+- Savings account contributions → "Savings"
+
 DISAMBIGUATION RULES:
 - Amazon: default to "General Merchandise" unless description clearly indicates a specific category (e.g., "AMZN Kindle" → "Books", "Amazon Fresh" → "Groceries")
 - Costco/Sam's Club/BJ's: "Groceries" for food purchases, "General Merchandise" for non-food bulk items
@@ -292,6 +301,15 @@ DOCUMENT TYPE CONTEXT:
 - checking_account/savings_account: credits are money in (salary, deposits). Use "Salary & Wages" for salary/wages.
 - investment: credits are withdrawals/dividends.
 
+TRANSFER IDENTIFICATION (debit side — critical for accurate totals):
+- Credit card bill payments from checking → "Transfer"
+- Transfers to savings/investment accounts → "Savings" or "Investments"
+- P2P payments to yourself (Venmo, Zelle, PayPal self-transfers) → "Transfer"
+- ACH transfers between own accounts → "Transfer"
+- Wire transfers between own accounts → "Transfer"
+- 401k/brokerage contributions → "Investments"
+- Savings account contributions → "Savings"
+
 APPROACH: For each transaction, first identify which GROUP it belongs to, then pick the most specific category within that group.
 
 CATEGORIES BY GROUP:
@@ -337,6 +355,15 @@ DOCUMENT TYPE CONTEXT:
 - credit_card: credits are payments to the card or refunds. NEVER use "Salary & Wages" or "Freelance Income" — use "Transfer" for payments/transfers, "Refund" for returned purchases.
 - checking_account/savings_account: credits are money in (salary, deposits). Use "Salary & Wages" for salary/wages.
 - investment: credits are withdrawals/dividends.
+
+TRANSFER IDENTIFICATION (debit side — critical for accurate totals):
+- Credit card bill payments from checking → "Transfer"
+- Transfers to savings/investment accounts → "Savings" or "Investments"
+- P2P payments to yourself (Venmo, Zelle, PayPal self-transfers) → "Transfer"
+- ACH transfers between own accounts → "Transfer"
+- Wire transfers between own accounts → "Transfer"
+- 401k/brokerage contributions → "Investments"
+- Savings account contributions → "Savings"
 
 APPROACH: For each transaction, first identify which GROUP it belongs to, then pick the most specific category within that group.
 

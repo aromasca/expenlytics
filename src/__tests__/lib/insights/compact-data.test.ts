@@ -82,4 +82,34 @@ describe('buildCompactData', () => {
     const totalTxns = data.day_of_week.reduce((s, d) => s + d.transaction_count, 0)
     expect(totalTxns).toBe(1)
   })
+
+  it('excludes transfer/savings/investments from all compact data sections', () => {
+    const db = createDb()
+    // Real spending
+    insertTx(db, { date: monthsAgo(1), description: 'Groceries', amount: 200, category: 'Groceries' })
+    insertTx(db, { date: monthsAgo(1), description: 'Salary', amount: 5000, type: 'credit', category: 'Salary & Wages' })
+    // Inter-account transfers (should be excluded)
+    insertTx(db, { date: monthsAgo(1), description: 'CC Payment', amount: 500, category: 'Transfer' })
+    insertTx(db, { date: monthsAgo(1), description: 'Savings Transfer', amount: 1000, category: 'Savings' })
+    insertTx(db, { date: monthsAgo(1), description: '401k Contribution', amount: 800, category: 'Investments' })
+    insertTx(db, { date: monthsAgo(1), description: 'Refund', amount: 50, type: 'credit', category: 'Refund' })
+
+    const data = buildCompactData(db)
+
+    // Monthly: only real income (5000) and spending (200)
+    const m = data.monthly.find(r => r.income > 0)
+    expect(m).toBeDefined()
+    expect(m!.income).toBe(5000)
+    expect(m!.spending).toBe(200)
+
+    // Categories: should not include Transfer/Savings/Investments
+    const catNames = data.categories.map(c => c.category)
+    expect(catNames).not.toContain('Transfer')
+    expect(catNames).not.toContain('Savings')
+    expect(catNames).not.toContain('Investments')
+
+    // Day-of-week: only 1 real debit transaction
+    const totalTxns = data.day_of_week.reduce((s, d) => s + d.transaction_count, 0)
+    expect(totalTxns).toBe(1)
+  })
 })

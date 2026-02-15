@@ -64,4 +64,17 @@ describe('getMonthlyIncomeVsSpending', () => {
     const month = result.find(r => r.income > 0)
     expect(month!.income).toBe(5000)
   })
+
+  it('excludes Transfer/Savings/Investments debits from spending', () => {
+    const db = createDb()
+    insertTx(db, { date: monthsAgo(1), description: 'Rent', amount: 1500, category: 'Rent & Mortgage' })
+    insertTx(db, { date: monthsAgo(1), description: 'CC Payment', amount: 500, category: 'Transfer' })
+    insertTx(db, { date: monthsAgo(1), description: 'Savings', amount: 1000, category: 'Savings' })
+    insertTx(db, { date: monthsAgo(1), description: '401k', amount: 800, category: 'Investments' })
+    const result = getMonthlyIncomeVsSpending(db)
+    const month = result.find(r => r.spending > 0)
+    expect(month).toBeDefined()
+    // Only Rent (1500) counts; Transfer (500), Savings (1000), Investments (800) excluded
+    expect(month!.spending).toBe(1500)
+  })
 })

@@ -68,6 +68,46 @@ describe('reports', () => {
       // 3 months of data (Jan, Feb, Mar), total debits = 425
       expect(summary.avgMonthly).toBeCloseTo(141.67, 1)
     })
+
+    it('excludes transfer/savings/investments debits from totalSpent', () => {
+      const categories = getAllCategories(db)
+      const transfer = categories.find(c => c.name === 'Transfer')!
+      const savings = categories.find(c => c.name === 'Savings')!
+      const investments = categories.find(c => c.name === 'Investments')!
+
+      // Add transfer-category debits
+      insertTransactions(db, docId, [
+        { date: '2025-01-16', description: 'CC Payment', amount: 500, type: 'debit' },
+        { date: '2025-01-17', description: 'Savings Transfer', amount: 1000, type: 'debit' },
+        { date: '2025-01-18', description: '401k Contribution', amount: 800, type: 'debit' },
+      ])
+      const txns = db.prepare("SELECT id, description FROM transactions WHERE description IN ('CC Payment', 'Savings Transfer', '401k Contribution')").all() as Array<{ id: number; description: string }>
+      updateTransactionCategory(db, txns.find(t => t.description === 'CC Payment')!.id, transfer.id)
+      updateTransactionCategory(db, txns.find(t => t.description === 'Savings Transfer')!.id, savings.id)
+      updateTransactionCategory(db, txns.find(t => t.description === '401k Contribution')!.id, investments.id)
+
+      const summary = getSpendingSummary(db, {})
+      // Original debits = 425, transfer debits (500+1000+800=2300) excluded
+      expect(summary.totalSpent).toBe(425)
+    })
+
+    it('excludes refund/transfer credits from totalIncome', () => {
+      const categories = getAllCategories(db)
+      const transfer = categories.find(c => c.name === 'Transfer')!
+      const refund = categories.find(c => c.name === 'Refund')!
+
+      insertTransactions(db, docId, [
+        { date: '2025-01-21', description: 'Transfer In', amount: 2000, type: 'credit' },
+        { date: '2025-01-22', description: 'Refund', amount: 50, type: 'credit' },
+      ])
+      const txns = db.prepare("SELECT id, description FROM transactions WHERE description IN ('Transfer In', 'Refund')").all() as Array<{ id: number; description: string }>
+      updateTransactionCategory(db, txns.find(t => t.description === 'Transfer In')!.id, transfer.id)
+      updateTransactionCategory(db, txns.find(t => t.description === 'Refund')!.id, refund.id)
+
+      const summary = getSpendingSummary(db, {})
+      // Only Salary (3000) counts as income; Transfer (2000) and Refund (50) excluded
+      expect(summary.totalIncome).toBe(3000)
+    })
   })
 
   describe('getSpendingOverTime', () => {
@@ -106,6 +146,25 @@ describe('reports', () => {
       expect(data[1]).toEqual({ period: '2025-02', debits: 250, credits: 0 })
       expect(data[2]).toEqual({ period: '2025-03', debits: 75, credits: 0 })
     })
+
+    it('excludes transfer-category transactions from debits and credits', () => {
+      const categories = getAllCategories(db)
+      const transfer = categories.find(c => c.name === 'Transfer')!
+
+      insertTransactions(db, docId, [
+        { date: '2025-01-25', description: 'CC Payment', amount: 500, type: 'debit' },
+        { date: '2025-01-26', description: 'Transfer In', amount: 1000, type: 'credit' },
+      ])
+      const txns = db.prepare("SELECT id, description FROM transactions WHERE description IN ('CC Payment', 'Transfer In')").all() as Array<{ id: number; description: string }>
+      updateTransactionCategory(db, txns.find(t => t.description === 'CC Payment')!.id, transfer.id)
+      updateTransactionCategory(db, txns.find(t => t.description === 'Transfer In')!.id, transfer.id)
+
+      const data = getSpendingTrend(db, {})
+      const jan = data.find(d => d.period === '2025-01')!
+      // Original: debits 100, credits 3000. Transfer debit (500) and credit (1000) excluded.
+      expect(jan.debits).toBe(100)
+      expect(jan.credits).toBe(3000)
+    })
   })
 
   describe('getTopTransactions', () => {
@@ -131,6 +190,21 @@ describe('reports', () => {
       expect(result[0]).toHaveProperty('category')
       expect(result[0]).toHaveProperty('category_group')
       expect(result[0]).toHaveProperty('amount')
+    })
+
+    it('excludes transfer-category debits', () => {
+      const categories = getAllCategories(db)
+      const transfer = categories.find(c => c.name === 'Transfer')!
+
+      insertTransactions(db, docId, [
+        { date: '2025-01-25', description: 'CC Payment', amount: 500, type: 'debit' },
+      ])
+      const txn = db.prepare("SELECT id FROM transactions WHERE description = 'CC Payment'").get() as { id: number }
+      updateTransactionCategory(db, txn.id, transfer.id)
+
+      const result = getSankeyData(db, {})
+      const transferRow = result.find(r => r.category === 'Transfer')
+      expect(transferRow).toBeUndefined()
     })
 
     it('only includes debit transactions', () => {

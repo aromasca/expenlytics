@@ -31,7 +31,7 @@
 - `src/components/reports/sankey-chart.tsx` — d3-sankey Sankey diagram (Income → Category Groups → Categories + Savings)
 - `src/lib/db/reports.ts` — `getSankeyData` (debits) + `getSankeyIncomeData` (credits excl. Transfer/Refund)
 - `src/lib/claude/normalize-merchants.ts` — LLM merchant normalization (Claude Haiku)
-- `src/lib/claude/extract-transactions.ts` — `extractRawTransactions` (no categories), `classifyTransactions` (index-based), `extractTransactions` (legacy combined), `reclassifyTransactions` (ID-based)
+- `src/lib/claude/extract-transactions.ts` — `extractRawTransactions` (no categories), `classifyTransactions` (index-based), `extractTransactions` (legacy combined), `reclassifyTransactions` (ID-based). All classification prompts include TRANSFER IDENTIFICATION rules for debit-side transfers (CC payments, savings contributions, 401k, P2P self-transfers)
 - `src/lib/pipeline.ts` — Background document processing pipeline (extraction → classification → normalization)
 - `src/lib/recurring.ts` — Pure recurring charge detection logic (no DB dependency)
 - `src/lib/db/recurring.ts` — DB query layer for recurring charges
@@ -52,6 +52,8 @@
 - better-sqlite3: pass params as array to `.get([...])` and `.all([...])` when using dynamic params; `.run()` uses positional args
 - `next.config.ts` has `serverExternalPackages: ['better-sqlite3']`
 - Bash/zsh: quote paths containing parentheses, e.g. `"src/app/(app)/..."` — zsh treats `()` as glob
+- `exclude_from_totals` column on `categories` table: Transfer, Refund, Savings, Investments are flagged. Use `COALESCE(c.exclude_from_totals, 0) = 0` in all summary/chart/insight queries instead of hardcoding category names
+- Dynamic WHERE extension pattern: `${where}${where ? ' AND' : ' WHERE'} <condition>` when appending to `buildWhere()` output
 - API routes: validate query params with allowlists before passing to DB functions (never trust `as` casts for SQL-interpolated values like `sort_by`)
 - Optional LLM calls (normalization, etc.) should be wrapped in try/catch so failures don't block core operations
 - Always add `.catch()` to fetch promise chains in React to prevent stuck loading states
