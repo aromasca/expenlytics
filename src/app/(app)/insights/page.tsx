@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { HealthScore } from '@/components/insights/health-score'
 import { IncomeOutflowChart } from '@/components/insights/income-outflow-chart'
 import { PatternGrid } from '@/components/insights/pattern-grid'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { RefreshCw, Receipt, BarChart3, CreditCard, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { RefreshCw, Receipt, BarChart3, CreditCard, ChevronLeft, ChevronRight, X, AlertCircle } from 'lucide-react'
 import type { InsightsResponse, DeepInsight } from '@/lib/insights/types'
 
 const severityColor = {
@@ -37,25 +37,107 @@ function InsightCard({ insight, expanded, onToggle }: { insight: DeepInsight; ex
   )
 }
 
+function SkeletonCard() {
+  return (
+    <Card className="p-3 border-l-2 border-l-zinc-200 dark:border-l-zinc-700">
+      <div className="h-3.5 w-3/4 bg-muted rounded animate-pulse" />
+      <div className="h-3 w-1/2 bg-muted rounded animate-pulse mt-1.5" />
+    </Card>
+  )
+}
+
 export default function InsightsPage() {
   const [data, setData] = useState<InsightsResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState(false)
   const [carouselIndex, setCarouselIndex] = useState(0)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
-  const fetchInsights = (refresh = false) => {
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+  }, [])
+
+  const fetchInsights = useCallback((refresh = false) => {
+    // Cancel any in-flight request
+    abortRef.current?.abort()
+    stopPolling()
+
+    const controller = new AbortController()
+    abortRef.current = controller
+    // 15s timeout for each individual fetch
+    const timeout = setTimeout(() => controller.abort(), 15000)
+
     setLoading(true)
-    fetch(`/api/insights${refresh ? '?refresh=true' : ''}`)
-      .then((res) => res.json())
-      .then((json) => {
-        setData(json)
-        setCarouselIndex(0)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }
+    setError(false)
 
-  useEffect(() => { fetchInsights() }, [])
+    fetch(`/api/insights${refresh ? '?refresh=true' : ''}`, { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error('fetch failed')
+        return res.json()
+      })
+      .then((json: InsightsResponse) => {
+        clearTimeout(timeout)
+        setData(json)
+        setLoading(false)
+
+        if (json.status === 'generating') {
+          setGenerating(true)
+          startPolling()
+        } else {
+          setGenerating(false)
+          setCarouselIndex(0)
+        }
+      })
+      .catch((err) => {
+        clearTimeout(timeout)
+        if (err.name === 'AbortError') return
+        setLoading(false)
+        setError(true)
+      })
+  }, [stopPolling])
+
+  const startPolling = useCallback(() => {
+    stopPolling()
+    let elapsed = 0
+    pollRef.current = setInterval(() => {
+      elapsed += 3000
+      if (elapsed > 120000) {
+        stopPolling()
+        setGenerating(false)
+        return
+      }
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+      fetch('/api/insights', { signal: controller.signal })
+        .then((res) => res.json())
+        .then((json: InsightsResponse) => {
+          clearTimeout(timeout)
+          setData(json)
+          if (json.status === 'ready') {
+            stopPolling()
+            setGenerating(false)
+            setCarouselIndex(0)
+          }
+        })
+        .catch(() => {
+          clearTimeout(timeout)
+        })
+    }, 3000)
+  }, [stopPolling])
+
+  useEffect(() => {
+    fetchInsights()
+    return () => {
+      stopPolling()
+      abortRef.current?.abort()
+    }
+  }, [fetchInsights, stopPolling])
 
   const handleDismiss = (insightId: string) => {
     fetch('/api/insights/dismiss', {
@@ -85,6 +167,10 @@ export default function InsightsPage() {
   const page = Math.min(carouselIndex, pageCount - 1)
   const visibleInsights = insights.slice(page * pageSize, page * pageSize + pageSize)
 
+  const hasContent = data && (data.health || insights.length > 0 || (data.patterns ?? []).length > 0)
+  const isEmpty = data && !generating && !data.health && insights.length === 0 && (data.patterns ?? []).length === 0
+  const hasMonthlyFlow = data?.monthlyFlow && data.monthlyFlow.length > 0
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -94,20 +180,34 @@ export default function InsightsPage() {
           size="sm"
           className="h-7 text-xs text-muted-foreground"
           onClick={() => fetchInsights(true)}
-          disabled={loading}
+          disabled={loading && !data}
         >
-          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${(loading && !data) || generating ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
 
-      {loading && !data && (
+      {/* Error state */}
+      {error && !data && (
+        <div className="text-center py-16 space-y-2">
+          <AlertCircle className="h-5 w-5 text-muted-foreground mx-auto" />
+          <p className="text-sm font-medium">Something went wrong</p>
+          <p className="text-xs text-muted-foreground">Could not load insights.</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => fetchInsights()}>
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {/* Initial loading (no data yet) */}
+      {loading && !data && !error && (
         <div className="flex items-center justify-center py-16">
           <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       )}
 
-      {!loading && !data?.health && insights.length === 0 && (data?.patterns ?? []).length === 0 && (
+      {/* Empty state (data loaded, nothing to show, not generating) */}
+      {isEmpty && !hasMonthlyFlow && (
         <div className="text-center py-16 space-y-2">
           <p className="text-sm font-medium">No insights yet</p>
           <p className="text-xs text-muted-foreground">Upload bank statements to see spending analysis.</p>
@@ -120,25 +220,59 @@ export default function InsightsPage() {
         </div>
       )}
 
-      {data && (data.health || insights.length > 0 || (data.patterns ?? []).length > 0) && (
+      {/* Main content: show when we have data OR are generating */}
+      {(hasContent || generating || hasMonthlyFlow) && (
         <>
-          {data.health && (
+          {/* Generating banner */}
+          {generating && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              Analyzing your finances...
+            </div>
+          )}
+
+          {data?.health && (
             <section>
               <HealthScore health={data.health} />
             </section>
           )}
 
-          {data.monthlyFlow && data.monthlyFlow.length > 0 && (
+          {/* Skeleton health score while generating */}
+          {generating && !data?.health && (
             <section>
-              <h2 className="text-sm font-medium mb-2">Income vs Outflow</h2>
-              <IncomeOutflowChart data={data.monthlyFlow} />
+              <Card className="p-3">
+                <div className="h-5 w-16 bg-muted rounded animate-pulse mx-auto" />
+                <div className="h-3 w-48 bg-muted rounded animate-pulse mx-auto mt-2" />
+              </Card>
             </section>
           )}
 
-          {data.patterns && data.patterns.length > 0 && (
+          {hasMonthlyFlow && (
+            <section>
+              <h2 className="text-sm font-medium mb-2">Income vs Outflow</h2>
+              <IncomeOutflowChart data={data!.monthlyFlow} />
+            </section>
+          )}
+
+          {data?.patterns && data.patterns.length > 0 && (
             <section>
               <h2 className="text-sm font-medium mb-2">Patterns</h2>
               <PatternGrid patterns={data.patterns} />
+            </section>
+          )}
+
+          {/* Skeleton patterns while generating */}
+          {generating && (!data?.patterns || data.patterns.length === 0) && (
+            <section>
+              <h2 className="text-sm font-medium mb-2">Patterns</h2>
+              <div className="grid grid-cols-2 gap-2">
+                {[1, 2].map((i) => (
+                  <Card key={i} className="p-3">
+                    <div className="h-3.5 w-3/4 bg-muted rounded animate-pulse" />
+                    <div className="h-3 w-1/2 bg-muted rounded animate-pulse mt-1.5" />
+                  </Card>
+                ))}
+              </div>
             </section>
           )}
 
@@ -156,9 +290,9 @@ export default function InsightsPage() {
                   <Button variant="ghost" size="icon" className="h-6 w-6" disabled={page >= pageCount - 1} onClick={() => setCarouselIndex(i => i + 1)}>
                     <ChevronRight className="h-3.5 w-3.5" />
                   </Button>
-                  {(data.dismissedCount ?? 0) > 0 && (
+                  {(data?.dismissedCount ?? 0) > 0 && (
                     <button onClick={handleClearDismissals} className="text-xs text-muted-foreground hover:text-foreground ml-2">
-                      {data.dismissedCount} dismissed
+                      {data?.dismissedCount} dismissed
                     </button>
                   )}
                 </div>
@@ -184,7 +318,19 @@ export default function InsightsPage() {
             </section>
           )}
 
-          {insights.length === 0 && (data.dismissedCount ?? 0) > 0 && (
+          {/* Skeleton insights while generating */}
+          {generating && insights.length === 0 && (
+            <section>
+              <h2 className="text-sm font-medium mb-2">AI Insights</h2>
+              <div className="space-y-2">
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+              </div>
+            </section>
+          )}
+
+          {insights.length === 0 && !generating && (data?.dismissedCount ?? 0) > 0 && (
             <div className="text-center py-6 text-xs text-muted-foreground">
               All dismissed.{' '}
               <button onClick={handleClearDismissals} className="underline hover:text-foreground">Reset</button>
@@ -207,7 +353,7 @@ export default function InsightsPage() {
                 <CreditCard className="h-3.5 w-3.5 mr-1" /> Recurring
               </Button>
             </Link>
-            {data.generatedAt && (
+            {data?.generatedAt && data.status === 'ready' && (
               <span className="text-[11px] text-muted-foreground ml-auto tabular-nums">
                 {new Date(data.generatedAt).toLocaleString()}
               </span>

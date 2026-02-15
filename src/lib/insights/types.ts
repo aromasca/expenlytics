@@ -50,6 +50,7 @@ export interface MonthlyFlow {
 }
 
 export interface InsightsResponse {
+  status: 'ready' | 'generating'
   health: HealthAssessment | null
   monthlyFlow: MonthlyFlow[]
   patterns: PatternCard[]
