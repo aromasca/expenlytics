@@ -51,6 +51,12 @@ Return ONLY valid JSON in this exact format:
   ]
 }
 
+FOREIGN CURRENCY TRANSACTIONS:
+- When a transaction shows a foreign currency amount and exchange rate (e.g., "4,963.00 X 0.316274430 (EXCHG RATE)"), this is ONE transaction, not two
+- The foreign currency line, exchange rate, and converted amount are supplementary details of the main transaction
+- Extract only ONE transaction using the converted/USD amount and the merchant name
+- Do NOT create a separate "currency exchange" transaction from the exchange rate line
+
 Important:
 - Include every transaction, do not skip any
 - Dates must be YYYY-MM-DD format
@@ -222,6 +228,12 @@ Return ONLY valid JSON in this exact format:
     {"date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "type": "debit|credit", "category": "...", "transaction_class": "purchase|payment|refund|fee|interest|transfer"}
   ]
 }
+
+FOREIGN CURRENCY TRANSACTIONS:
+- When a transaction shows a foreign currency amount and exchange rate (e.g., "4,963.00 X 0.316274430 (EXCHG RATE)"), this is ONE transaction, not two
+- The foreign currency line, exchange rate, and converted amount are supplementary details of the main transaction
+- Extract only ONE transaction using the converted/USD amount and the merchant name
+- Do NOT create a separate "currency exchange" transaction from the exchange rate line
 
 Important:
 - Include every transaction, do not skip any

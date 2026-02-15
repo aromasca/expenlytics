@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import Database from 'better-sqlite3'
 import { initializeSchema } from '@/lib/db/schema'
 import { createDocument } from '@/lib/db/documents'
-import { insertTransactions, listTransactions, updateTransactionCategory, findDuplicateTransaction, bulkUpdateCategories, deleteTransaction, deleteTransactions } from '@/lib/db/transactions'
+import { insertTransactions, listTransactions, updateTransactionCategory, bulkUpdateCategories, deleteTransaction, deleteTransactions } from '@/lib/db/transactions'
 import { getAllCategories } from '@/lib/db/categories'
 
 describe('transactions', () => {
@@ -90,23 +90,6 @@ describe('transactions', () => {
     ])
     const txns = listTransactions(db, {})
     expect(txns.transactions[0].manual_category).toBe(0)
-  })
-
-  it('finds duplicate transaction by date+description+amount+type', () => {
-    insertTransactions(db, docId, [
-      { date: '2025-01-15', description: 'Whole Foods', amount: 85.50, type: 'debit' },
-    ])
-    const dup = findDuplicateTransaction(db, { date: '2025-01-15', description: 'Whole Foods', amount: 85.50, type: 'debit' })
-    expect(dup).toBeDefined()
-    expect(dup!.description).toBe('Whole Foods')
-  })
-
-  it('returns undefined when no duplicate exists', () => {
-    insertTransactions(db, docId, [
-      { date: '2025-01-15', description: 'Whole Foods', amount: 85.50, type: 'debit' },
-    ])
-    const dup = findDuplicateTransaction(db, { date: '2025-01-16', description: 'Whole Foods', amount: 85.50, type: 'debit' })
-    expect(dup).toBeUndefined()
   })
 
   it('bulk updates categories respecting manual flag', () => {

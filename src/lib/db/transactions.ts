@@ -115,17 +115,6 @@ export function updateTransactionCategory(db: Database.Database, transactionId: 
   db.prepare('UPDATE transactions SET category_id = ?, manual_category = ? WHERE id = ?').run(categoryId, manual ? 1 : 0, transactionId)
 }
 
-export function findDuplicateTransaction(
-  db: Database.Database,
-  txn: { date: string; description: string; amount: number; type: string }
-): TransactionRow | undefined {
-  return db.prepare(`
-    SELECT t.*, c.name as category_name, c.color as category_color
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
-    WHERE t.date = ? AND t.description = ? AND t.amount = ? AND t.type = ?
-  `).get([txn.date, txn.description, txn.amount, txn.type]) as TransactionRow | undefined
-}
 
 export function bulkUpdateCategories(
   db: Database.Database,
