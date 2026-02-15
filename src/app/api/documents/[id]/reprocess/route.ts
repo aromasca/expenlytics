@@ -5,6 +5,7 @@ import { getTransactionsByDocumentId, bulkUpdateCategories } from '@/lib/db/tran
 import { getAllCategories } from '@/lib/db/categories'
 import { reclassifyTransactions } from '@/lib/claude/extract-transactions'
 import { normalizeMerchants } from '@/lib/claude/normalize-merchants'
+import { enqueueDocument } from '@/lib/pipeline'
 import { getModelForTask } from '@/lib/claude/models'
 
 export async function POST(
@@ -29,19 +30,32 @@ export async function POST(
   updateDocumentStatus(db, Number(id), 'processing')
   updateDocumentPhase(db, Number(id), 'classification')
 
+  // Enqueue for sequential processing — only one document at a time
+  enqueueDocument(() => reprocessInBackground(Number(id), doc.document_type ?? 'other', classificationModel, normalizationModel))
+
+  return NextResponse.json({ status: 'processing' })
+}
+
+async function reprocessInBackground(
+  docId: number,
+  documentType: string,
+  classificationModel: string,
+  normalizationModel: string
+) {
+  const db = getDb()
   try {
-    const transactions = getTransactionsByDocumentId(db, Number(id))
+    const transactions = getTransactionsByDocumentId(db, docId)
     const reclassifyInput = transactions
       .filter(t => t.manual_category === 0)
       .map(t => ({ id: t.id, date: t.date, description: t.description, amount: t.amount, type: t.type }))
 
     if (reclassifyInput.length === 0) {
-      updateDocumentStatus(db, Number(id), 'completed')
-      updateDocumentPhase(db, Number(id), 'complete')
-      return NextResponse.json({ updated: 0, message: 'All transactions have manual overrides' })
+      updateDocumentStatus(db, docId, 'completed')
+      updateDocumentPhase(db, docId, 'complete')
+      return
     }
 
-    const result = await reclassifyTransactions(doc.document_type ?? 'other', reclassifyInput, classificationModel)
+    const result = await reclassifyTransactions(documentType, reclassifyInput, classificationModel)
 
     const categories = getAllCategories(db)
     const categoryMap = new Map(categories.map(c => [c.name.toLowerCase(), c.id]))
@@ -54,7 +68,7 @@ export async function POST(
     bulkUpdateCategories(db, updates)
 
     // Re-normalize merchants
-    updateDocumentPhase(db, Number(id), 'normalization')
+    updateDocumentPhase(db, docId, 'normalization')
     try {
       const descriptions = transactions.map(t => t.description)
       const merchantMap = await normalizeMerchants(descriptions, normalizationModel)
@@ -69,13 +83,10 @@ export async function POST(
       // Normalization failure is non-blocking
     }
 
-    updateDocumentStatus(db, Number(id), 'completed')
-    updateDocumentPhase(db, Number(id), 'complete')
-
-    return NextResponse.json({ updated: updates.length })
+    updateDocumentStatus(db, docId, 'completed')
+    updateDocumentPhase(db, docId, 'complete')
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
-    updateDocumentStatus(db, Number(id), 'failed', `Reprocess failed: ${message}`)
-    return NextResponse.json({ error: `Reprocess failed: ${message}` }, { status: 500 })
+    updateDocumentStatus(db, docId, 'failed', `Reprocess failed: ${message}`)
   }
 }
