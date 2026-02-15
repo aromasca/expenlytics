@@ -57,6 +57,18 @@ export const extractionSchema = z.object({
   transactions: z.array(transactionSchema),
 })
 
+export const rawTransactionSchema = z.object({
+  date: z.string().describe('Transaction date in YYYY-MM-DD format'),
+  description: z.string().describe('Merchant name or transaction description'),
+  amount: z.number().positive().describe('Transaction amount as a positive number'),
+  type: z.enum(['debit', 'credit']).describe('debit for money out, credit for money in'),
+})
+
+export const rawExtractionSchema = z.object({
+  document_type: z.enum(VALID_DOCUMENT_TYPES).describe('Type of financial document'),
+  transactions: z.array(rawTransactionSchema),
+})
+
 export const reclassificationSchema = z.object({
   classifications: z.array(z.object({
     id: z.number(),
@@ -68,6 +80,13 @@ export const normalizationSchema = z.object({
   normalizations: z.array(z.object({
     description: z.string(),
     merchant: z.string(),
+  })),
+})
+
+export const classificationSchema = z.object({
+  classifications: z.array(z.object({
+    index: z.number(),
+    category: z.string(),
   })),
 })
 
@@ -87,9 +106,12 @@ export const llmInsightSchema = z.object({
   })),
 })
 
+export type ClassificationResult = z.infer<typeof classificationSchema>
 export type LLMInsightData = z.infer<typeof llmInsightSchema>
 
 export type ExtractionResult = z.infer<typeof extractionSchema>
 export type TransactionData = z.infer<typeof transactionSchema>
+export type RawExtractionResult = z.infer<typeof rawExtractionSchema>
+export type RawTransactionData = z.infer<typeof rawTransactionSchema>
 export type ReclassificationResult = z.infer<typeof reclassificationSchema>
 export type NormalizationResult = z.infer<typeof normalizationSchema>

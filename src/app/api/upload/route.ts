@@ -3,12 +3,11 @@ import { writeFile, mkdir } from 'fs/promises'
 import { createHash } from 'crypto'
 import path from 'path'
 import { getDb } from '@/lib/db'
-import { createDocument, findDocumentByHash, updateDocumentStatus, updateDocumentType } from '@/lib/db/documents'
+import { createDocument, findDocumentByHash, updateDocumentStatus } from '@/lib/db/documents'
 import { getAllCategories } from '@/lib/db/categories'
-import { getTransactionsByDocumentId, findDuplicateTransaction, bulkUpdateCategories } from '@/lib/db/transactions'
-import { extractTransactions } from '@/lib/claude/extract-transactions'
+import { getTransactionsByDocumentId, bulkUpdateCategories } from '@/lib/db/transactions'
 import { reclassifyTransactions } from '@/lib/claude/extract-transactions'
-import { normalizeMerchants } from '@/lib/claude/normalize-merchants'
+import { processDocument } from '@/lib/pipeline'
 
 function computeHash(buffer: Buffer): string {
   return createHash('sha256').update(buffer).digest('hex')
@@ -77,16 +76,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // New file — extract and merge
+  // New file — save and start background processing
   const uploadsDir = path.join(process.cwd(), 'data', 'uploads')
   await mkdir(uploadsDir, { recursive: true })
 
-  // Sanitize filename to prevent path traversal attacks
   const sanitizedName = path.basename(file.name).replace(/[^a-zA-Z0-9._-]/g, '_')
   const filename = `${Date.now()}-${sanitizedName}`
   const filepath = path.join(uploadsDir, filename)
 
-  // Validate the resolved path is still within uploads directory
   const resolvedUploadsDir = path.resolve(uploadsDir)
   const resolvedFilepath = path.resolve(filepath)
   if (!resolvedFilepath.startsWith(resolvedUploadsDir + path.sep)) {
@@ -98,68 +95,15 @@ export async function POST(request: NextRequest) {
   const docId = createDocument(db, file.name, filepath, fileHash)
   updateDocumentStatus(db, docId, 'processing')
 
-  try {
-    const result = await extractTransactions(buffer)
-
-    // Store detected document type
-    updateDocumentType(db, docId, result.document_type)
-
-    const categories = getAllCategories(db)
-    const categoryMap = new Map(categories.map(c => [c.name.toLowerCase(), c.id]))
-    const otherCategoryId = categoryMap.get('other')!
-
-    // Normalize merchant names via LLM (non-blocking — fallback to empty map on failure)
-    let merchantMap = new Map<string, string>()
-    try {
-      const descriptions = result.transactions.map(t => t.description)
-      merchantMap = await normalizeMerchants(descriptions)
-    } catch {
-      // Normalization failure shouldn't block transaction extraction
-    }
-
-    const insert = db.prepare(
-      'INSERT INTO transactions (document_id, date, description, amount, type, category_id, normalized_merchant) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    )
-    let newCount = 0
-    let reclassifiedCount = 0
-    const reclassifyUpdates: Array<{ transactionId: number; categoryId: number }> = []
-
-    const mergeTransaction = db.transaction(() => {
-      for (const t of result.transactions) {
-        const categoryId = categoryMap.get(t.category.toLowerCase()) ?? otherCategoryId
-        const existing = findDuplicateTransaction(db, {
-          date: t.date, description: t.description, amount: t.amount, type: t.type,
-        })
-
-        if (existing) {
-          // Duplicate — queue reclassification (respects manual flag via bulkUpdateCategories)
-          reclassifyUpdates.push({ transactionId: existing.id, categoryId })
-          reclassifiedCount++
-        } else {
-          // New transaction
-          const normalizedMerchant = merchantMap.get(t.description) ?? null
-          insert.run(docId, t.date, t.description, t.amount, t.type, categoryId, normalizedMerchant)
-          newCount++
-        }
-      }
-    })
-    mergeTransaction()
-
-    if (reclassifyUpdates.length > 0) {
-      bulkUpdateCategories(db, reclassifyUpdates)
-    }
-
-    updateDocumentStatus(db, docId, 'completed')
-
-    return NextResponse.json({
-      document_id: docId,
-      action: 'extract_and_merge',
-      transactions_new: newCount,
-      transactions_reclassified: reclassifiedCount,
-    })
-  } catch (error) {
+  // Fire and forget — processDocument runs in background
+  processDocument(db, docId).catch((error) => {
     const message = error instanceof Error ? error.message : 'Unknown error'
     updateDocumentStatus(db, docId, 'failed', message)
-    return NextResponse.json({ error: `Extraction failed: ${message}` }, { status: 500 })
-  }
+  })
+
+  return NextResponse.json({
+    document_id: docId,
+    action: 'processing',
+    status: 'processing',
+  })
 }

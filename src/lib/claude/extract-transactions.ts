@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { extractionSchema, reclassificationSchema, VALID_CATEGORIES, type ExtractionResult, type ReclassificationResult } from './schemas'
+import { extractionSchema, reclassificationSchema, rawExtractionSchema, classificationSchema, VALID_CATEGORIES, type ExtractionResult, type ReclassificationResult, type RawExtractionResult, type ClassificationResult, type RawTransactionData } from './schemas'
 
 interface ReclassifyInput {
   id: number
@@ -8,6 +8,41 @@ interface ReclassifyInput {
   amount: number
   type: string
 }
+
+const RAW_EXTRACTION_PROMPT = `You are a precise financial document parser. First, identify the type of financial document, then extract ALL transactions.
+
+STEP 1: Identify the document type:
+- "credit_card" — credit card statement
+- "checking_account" — checking/current account statement
+- "savings_account" — savings account statement
+- "investment" — investment/brokerage statement
+- "other" — any other financial document
+
+STEP 2: Extract every transaction. For each:
+- date: in YYYY-MM-DD format
+- description: merchant name or transaction description (clean up codes/numbers, make human-readable)
+- amount: as a positive number (no currency symbols)
+- type: "debit" or "credit" based on DOCUMENT TYPE CONTEXT (see below)
+
+DOCUMENT TYPE CONTEXT — this determines how to interpret debits and credits:
+- Credit card: debits are purchases/charges, credits are payments to the card or refunds.
+- Checking/savings account: debits are money out (spending, transfers), credits are money in (salary, deposits).
+- Investment: debits are contributions/purchases, credits are withdrawals/dividends.
+
+Return ONLY valid JSON in this exact format:
+{
+  "document_type": "credit_card|checking_account|savings_account|investment|other",
+  "transactions": [
+    {"date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "type": "debit|credit"}
+  ]
+}
+
+Important:
+- Include every transaction, do not skip any
+- Dates must be YYYY-MM-DD format
+- Amounts must be positive numbers
+- Apply document-type-specific debit/credit logic
+- Do NOT assign categories — only extract raw transaction data`
 
 const EXTRACTION_PROMPT = `You are a precise financial document parser. First, identify the type of financial document, then extract ALL transactions with context-aware categorization.
 
@@ -163,6 +198,48 @@ Important:
 - Think: which GROUP does this belong to? Then pick the most specific category in that group.
 - Use "Other" only as an absolute last resort`
 
+export async function extractRawTransactions(pdfBuffer: Buffer): Promise<RawExtractionResult> {
+  const client = new Anthropic()
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-5-20250929',
+    max_tokens: 8192,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'document',
+            source: {
+              type: 'base64',
+              media_type: 'application/pdf',
+              data: pdfBuffer.toString('base64'),
+            },
+          },
+          {
+            type: 'text',
+            text: RAW_EXTRACTION_PROMPT,
+          },
+        ],
+      },
+    ],
+  })
+
+  const textBlock = response.content.find(block => block.type === 'text')
+  if (!textBlock || textBlock.type !== 'text') {
+    throw new Error('No text response from Claude')
+  }
+
+  let jsonStr = textBlock.text
+  const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (jsonMatch) {
+    jsonStr = jsonMatch[1]
+  }
+
+  const parsed = JSON.parse(jsonStr.trim())
+  return rawExtractionSchema.parse(parsed)
+}
+
 export async function extractTransactions(pdfBuffer: Buffer): Promise<ExtractionResult> {
   const client = new Anthropic()
 
@@ -251,6 +328,85 @@ Return ONLY valid JSON:
 
 Transactions to classify:
 {transactions_json}`
+
+const CLASSIFY_PROMPT = `You are a financial transaction categorizer. Given the document type and a list of transactions (identified by index), assign the most specific and appropriate category to each.
+
+DOCUMENT TYPE: {document_type}
+
+DOCUMENT TYPE CONTEXT:
+- credit_card: credits are payments to the card or refunds. NEVER use "Salary & Wages" or "Freelance Income" — use "Transfer" for payments/transfers, "Refund" for returned purchases.
+- checking_account/savings_account: credits are money in (salary, deposits). Use "Salary & Wages" for salary/wages.
+- investment: credits are withdrawals/dividends.
+
+APPROACH: For each transaction, first identify which GROUP it belongs to, then pick the most specific category within that group.
+
+CATEGORIES BY GROUP:
+- Food & Drink: Groceries, Restaurants, Coffee & Cafes, Fast Food, Food Delivery, Bars & Alcohol
+- Transportation: Gas & Fuel, Public Transit, Rideshare & Taxi, Parking & Tolls, Car Maintenance, Car Payment, Car Insurance
+- Housing: Rent & Mortgage, Utilities, Internet & Phone, Home Maintenance, Home Improvement, Furniture & Decor, Home Insurance
+- Shopping: Clothing & Accessories, Electronics, Office Supplies, Home Goods, Books, Sporting Goods, General Merchandise
+- Health & Wellness: Health Insurance, Medical & Dental, Pharmacy, Fitness & Gym, Mental Health, Vision & Eye Care
+- Entertainment: Movies & Theater, Music & Concerts, Gaming, Streaming Services, Sports & Outdoors, Hobbies
+- Personal: Personal Care & Beauty, Haircuts & Salon, Laundry & Dry Cleaning
+- Education: Tuition & School Fees, Books & Supplies, Online Courses
+- Kids & Family: Childcare, Kids Activities, Baby & Kids Supplies
+- Pets: Pet Food & Supplies, Veterinary, Pet Services
+- Travel: Flights, Hotels & Lodging, Rental Cars, Travel Activities, Travel Insurance
+- Financial: Fees & Charges, Interest & Finance Charges, Taxes, Investments, Savings
+- Gifts & Giving: Gifts, Charitable Donations
+- Income & Transfers: Salary & Wages, Freelance Income, Refund, Transfer, ATM Withdrawal
+- Software & Services: AI & Productivity Software, SaaS & Subscriptions
+- Other: Other
+
+KEY DISAMBIGUATION:
+- Starbucks/Dunkin → Coffee & Cafes (not Restaurants)
+- DoorDash/Uber Eats → Food Delivery (not Restaurants)
+- Netflix/Spotify/Disney+ → Streaming Services
+- Amazon → General Merchandise (unless description indicates Books, Electronics, Groceries)
+- Internet/cable/phone → Internet & Phone (not Utilities)
+- Auto insurance → Car Insurance | Home insurance → Home Insurance | Health insurance → Health Insurance
+
+Return ONLY valid JSON:
+{
+  "classifications": [
+    {"index": 0, "category": "<category>"}
+  ]
+}
+
+Transactions to classify:
+{transactions_json}`
+
+export async function classifyTransactions(
+  documentType: string,
+  transactions: RawTransactionData[]
+): Promise<ClassificationResult> {
+  const client = new Anthropic()
+
+  const indexed = transactions.map((t, i) => ({ index: i, ...t }))
+  const prompt = CLASSIFY_PROMPT
+    .replace('{document_type}', documentType)
+    .replace('{transactions_json}', JSON.stringify(indexed, null, 2))
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-5-20250929',
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  const textBlock = response.content.find(block => block.type === 'text')
+  if (!textBlock || textBlock.type !== 'text') {
+    throw new Error('No text response from Claude')
+  }
+
+  let jsonStr = textBlock.text
+  const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (jsonMatch) {
+    jsonStr = jsonMatch[1]
+  }
+
+  const parsed = JSON.parse(jsonStr.trim())
+  return classificationSchema.parse(parsed)
+}
 
 export async function reclassifyTransactions(
   documentType: string,

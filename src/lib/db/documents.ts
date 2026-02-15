@@ -9,6 +9,9 @@ export interface Document {
   uploaded_at: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
   error_message: string | null
+  processing_phase: string | null
+  raw_extraction: string | null
+  transaction_count: number | null
 }
 
 export function createDocument(db: Database.Database, filename: string, filepath: string, fileHash: string = ''): number {
@@ -43,4 +46,42 @@ export function deleteOrphanedDocuments(db: Database.Database): number {
       AND NOT EXISTS (SELECT 1 FROM transactions WHERE transactions.document_id = documents.id)
   `).run()
   return result.changes
+}
+
+export type ProcessingPhase = 'upload' | 'extraction' | 'classification' | 'normalization' | 'complete'
+
+export function updateDocumentPhase(db: Database.Database, id: number, phase: ProcessingPhase): void {
+  db.prepare('UPDATE documents SET processing_phase = ? WHERE id = ?').run(phase, id)
+}
+
+export function updateDocumentRawExtraction(db: Database.Database, id: number, rawData: unknown): void {
+  db.prepare('UPDATE documents SET raw_extraction = ? WHERE id = ?').run(JSON.stringify(rawData), id)
+}
+
+export function getDocumentRawExtraction(db: Database.Database, id: number): unknown | null {
+  const row = db.prepare('SELECT raw_extraction FROM documents WHERE id = ?').get(id) as { raw_extraction: string | null } | undefined
+  if (!row?.raw_extraction) return null
+  return JSON.parse(row.raw_extraction)
+}
+
+export function updateDocumentTransactionCount(db: Database.Database, id: number, count: number): void {
+  db.prepare('UPDATE documents SET transaction_count = ? WHERE id = ?').run(count, id)
+}
+
+export interface DocumentWithCounts extends Document {
+  actual_transaction_count: number
+}
+
+export function listDocumentsWithCounts(db: Database.Database): DocumentWithCounts[] {
+  return db.prepare(`
+    SELECT d.*, COUNT(t.id) as actual_transaction_count
+    FROM documents d
+    LEFT JOIN transactions t ON t.document_id = d.id
+    GROUP BY d.id
+    ORDER BY d.uploaded_at DESC, d.id DESC
+  `).all() as DocumentWithCounts[]
+}
+
+export function deleteDocument(db: Database.Database, id: number): void {
+  db.prepare('DELETE FROM documents WHERE id = ?').run(id)
 }

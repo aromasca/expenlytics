@@ -152,6 +152,15 @@ export function initializeSchema(db: Database.Database): void {
   if (!columnNames.includes('document_type')) {
     db.exec('ALTER TABLE documents ADD COLUMN document_type TEXT')
   }
+  if (!columnNames.includes('processing_phase')) {
+    db.exec('ALTER TABLE documents ADD COLUMN processing_phase TEXT')
+  }
+  if (!columnNames.includes('raw_extraction')) {
+    db.exec('ALTER TABLE documents ADD COLUMN raw_extraction TEXT')
+  }
+  if (!columnNames.includes('transaction_count')) {
+    db.exec('ALTER TABLE documents ADD COLUMN transaction_count INTEGER')
+  }
 
   const txnColumns = db.prepare("PRAGMA table_info(transactions)").all() as Array<{ name: string }>
   const txnColumnNames = txnColumns.map(c => c.name)

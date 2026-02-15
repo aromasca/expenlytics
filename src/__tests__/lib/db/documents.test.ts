@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import Database from 'better-sqlite3'
 import { initializeSchema } from '@/lib/db/schema'
-import { createDocument, getDocument, updateDocumentStatus, findDocumentByHash, updateDocumentType, listDocuments, deleteOrphanedDocuments } from '@/lib/db/documents'
+import { createDocument, getDocument, updateDocumentStatus, findDocumentByHash, updateDocumentType, listDocuments, deleteOrphanedDocuments, updateDocumentPhase, updateDocumentRawExtraction, getDocumentRawExtraction, updateDocumentTransactionCount, listDocumentsWithCounts, deleteDocument } from '@/lib/db/documents'
 import { insertTransactions, deleteTransactions, listTransactions } from '@/lib/db/transactions'
 
 describe('documents', () => {
@@ -121,5 +121,72 @@ describe('documents', () => {
     expect(deleted).toBe(0)
     expect(getDocument(db, id1)).toBeDefined()
     expect(getDocument(db, id2)).toBeDefined()
+  })
+
+  it('stores and retrieves processing_phase', () => {
+    const id = createDocument(db, 'test.pdf', '/path/test.pdf', 'hash1')
+    updateDocumentPhase(db, id, 'extraction')
+    const doc = getDocument(db, id)
+    expect(doc!.processing_phase).toBe('extraction')
+  })
+
+  it('stores and retrieves raw_extraction JSON', () => {
+    const id = createDocument(db, 'test.pdf', '/path/test.pdf', 'hash1')
+    const rawData = {
+      document_type: 'credit_card',
+      transactions: [
+        { date: '2025-01-15', description: 'WHOLE FOODS', amount: 85.50, type: 'debit' },
+      ],
+    }
+    updateDocumentRawExtraction(db, id, rawData)
+    const stored = getDocumentRawExtraction(db, id)
+    expect(stored).toEqual(rawData)
+  })
+
+  it('stores and retrieves transaction_count', () => {
+    const id = createDocument(db, 'test.pdf', '/path/test.pdf', 'hash1')
+    updateDocumentTransactionCount(db, id, 42)
+    const doc = getDocument(db, id)
+    expect(doc!.transaction_count).toBe(42)
+  })
+
+  it('new documents have null processing_phase and raw_extraction', () => {
+    const id = createDocument(db, 'test.pdf', '/path/test.pdf', 'hash1')
+    const doc = getDocument(db, id)
+    expect(doc!.processing_phase).toBeNull()
+    expect(doc!.transaction_count).toBeNull()
+  })
+
+  it('lists documents with transaction counts via listDocumentsWithCounts', () => {
+    const id1 = createDocument(db, 'jan.pdf', '/path/jan.pdf', 'hash1')
+    updateDocumentStatus(db, id1, 'completed')
+    insertTransactions(db, id1, [
+      { date: '2025-01-15', description: 'Store A', amount: 50, type: 'debit' },
+      { date: '2025-01-16', description: 'Store B', amount: 30, type: 'debit' },
+    ])
+
+    const id2 = createDocument(db, 'feb.pdf', '/path/feb.pdf', 'hash2')
+    updateDocumentStatus(db, id2, 'processing')
+
+    const docs = listDocumentsWithCounts(db)
+    expect(docs).toHaveLength(2)
+    expect(docs[0].filename).toBe('feb.pdf') // newest first
+    expect(docs[0].actual_transaction_count).toBe(0)
+    expect(docs[1].filename).toBe('jan.pdf')
+    expect(docs[1].actual_transaction_count).toBe(2)
+  })
+
+  it('deleteDocument removes document and cascades to transactions', () => {
+    const id = createDocument(db, 'test.pdf', '/path/test.pdf', 'hash1')
+    updateDocumentStatus(db, id, 'completed')
+    insertTransactions(db, id, [
+      { date: '2025-01-15', description: 'Store', amount: 50, type: 'debit' },
+    ])
+
+    deleteDocument(db, id)
+
+    expect(getDocument(db, id)).toBeUndefined()
+    const { transactions } = listTransactions(db, { document_id: id })
+    expect(transactions).toHaveLength(0)
   })
 })
