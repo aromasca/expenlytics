@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { getDocument, updateDocumentStatus } from '@/lib/db/documents'
-import { processDocument } from '@/lib/pipeline'
+import { processDocument, enqueueDocument } from '@/lib/pipeline'
 
 export async function POST(
   _request: NextRequest,
@@ -26,8 +26,8 @@ export async function POST(
 
   updateDocumentStatus(db, docId, 'processing')
 
-  // Fire and forget — full pipeline from scratch
-  processDocument(db, docId).catch((error) => {
+  // Enqueue for sequential processing — only one document at a time
+  enqueueDocument(() => processDocument(db, docId)).catch((error) => {
     const message = error instanceof Error ? error.message : 'Unknown error'
     updateDocumentStatus(db, docId, 'failed', message)
   })

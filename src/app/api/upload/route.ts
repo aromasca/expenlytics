@@ -7,7 +7,7 @@ import { createDocument, findDocumentByHash, updateDocumentStatus } from '@/lib/
 import { getAllCategories } from '@/lib/db/categories'
 import { getTransactionsByDocumentId, bulkUpdateCategories } from '@/lib/db/transactions'
 import { reclassifyTransactions } from '@/lib/claude/extract-transactions'
-import { processDocument } from '@/lib/pipeline'
+import { processDocument, enqueueDocument } from '@/lib/pipeline'
 import { getModelForTask } from '@/lib/claude/models'
 
 function computeHash(buffer: Buffer): string {
@@ -97,8 +97,8 @@ export async function POST(request: NextRequest) {
   const docId = createDocument(db, file.name, filepath, fileHash)
   updateDocumentStatus(db, docId, 'processing')
 
-  // Fire and forget — processDocument runs in background
-  processDocument(db, docId).catch((error) => {
+  // Enqueue for sequential processing — only one document at a time
+  enqueueDocument(() => processDocument(db, docId)).catch((error) => {
     const message = error instanceof Error ? error.message : 'Unknown error'
     updateDocumentStatus(db, docId, 'failed', message)
   })

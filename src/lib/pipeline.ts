@@ -1,11 +1,37 @@
 import type Database from 'better-sqlite3'
 import { getDocument, updateDocumentStatus, updateDocumentPhase, updateDocumentType, updateDocumentRawExtraction, updateDocumentTransactionCount } from '@/lib/db/documents'
 import { getAllCategories } from '@/lib/db/categories'
-import { findDuplicateTransaction, bulkUpdateCategories } from '@/lib/db/transactions'
 import { extractRawTransactions, classifyTransactions } from '@/lib/claude/extract-transactions'
 import { normalizeMerchants } from '@/lib/claude/normalize-merchants'
 import { getModelForTask } from '@/lib/claude/models'
 import { readFile } from 'fs/promises'
+
+// Sequential processing queue — only one document processes at a time
+type QueueItem = { task: () => Promise<void>; resolve: () => void; reject: (err: unknown) => void }
+const queue: QueueItem[] = []
+let processing = false
+
+async function processQueue() {
+  if (processing) return
+  processing = true
+  while (queue.length > 0) {
+    const item = queue.shift()!
+    try {
+      await item.task()
+      item.resolve()
+    } catch (err) {
+      item.reject(err)
+    }
+  }
+  processing = false
+}
+
+export function enqueueDocument(task: () => Promise<void>): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    queue.push({ task, resolve, reject })
+    processQueue()
+  })
+}
 
 export async function processDocument(db: Database.Database, documentId: number): Promise<void> {
   const doc = getDocument(db, documentId)
@@ -63,9 +89,8 @@ export async function processDocument(db: Database.Database, documentId: number)
   const insert = db.prepare(
     'INSERT INTO transactions (document_id, date, description, amount, type, category_id, normalized_merchant, transaction_class) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   )
-  const reclassifyUpdates: Array<{ transactionId: number; categoryId: number }> = []
 
-  const mergeTransaction = db.transaction(() => {
+  const insertAll = db.transaction(() => {
     for (let i = 0; i < rawResult.transactions.length; i++) {
       const t = rawResult.transactions[i]
       const classification = classifications.find(c => c.index === i)
@@ -73,23 +98,11 @@ export async function processDocument(db: Database.Database, documentId: number)
         ? (categoryMap.get(classification.category.toLowerCase()) ?? otherCategoryId)
         : otherCategoryId
 
-      const existing = findDuplicateTransaction(db, {
-        date: t.date, description: t.description, amount: t.amount, type: t.type,
-      })
-
-      if (existing) {
-        reclassifyUpdates.push({ transactionId: existing.id, categoryId })
-      } else {
-        const normalizedMerchant = merchantMap.get(t.description) ?? null
-        insert.run(documentId, t.date, t.description, t.amount, t.type, categoryId, normalizedMerchant, t.transaction_class ?? null)
-      }
+      const normalizedMerchant = merchantMap.get(t.description) ?? null
+      insert.run(documentId, t.date, t.description, t.amount, t.type, categoryId, normalizedMerchant, t.transaction_class ?? null)
     }
   })
-  mergeTransaction()
-
-  if (reclassifyUpdates.length > 0) {
-    bulkUpdateCategories(db, reclassifyUpdates)
-  }
+  insertAll()
 
   // Mark complete
   updateDocumentPhase(db, documentId, 'complete')
