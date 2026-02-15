@@ -12,8 +12,8 @@ vi.mock('@anthropic-ai/sdk', () => {
             text: JSON.stringify({
               document_type: 'checking_account',
               transactions: [
-                { date: '2025-01-15', description: 'Whole Foods', amount: 85.50, type: 'debit', category: 'Groceries' },
-                { date: '2025-01-16', description: 'Salary', amount: 3000, type: 'credit', category: 'Salary & Wages' },
+                { date: '2025-01-15', description: 'Whole Foods', amount: 85.50, type: 'debit', category: 'Groceries', transaction_class: 'purchase' },
+                { date: '2025-01-16', description: 'Salary', amount: 3000, type: 'credit', category: 'Salary & Wages', transaction_class: 'purchase' },
               ],
             }),
           },

@@ -83,6 +83,32 @@ describe('buildCompactData', () => {
     expect(totalTxns).toBe(1)
   })
 
+  it('excludes payment/transfer transaction_class from compact data', () => {
+    const db = createDb()
+    insertTx(db, { date: monthsAgo(1), description: 'Groceries', amount: 200, category: 'Groceries' })
+    // Insert a payment-class transaction with normal category
+    db.prepare(`
+      INSERT INTO documents (filename, filepath, status, file_hash)
+      VALUES ('test.pdf', '/tmp/test.pdf', 'completed', 'hash-class-test')
+    `).run()
+    const docId = (db.prepare('SELECT last_insert_rowid() as id').get() as { id: number }).id
+    const catId = getCategoryId(db, 'Groceries')
+    db.prepare(`
+      INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
+      VALUES (?, ?, 'Payment', 500, 'debit', ?, 'payment')
+    `).run(docId, monthsAgo(1), catId)
+    db.prepare(`
+      INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
+      VALUES (?, ?, 'Transfer Out', 1000, 'debit', ?, 'transfer')
+    `).run(docId, monthsAgo(1), catId)
+
+    const data = buildCompactData(db)
+    const m = data.monthly.find(r => r.spending > 0)
+    expect(m).toBeDefined()
+    // Only Groceries (200) counts; payment (500) and transfer (1000) excluded
+    expect(m!.spending).toBe(200)
+  })
+
   it('excludes transfer/savings/investments from all compact data sections', () => {
     const db = createDb()
     // Real spending

@@ -4,9 +4,9 @@ import type { MonthlyFlow } from '@/lib/insights/types'
 export function getMonthlyIncomeVsSpending(db: Database.Database): MonthlyFlow[] {
   const rows = db.prepare(`
     SELECT strftime('%Y-%m', t.date) as month,
-           SUM(CASE WHEN t.type = 'credit' AND COALESCE(c.exclude_from_totals, 0) = 0
+           SUM(CASE WHEN t.type = 'credit' AND COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
                THEN t.amount ELSE 0 END) as income,
-           SUM(CASE WHEN t.type = 'debit' AND COALESCE(c.exclude_from_totals, 0) = 0
+           SUM(CASE WHEN t.type = 'debit' AND COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
                THEN t.amount ELSE 0 END) as spending
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id

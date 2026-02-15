@@ -18,6 +18,7 @@ interface Transaction {
   category_id: number | null
   category_name: string | null
   category_color: string | null
+  transaction_class: string | null
 }
 
 interface Category {
@@ -192,9 +193,16 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
                   {txn.type === 'credit' ? '+' : '-'}${txn.amount.toFixed(2)}
                 </TableCell>
                 <TableCell className="py-1.5">
-                  <span className={`text-[11px] uppercase tracking-wide ${txn.type === 'credit' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
-                    {txn.type}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[11px] uppercase tracking-wide ${txn.type === 'credit' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+                      {txn.type}
+                    </span>
+                    {txn.transaction_class && txn.transaction_class !== 'purchase' && (
+                      <span className="text-[10px] rounded px-1 py-0.5 bg-muted text-muted-foreground">
+                        {txn.transaction_class}
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="py-1.5">
                   <CategorySelect

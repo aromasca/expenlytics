@@ -77,8 +77,8 @@ export function getSpendingSummary(db: Database.Database, filters: ReportFilters
 
   const totals = db.prepare(`
     SELECT
-      COALESCE(SUM(CASE WHEN t.type = 'debit' AND COALESCE(c.exclude_from_totals, 0) = 0 THEN t.amount ELSE 0 END), 0) as totalSpent,
-      COALESCE(SUM(CASE WHEN t.type = 'credit' AND COALESCE(c.exclude_from_totals, 0) = 0 THEN t.amount ELSE 0 END), 0) as totalIncome
+      COALESCE(SUM(CASE WHEN t.type = 'debit' AND COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest')) THEN t.amount ELSE 0 END), 0) as totalSpent,
+      COALESCE(SUM(CASE WHEN t.type = 'credit' AND COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest')) THEN t.amount ELSE 0 END), 0) as totalIncome
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     ${where}
@@ -102,7 +102,7 @@ export function getSpendingSummary(db: Database.Database, filters: ReportFilters
     SELECT c.name, SUM(t.amount) as amount
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    ${debitWhere}${debitWhere ? ' AND' : ' WHERE'} COALESCE(c.exclude_from_totals, 0) = 0
+    ${debitWhere}${debitWhere ? ' AND' : ' WHERE'} COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
     GROUP BY t.category_id
     ORDER BY amount DESC
     LIMIT 1
@@ -141,7 +141,7 @@ export function getSpendingOverTime(
     SELECT ${periodExpr} as period, SUM(t.amount) as amount
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    ${where}${where ? ' AND' : ' WHERE'} COALESCE(c.exclude_from_totals, 0) = 0
+    ${where}${where ? ' AND' : ' WHERE'} COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
     GROUP BY period
     ORDER BY period ASC
   `).all(params) as SpendingOverTimeRow[]
@@ -158,7 +158,7 @@ export function getCategoryBreakdown(db: Database.Database, filters: ReportFilte
       SUM(t.amount) as amount
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    ${where}${where ? ' AND' : ' WHERE'} COALESCE(c.exclude_from_totals, 0) = 0
+    ${where}${where ? ' AND' : ' WHERE'} COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
     GROUP BY t.category_id
     ORDER BY amount DESC
   `).all(params) as Array<{ category: string; color: string; amount: number }>
@@ -178,8 +178,8 @@ export function getSpendingTrend(db: Database.Database, filters: ReportFilters):
   return db.prepare(`
     SELECT
       strftime('%Y-%m', t.date) as period,
-      COALESCE(SUM(CASE WHEN t.type = 'debit' AND COALESCE(c.exclude_from_totals, 0) = 0 THEN t.amount ELSE 0 END), 0) as debits,
-      COALESCE(SUM(CASE WHEN t.type = 'credit' AND COALESCE(c.exclude_from_totals, 0) = 0 THEN t.amount ELSE 0 END), 0) as credits
+      COALESCE(SUM(CASE WHEN t.type = 'debit' AND COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest')) THEN t.amount ELSE 0 END), 0) as debits,
+      COALESCE(SUM(CASE WHEN t.type = 'credit' AND COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest')) THEN t.amount ELSE 0 END), 0) as credits
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     ${where}
@@ -207,7 +207,7 @@ export function getSankeyData(db: Database.Database, filters: ReportFilters): Sa
       SUM(t.amount) as amount
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    ${where}${where ? ' AND' : ' WHERE'} COALESCE(c.exclude_from_totals, 0) = 0
+    ${where}${where ? ' AND' : ' WHERE'} COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
     GROUP BY t.category_id
     HAVING amount > 0
     ORDER BY amount DESC
@@ -228,6 +228,7 @@ export function getSankeyIncomeData(db: Database.Database, filters: ReportFilter
     LEFT JOIN categories c ON t.category_id = c.id
     ${where}
     AND COALESCE(c.exclude_from_totals, 0) = 0
+    AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
     GROUP BY t.category_id
     HAVING amount > 0
     ORDER BY amount DESC

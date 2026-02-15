@@ -33,6 +33,15 @@ describe('schema migrations', () => {
     expect(names).not.toContain('Refund')
   })
 
+  it('adds transaction_class column to transactions', () => {
+    const db = new Database(':memory:')
+    initializeSchema(db)
+
+    const columns = db.prepare("PRAGMA table_info(transactions)").all() as Array<{ name: string }>
+    const columnNames = columns.map(c => c.name)
+    expect(columnNames).toContain('transaction_class')
+  })
+
   it('migration is idempotent', () => {
     const db = new Database(':memory:')
     initializeSchema(db)

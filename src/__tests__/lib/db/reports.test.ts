@@ -167,6 +167,42 @@ describe('reports', () => {
     })
   })
 
+  describe('transaction_class filtering', () => {
+    it('excludes payment/transfer class from totalSpent even without exclude_from_totals', () => {
+      // Insert a transaction with transaction_class='payment' but a non-excluded category
+      db.prepare(`
+        INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
+        VALUES (?, '2025-01-25', 'CC Payment Received', 500, 'debit', ?, 'payment')
+      `).run(docId, getAllCategories(db).find(c => c.name === 'Groceries')!.id)
+
+      const summary = getSpendingSummary(db, {})
+      // Original debits = 425, payment-class (500) excluded even though category is Groceries
+      expect(summary.totalSpent).toBe(425)
+    })
+
+    it('includes purchase/fee/interest class in totals', () => {
+      db.prepare(`
+        INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
+        VALUES (?, '2025-01-25', 'Late Fee', 35, 'debit', ?, 'fee')
+      `).run(docId, getAllCategories(db).find(c => c.name === 'Fees & Charges')!.id)
+
+      db.prepare(`
+        INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
+        VALUES (?, '2025-01-26', 'Interest Charge', 15, 'debit', ?, 'interest')
+      `).run(docId, getAllCategories(db).find(c => c.name === 'Interest & Finance Charges')!.id)
+
+      const summary = getSpendingSummary(db, {})
+      // Original 425 + fee 35 + interest 15 = 475
+      expect(summary.totalSpent).toBe(475)
+    })
+
+    it('treats NULL transaction_class as included (backward compat)', () => {
+      // The beforeEach data has NULL transaction_class — should all be included
+      const summary = getSpendingSummary(db, {})
+      expect(summary.totalSpent).toBe(425)
+    })
+  })
+
   describe('getTopTransactions', () => {
     it('returns top N transactions by amount descending', () => {
       const data = getTopTransactions(db, {}, 3)

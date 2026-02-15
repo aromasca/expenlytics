@@ -173,6 +173,12 @@ export function initializeSchema(db: Database.Database): void {
     db.exec('ALTER TABLE transactions ADD COLUMN normalized_merchant TEXT')
   }
 
+  if (!txnColumnNames.includes('transaction_class')) {
+    db.exec("ALTER TABLE transactions ADD COLUMN transaction_class TEXT CHECK (transaction_class IN ('purchase', 'payment', 'refund', 'fee', 'interest', 'transfer'))")
+  }
+
+  db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_class ON transactions(transaction_class)')
+
   // Create index for recurring charge queries
   db.exec('CREATE INDEX IF NOT EXISTS idx_transactions_normalized_merchant ON transactions(normalized_merchant)')
 

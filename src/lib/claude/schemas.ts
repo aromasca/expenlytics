@@ -40,6 +40,10 @@ export const VALID_CATEGORIES = [
   'Other',
 ] as const
 
+export const VALID_TRANSACTION_CLASSES = [
+  'purchase', 'payment', 'refund', 'fee', 'interest', 'transfer',
+] as const
+
 export const VALID_DOCUMENT_TYPES = [
   'credit_card', 'checking_account', 'savings_account', 'investment', 'other',
 ] as const
@@ -50,6 +54,7 @@ export const transactionSchema = z.object({
   amount: z.number().positive().describe('Transaction amount as a positive number'),
   type: z.enum(['debit', 'credit']).describe('debit for money out, credit for money in'),
   category: z.string().describe('Spending category, one of: Groceries, Dining, Transport, Housing, Utilities, Entertainment, Shopping, Health, Income, Transfer, Other'),
+  transaction_class: z.enum(VALID_TRANSACTION_CLASSES).describe('Structural classification: purchase, payment, refund, fee, interest, or transfer'),
 })
 
 export const extractionSchema = z.object({
@@ -62,6 +67,7 @@ export const rawTransactionSchema = z.object({
   description: z.string().describe('Merchant name or transaction description'),
   amount: z.number().positive().describe('Transaction amount as a positive number'),
   type: z.enum(['debit', 'credit']).describe('debit for money out, credit for money in'),
+  transaction_class: z.enum(VALID_TRANSACTION_CLASSES).describe('Structural classification: purchase, payment, refund, fee, interest, or transfer'),
 })
 
 export const rawExtractionSchema = z.object({

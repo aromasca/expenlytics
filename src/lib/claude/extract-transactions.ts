@@ -23,17 +23,31 @@ STEP 2: Extract every transaction. For each:
 - description: merchant name or transaction description (clean up codes/numbers, make human-readable)
 - amount: as a positive number (no currency symbols)
 - type: "debit" or "credit" based on DOCUMENT TYPE CONTEXT (see below)
+- transaction_class: structural classification (see TRANSACTION CLASS RULES below)
 
 DOCUMENT TYPE CONTEXT — this determines how to interpret debits and credits:
 - Credit card: debits are purchases/charges, credits are payments to the card or refunds.
 - Checking/savings account: debits are money out (spending, transfers), credits are money in (salary, deposits).
 - Investment: debits are contributions/purchases, credits are withdrawals/dividends.
 
+TRANSACTION CLASS RULES — classify each transaction structurally:
+- "purchase": regular purchases, charges for goods/services
+- "payment": payments received on credit card, loan payments received
+- "refund": returned purchases, merchant credits, chargebacks, reimbursements
+- "fee": bank fees, late fees, service charges, overdraft fees, annual fees
+- "interest": interest charges, finance charges on credit cards/loans
+- "transfer": inter-account transfers, CC bill payments from checking, savings contributions, 401k contributions, P2P self-transfers (Venmo/Zelle to yourself), ACH between own accounts
+
+By document type:
+- Credit card: charges/purchases → purchase, payments received → payment, refunds/credits → refund, interest charges → interest, fees → fee
+- Checking: purchases/spending → purchase, CC payments out → transfer, transfers to savings/investments → transfer, refunds → refund, fees → fee, salary deposits → purchase (it's income, not a "purchase" per se, but use purchase for non-transfer credits)
+- All: inter-account movements → transfer
+
 Return ONLY valid JSON in this exact format:
 {
   "document_type": "credit_card|checking_account|savings_account|investment|other",
   "transactions": [
-    {"date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "type": "debit|credit"}
+    {"date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "type": "debit|credit", "transaction_class": "purchase|payment|refund|fee|interest|transfer"}
   ]
 }
 
@@ -42,6 +56,7 @@ Important:
 - Dates must be YYYY-MM-DD format
 - Amounts must be positive numbers
 - Apply document-type-specific debit/credit logic
+- Every transaction MUST have a transaction_class
 - Do NOT assign categories — only extract raw transaction data`
 
 const EXTRACTION_PROMPT = `You are a precise financial document parser. First, identify the type of financial document, then extract ALL transactions with context-aware categorization.
@@ -59,11 +74,20 @@ STEP 2: Extract every transaction. For each:
 - amount: as a positive number (no currency symbols)
 - type: "debit" or "credit" based on DOCUMENT TYPE CONTEXT (see below)
 - category: classify into exactly one of the categories listed below
+- transaction_class: structural classification — "purchase", "payment", "refund", "fee", "interest", or "transfer"
 
 DOCUMENT TYPE CONTEXT — this determines how to interpret debits and credits:
 - Credit card: debits are purchases/charges, credits are payments to the card or refunds. NEVER use "Salary & Wages" or "Freelance Income" for credit card credits — use "Transfer" for payments/transfers to the card, "Refund" for returned purchases.
 - Checking/savings account: debits are money out (spending, transfers), credits are money in (salary, deposits). Use "Salary & Wages" for salary/wages.
 - Investment: debits are contributions/purchases, credits are withdrawals/dividends.
+
+TRANSACTION CLASS (structural — orthogonal to category):
+- "purchase": regular purchases, charges for goods/services, salary/income deposits
+- "payment": payments received on credit card
+- "refund": returned purchases, merchant credits, chargebacks
+- "fee": bank fees, late fees, service charges, overdraft fees
+- "interest": interest charges, finance charges
+- "transfer": inter-account transfers, CC bill payments, savings/investment contributions, P2P self-transfers
 
 CLASSIFICATION APPROACH: Think in two steps — first identify which GROUP the transaction belongs to, then pick the most specific category within that group.
 
@@ -195,7 +219,7 @@ Return ONLY valid JSON in this exact format:
 {
   "document_type": "credit_card|checking_account|savings_account|investment|other",
   "transactions": [
-    {"date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "type": "debit|credit", "category": "..."}
+    {"date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "type": "debit|credit", "category": "...", "transaction_class": "purchase|payment|refund|fee|interest|transfer"}
   ]
 }
 
@@ -204,6 +228,7 @@ Important:
 - Dates must be YYYY-MM-DD format
 - Amounts must be positive numbers
 - Apply document-type-specific debit/credit logic
+- Every transaction MUST have a transaction_class
 - Think: which GROUP does this belong to? Then pick the most specific category in that group.
 - Use "Other" only as an absolute last resort`
 
@@ -212,7 +237,7 @@ export async function extractRawTransactions(pdfBuffer: Buffer, model = 'claude-
 
   const response = await client.messages.create({
     model,
-    max_tokens: 8192,
+    max_tokens: 16384,
     messages: [
       {
         role: 'user',
@@ -240,9 +265,16 @@ export async function extractRawTransactions(pdfBuffer: Buffer, model = 'claude-
   }
 
   let jsonStr = textBlock.text
+  // Handle markdown code blocks (including truncated responses without closing fence)
   const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
   if (jsonMatch) {
     jsonStr = jsonMatch[1]
+  } else {
+    // Try to extract from an unclosed code fence (response may have been truncated)
+    const openFence = jsonStr.match(/```(?:json)?\s*([\s\S]*)/)
+    if (openFence) {
+      jsonStr = openFence[1]
+    }
   }
 
   const parsed = JSON.parse(jsonStr.trim())
@@ -254,7 +286,7 @@ export async function extractTransactions(pdfBuffer: Buffer, model = 'claude-son
 
   const response = await client.messages.create({
     model,
-    max_tokens: 8192,
+    max_tokens: 16384,
     messages: [
       {
         role: 'user',
@@ -286,6 +318,11 @@ export async function extractTransactions(pdfBuffer: Buffer, model = 'claude-son
   const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/)
   if (jsonMatch) {
     jsonStr = jsonMatch[1]
+  } else {
+    const openFence = jsonStr.match(/```(?:json)?\s*([\s\S]*)/)
+    if (openFence) {
+      jsonStr = openFence[1]
+    }
   }
 
   const parsed = JSON.parse(jsonStr.trim())

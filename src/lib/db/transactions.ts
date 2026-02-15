@@ -18,6 +18,7 @@ export interface TransactionRow {
   category_name: string | null
   category_color: string | null
   manual_category: number
+  transaction_class: string | null
   created_at: string
 }
 
@@ -29,6 +30,7 @@ export interface ListFilters {
   start_date?: string
   end_date?: string
   document_id?: number
+  transaction_class?: string
   sort_by?: 'date' | 'amount' | 'description'
   sort_order?: 'asc' | 'desc'
   limit?: number
@@ -79,6 +81,10 @@ export function listTransactions(db: Database.Database, filters: ListFilters): {
     const placeholders = filters.category_ids.map(() => '?').join(', ')
     conditions.push(`t.category_id IN (${placeholders})`)
     params.push(...filters.category_ids)
+  }
+  if (filters.transaction_class) {
+    conditions.push('t.transaction_class = ?')
+    params.push(filters.transaction_class)
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''

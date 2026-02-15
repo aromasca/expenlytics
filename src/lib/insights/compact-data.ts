@@ -27,6 +27,7 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     LEFT JOIN categories c ON t.category_id = c.id
     WHERE t.date >= date('now', '-12 months')
       AND COALESCE(c.exclude_from_totals, 0) = 0
+      AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
     GROUP BY month
     ORDER BY month ASC
   `).all() as Array<{ month: string; income: number; spending: number }>
@@ -47,6 +48,7 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     LEFT JOIN categories c ON t.category_id = c.id
     WHERE t.type = 'debit' AND t.date >= date('now', '-6 months')
       AND COALESCE(c.exclude_from_totals, 0) = 0
+      AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
     GROUP BY category, month
     ORDER BY amount DESC
   `).all() as Array<{ category: string; month: string; amount: number }>
@@ -74,6 +76,7 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     LEFT JOIN categories c ON t.category_id = c.id
     WHERE t.type = 'debit' AND t.date >= date('now', '-12 months')
       AND COALESCE(c.exclude_from_totals, 0) = 0
+      AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
     GROUP BY name
     ORDER BY count DESC, total DESC
     LIMIT 30
@@ -92,6 +95,7 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
       LEFT JOIN categories c ON t.category_id = c.id
       WHERE t.type = 'debit' AND t.date >= date('now', '-6 months')
         AND COALESCE(c.exclude_from_totals, 0) = 0
+        AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
       GROUP BY t.date
     )
     GROUP BY CAST(strftime('%w', date) AS INTEGER)
@@ -120,6 +124,7 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     LEFT JOIN categories c ON t.category_id = c.id
     WHERE t.type = 'debit' AND t.date >= date('now', '-60 days')
       AND COALESCE(c.exclude_from_totals, 0) = 0
+      AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
     GROUP BY t.date
     ORDER BY t.date ASC
   `).all() as Array<{ date: string; amount: number }>
@@ -171,12 +176,14 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
       LEFT JOIN categories c2 ON t2.category_id = c2.id
       WHERE t2.type = 'debit' AND t2.date >= date('now', '-6 months')
         AND COALESCE(c2.exclude_from_totals, 0) = 0
+        AND (t2.transaction_class IS NULL OR t2.transaction_class IN ('purchase', 'fee', 'interest'))
       GROUP BY t2.category_id
     ) cat_avg ON t.category_id = cat_avg.category_id
     WHERE t.type = 'debit'
       AND t.date >= date('now', '-3 months')
       AND t.amount > cat_avg.avg_amount * 2
       AND COALESCE(c.exclude_from_totals, 0) = 0
+      AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
     ORDER BY t.amount DESC
     LIMIT 10
   `).all() as Array<{ date: string; description: string; amount: number; category: string }>

@@ -40,8 +40,8 @@ describe('processDocument', () => {
     mockExtractRaw.mockResolvedValue({
       document_type: 'checking_account',
       transactions: [
-        { date: '2025-01-15', description: 'Whole Foods', amount: 85.50, type: 'debit' },
-        { date: '2025-01-16', description: 'Salary', amount: 3000, type: 'credit' },
+        { date: '2025-01-15', description: 'Whole Foods', amount: 85.50, type: 'debit', transaction_class: 'purchase' },
+        { date: '2025-01-16', description: 'Salary', amount: 3000, type: 'credit', transaction_class: 'purchase' },
       ],
     })
 
@@ -71,8 +71,9 @@ describe('processDocument', () => {
     expect(groceryTxn!.category_name).toBe('Groceries')
 
     // Check normalized_merchant on the raw row
-    const rawRow = db.prepare('SELECT normalized_merchant FROM transactions WHERE description = ?').get('Whole Foods') as { normalized_merchant: string | null }
+    const rawRow = db.prepare('SELECT normalized_merchant, transaction_class FROM transactions WHERE description = ?').get('Whole Foods') as { normalized_merchant: string | null; transaction_class: string | null }
     expect(rawRow.normalized_merchant).toBe('Whole Foods Market')
+    expect(rawRow.transaction_class).toBe('purchase')
   })
 
   it('stores raw extraction data on the document', async () => {
@@ -82,7 +83,7 @@ describe('processDocument', () => {
     const rawData = {
       document_type: 'credit_card',
       transactions: [
-        { date: '2025-01-15', description: 'Amazon', amount: 42.99, type: 'debit' },
+        { date: '2025-01-15', description: 'Amazon', amount: 42.99, type: 'debit', transaction_class: 'purchase' },
       ],
     }
     mockExtractRaw.mockResolvedValue(rawData)
@@ -119,7 +120,7 @@ describe('processDocument', () => {
 
     mockExtractRaw.mockResolvedValue({
       document_type: 'checking_account',
-      transactions: [{ date: '2025-01-15', description: 'Store', amount: 50, type: 'debit' }],
+      transactions: [{ date: '2025-01-15', description: 'Store', amount: 50, type: 'debit', transaction_class: 'purchase' }],
     })
     mockClassify.mockRejectedValue(new Error('Classification failed'))
 
@@ -136,7 +137,7 @@ describe('processDocument', () => {
 
     mockExtractRaw.mockResolvedValue({
       document_type: 'checking_account',
-      transactions: [{ date: '2025-01-15', description: 'Store', amount: 50, type: 'debit' }],
+      transactions: [{ date: '2025-01-15', description: 'Store', amount: 50, type: 'debit', transaction_class: 'purchase' }],
     })
     mockClassify.mockResolvedValue({
       classifications: [{ index: 0, category: 'General Merchandise' }],

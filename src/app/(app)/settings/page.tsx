@@ -26,6 +26,8 @@ export default function SettingsPage() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [reclassifying, setReclassifying] = useState(false)
   const [reclassifyResult, setReclassifyResult] = useState<string | null>(null)
+  const [backfilling, setBackfilling] = useState(false)
+  const [backfillResult, setBackfillResult] = useState<string | null>(null)
   const [modelSettings, setModelSettings] = useState<Record<string, string>>({})
   const [savingModel, setSavingModel] = useState<string | null>(null)
 
@@ -152,6 +154,40 @@ export default function SettingsPage() {
           </Button>
           {reclassifyResult && (
             <span className="text-xs text-muted-foreground">{reclassifyResult}</span>
+          )}
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <div className="flex items-center gap-2.5 mb-2">
+          <RefreshCw className="h-4 w-4" />
+          <h3 className="text-sm font-medium">Backfill Transaction Classes</h3>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">
+          Infer transaction class (purchase, payment, refund, fee, interest, transfer) from existing categories.
+        </p>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={async () => {
+            setBackfilling(true)
+            setBackfillResult(null)
+            try {
+              const res = await fetch('/api/transactions/backfill-class', { method: 'POST' })
+              const data = await res.json()
+              if (res.ok) {
+                setBackfillResult(`${data.updated}/${data.total} classified`)
+              } else {
+                setBackfillResult(`Error: ${data.error}`)
+              }
+            } catch {
+              setBackfillResult('Failed to connect')
+            } finally {
+              setBackfilling(false)
+            }
+          }} disabled={backfilling}>
+            {backfilling ? 'Running...' : 'Backfill All'}
+          </Button>
+          {backfillResult && (
+            <span className="text-xs text-muted-foreground">{backfillResult}</span>
           )}
         </div>
       </Card>

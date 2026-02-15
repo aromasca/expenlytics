@@ -23,7 +23,7 @@
 - Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`)
 - `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib)
 - `src/lib/claude/` — Claude API extraction with Zod validation
-- `src/app/api/` — Next.js API routes (upload, transactions, categories, documents, documents/[id], documents/[id]/reprocess, documents/[id]/retry, reports, recurring, reclassify/backfill, settings)
+- `src/app/api/` — Next.js API routes (upload, transactions, transactions/backfill-class, categories, documents, documents/[id], documents/[id]/reprocess, documents/[id]/retry, reports, recurring, reclassify/backfill, settings)
 - `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, documents, reports, subscriptions, settings
 - `src/app/page.tsx` — Redirects to `/insights`
 - `src/components/` — React client components using shadcn/ui
@@ -55,6 +55,7 @@
 - `next.config.ts` has `serverExternalPackages: ['better-sqlite3']`
 - Bash/zsh: quote paths containing parentheses, e.g. `"src/app/(app)/..."` — zsh treats `()` as glob
 - `exclude_from_totals` column on `categories` table: Transfer, Refund, Savings, Investments are flagged. Use `COALESCE(c.exclude_from_totals, 0) = 0` in all summary/chart/insight queries instead of hardcoding category names
+- `transaction_class` column on `transactions` table: structural classification (purchase, payment, refund, fee, interest, transfer). Extracted during raw extraction phase. Belt-and-suspenders filtering: all summary queries use BOTH `exclude_from_totals` AND `(t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))`. The `IS NULL` clause preserves backward compatibility for un-backfilled rows. Backfill endpoint: POST /api/transactions/backfill-class
 - Dynamic WHERE extension pattern: `${where}${where ? ' AND' : ' WHERE'} <condition>` when appending to `buildWhere()` output
 - API routes: validate query params with allowlists before passing to DB functions (never trust `as` casts for SQL-interpolated values like `sort_by`)
 - Optional LLM calls (normalization, etc.) should be wrapped in try/catch so failures don't block core operations

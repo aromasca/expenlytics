@@ -61,7 +61,7 @@ export async function processDocument(db: Database.Database, documentId: number)
 
   // Insert transactions into DB
   const insert = db.prepare(
-    'INSERT INTO transactions (document_id, date, description, amount, type, category_id, normalized_merchant) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO transactions (document_id, date, description, amount, type, category_id, normalized_merchant, transaction_class) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   )
   const reclassifyUpdates: Array<{ transactionId: number; categoryId: number }> = []
 
@@ -81,7 +81,7 @@ export async function processDocument(db: Database.Database, documentId: number)
         reclassifyUpdates.push({ transactionId: existing.id, categoryId })
       } else {
         const normalizedMerchant = merchantMap.get(t.description) ?? null
-        insert.run(documentId, t.date, t.description, t.amount, t.type, categoryId, normalizedMerchant)
+        insert.run(documentId, t.date, t.description, t.amount, t.type, categoryId, normalizedMerchant, t.transaction_class ?? null)
       }
     }
   })

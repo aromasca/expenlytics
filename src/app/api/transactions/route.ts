@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
   const VALID_TYPES = ['debit', 'credit'] as const
   const VALID_SORT_BY = ['date', 'amount', 'description'] as const
   const VALID_SORT_ORDER = ['asc', 'desc'] as const
+  const VALID_CLASSES = ['purchase', 'payment', 'refund', 'fee', 'interest', 'transfer'] as const
 
   const typeParam = params.get('type')
   const type = VALID_TYPES.includes(typeParam as typeof VALID_TYPES[number])
@@ -25,8 +26,14 @@ export async function GET(request: NextRequest) {
     ? sortOrderParam as 'asc' | 'desc'
     : undefined
 
+  const classParam = params.get('transaction_class')
+  const transaction_class = VALID_CLASSES.includes(classParam as typeof VALID_CLASSES[number])
+    ? classParam as string
+    : undefined
+
   const result = listTransactions(db, {
     type,
+    transaction_class,
     category_id: params.get('category_id') ? Number(params.get('category_id')) : undefined,
     category_ids: params.get('category_ids') ? params.get('category_ids')!.split(',').map(Number) : undefined,
     search: params.get('search') || undefined,
