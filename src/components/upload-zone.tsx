@@ -10,48 +10,57 @@ interface UploadZoneProps {
 
 export function UploadZone({ onUploadComplete }: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
+  const [uploading, setUploading] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
-  const handleUpload = useCallback(async (file: File) => {
-    setIsUploading(true)
-    setError(null)
-
+  const uploadFile = useCallback(async (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
 
-    try {
-      const res = await fetch('/api/upload', { method: 'POST', body: formData })
-      const data = await res.json()
+    const res = await fetch('/api/upload', { method: 'POST', body: formData })
+    const data = await res.json()
 
-      if (!res.ok) {
-        setError(data.error || 'Upload failed')
-        return
-      }
-
-      onUploadComplete()
-    } catch {
-      setError('Upload failed. Please try again.')
-    } finally {
-      setIsUploading(false)
+    if (!res.ok) {
+      throw new Error(data.error || 'Upload failed')
     }
-  }, [onUploadComplete])
+  }, [])
+
+  const handleUploadFiles = useCallback(async (files: File[]) => {
+    const pdfFiles = files.filter(f => f.type === 'application/pdf')
+    if (pdfFiles.length === 0) {
+      setError('Please upload PDF files')
+      return
+    }
+
+    setUploading(pdfFiles.length)
+    setError(null)
+
+    const errors: string[] = []
+    await Promise.all(
+      pdfFiles.map(file =>
+        uploadFile(file).catch(() => { errors.push(file.name) })
+      )
+    )
+
+    if (errors.length > 0) {
+      setError(`Failed: ${errors.join(', ')}`)
+    }
+    onUploadComplete()
+    setUploading(0)
+  }, [uploadFile, onUploadComplete])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (file?.type === 'application/pdf') {
-      handleUpload(file)
-    } else {
-      setError('Please upload a PDF file')
-    }
-  }, [handleUpload])
+    const files = Array.from(e.dataTransfer.files)
+    handleUploadFiles(files)
+  }, [handleUploadFiles])
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) handleUpload(file)
-  }, [handleUpload])
+    const files = Array.from(e.target.files ?? [])
+    if (files.length > 0) handleUploadFiles(files)
+    e.target.value = ''
+  }, [handleUploadFiles])
 
   return (
     <div
@@ -64,14 +73,14 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
     >
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Upload className="h-4 w-4" />
-        {isUploading ? 'Processing...' : 'Drop PDF here'}
+        {uploading > 0 ? `Uploading ${uploading} file${uploading > 1 ? 's' : ''}...` : 'Drop PDFs here'}
       </div>
       <div className="flex items-center gap-2">
         {error && <span className="text-xs text-destructive">{error}</span>}
-        <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={isUploading} asChild>
+        <Button variant="ghost" size="sm" className="h-7 text-xs" disabled={uploading > 0} asChild>
           <label className="cursor-pointer">
             Browse
-            <input type="file" accept=".pdf" className="hidden" onChange={handleFileInput} />
+            <input type="file" accept=".pdf" multiple className="hidden" onChange={handleFileInput} />
           </label>
         </Button>
       </div>

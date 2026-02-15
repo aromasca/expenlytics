@@ -23,14 +23,16 @@
 - Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`)
 - `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib)
 - `src/lib/claude/` — Claude API extraction with Zod validation
-- `src/app/api/` — Next.js API routes (upload, transactions, categories, documents, reports, recurring, reclassify/backfill)
-- `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, reports, subscriptions, settings
+- `src/app/api/` — Next.js API routes (upload, transactions, categories, documents, documents/[id], documents/[id]/reprocess, documents/[id]/retry, reports, recurring, reclassify/backfill)
+- `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, documents, reports, subscriptions, settings
 - `src/app/page.tsx` — Redirects to `/insights`
 - `src/components/` — React client components using shadcn/ui
 - `src/components/reports/` — Recharts chart components + d3-sankey Sankey diagram for reports dashboard
 - `src/components/reports/sankey-chart.tsx` — d3-sankey Sankey diagram (Income → Category Groups → Categories + Savings)
 - `src/lib/db/reports.ts` — `getSankeyData` (debits) + `getSankeyIncomeData` (credits excl. Transfer/Refund)
 - `src/lib/claude/normalize-merchants.ts` — LLM merchant normalization (Claude Haiku)
+- `src/lib/claude/extract-transactions.ts` — `extractRawTransactions` (no categories), `classifyTransactions` (index-based), `extractTransactions` (legacy combined), `reclassifyTransactions` (ID-based)
+- `src/lib/pipeline.ts` — Background document processing pipeline (extraction → classification → normalization)
 - `src/lib/recurring.ts` — Pure recurring charge detection logic (no DB dependency)
 - `src/lib/db/recurring.ts` — DB query layer for recurring charges
 - `src/lib/insights/` — Insight detection (detection.ts), ranking (ranking.ts), types (types.ts)
@@ -63,6 +65,13 @@
 - Category picker uses Popover + Command (cmdk) combobox pattern, not Radix Select
 - Custom SVG charts: use `useRef` + relative container div for hover tooltips (not native `<title>`); `pointer-events: none` on text labels
 - d3-sankey + d3-shape for custom Sankey diagram (not Recharts)
+- Upload route is non-blocking: saves file, fires `processDocument()` in background, returns immediately
+- Processing pipeline phases: `upload` → `extraction` → `classification` → `normalization` → `complete` (tracked via `processing_phase` column on documents)
+- Raw extraction data (PDF → transactions without categories) stored as JSON in `documents.raw_extraction` — immutable once extracted
+- `extractRawTransactions` for extraction-only (Sonnet), `classifyTransactions` for classification-only (Sonnet) — separate LLM calls
+- Reprocess = re-run classification + normalization from existing DB transactions (not re-extraction). Retry = full pipeline from PDF.
+- When mocking multiple `@/lib/*` modules in tests, use module-level `vi.fn()` variables with `vi.mock()` factory functions (not class-based mocks)
+- Mock `fs/promises` with `vi.mock('fs/promises', ...)` when testing pipeline code (PDF files don't exist in test)
 
 ## Design System
 - Aesthetic: minimal, data-dense dashboard (neutral monochrome, not warm/coral)
