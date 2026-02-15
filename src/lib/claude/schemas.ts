@@ -51,7 +51,7 @@ export const VALID_DOCUMENT_TYPES = [
 export const transactionSchema = z.object({
   date: z.string().describe('Transaction date in YYYY-MM-DD format'),
   description: z.string().describe('Merchant name or transaction description'),
-  amount: z.number().positive().describe('Transaction amount as a positive number'),
+  amount: z.number().nonnegative().describe('Transaction amount as a non-negative number'),
   type: z.enum(['debit', 'credit']).describe('debit for money out, credit for money in'),
   category: z.string().describe('Spending category, one of: Groceries, Dining, Transport, Housing, Utilities, Entertainment, Shopping, Health, Income, Transfer, Other'),
   transaction_class: z.enum(VALID_TRANSACTION_CLASSES).describe('Structural classification: purchase, payment, refund, fee, interest, or transfer'),
@@ -65,7 +65,7 @@ export const extractionSchema = z.object({
 export const rawTransactionSchema = z.object({
   date: z.string().describe('Transaction date in YYYY-MM-DD format'),
   description: z.string().describe('Merchant name or transaction description'),
-  amount: z.number().positive().describe('Transaction amount as a positive number'),
+  amount: z.number().nonnegative().describe('Transaction amount as a non-negative number'),
   type: z.enum(['debit', 'credit']).describe('debit for money out, credit for money in'),
   transaction_class: z.enum(VALID_TRANSACTION_CLASSES).describe('Structural classification: purchase, payment, refund, fee, interest, or transfer'),
 })
