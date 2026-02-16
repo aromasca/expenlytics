@@ -11,6 +11,18 @@ export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams
   const db = getDb()
 
+  // Fetch specific transactions by ID list (used by recurring row detail)
+  const idsParam = params.get('ids')
+  if (idsParam) {
+    const ids = idsParam.split(',').map(Number).filter(n => !isNaN(n) && n > 0)
+    if (ids.length === 0) return NextResponse.json({ transactions: [] })
+    const placeholders = ids.map(() => '?').join(', ')
+    const rows = db.prepare(`
+      SELECT id, date, description, amount, type FROM transactions WHERE id IN (${placeholders})
+    `).all(...ids)
+    return NextResponse.json({ transactions: rows })
+  }
+
   const VALID_SORT_BY = ['date', 'amount', 'description'] as const
   const VALID_SORT_ORDER = ['asc', 'desc'] as const
 

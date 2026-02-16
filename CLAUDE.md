@@ -30,9 +30,9 @@
 - `src/lib/llm/normalize-merchants.ts` — LLM merchant normalization
 - `src/lib/pipeline.ts` — Background document processing: extraction → classification → normalization → complete
 - `src/lib/insights/compact-data.ts` — SQL data compaction for LLM context (`buildCompactData`)
-- `src/lib/recurring.ts` — Pure recurring charge detection logic (no DB dependency)
+- `src/lib/recurring.ts` — Pure recurring charge detection logic (no DB dependency). Groups by case-insensitive `normalized_merchant` (picks most common casing). Frequencies: weekly/monthly/quarterly/semi-annual/yearly/irregular. 2 occurrences allowed for 150+ day spans
 - `src/lib/format.ts` — `formatCurrency()` and `formatCurrencyPrecise()` utilities
-- `src/app/api/` — API routes: `upload`, `transactions`, `transactions/[id]`, `categories`, `documents`, `documents/[id]`, `documents/[id]/reprocess`, `documents/[id]/retry`, `reports`, `recurring`, `recurring/normalize`, `recurring/dismiss`, `recurring/merge`, `reclassify/[documentId]`, `insights`, `insights/dismiss`, `accounts`, `accounts/[id]`, `accounts/detect`, `accounts/merge`, `accounts/reset`, `settings`, `reset`
+- `src/app/api/` — API routes: `upload`, `transactions`, `transactions/[id]`, `categories`, `documents`, `documents/[id]`, `documents/[id]/reprocess`, `documents/[id]/retry`, `reports`, `recurring`, `recurring/normalize`, `recurring/status`, `recurring/exclude`, `recurring/merge`, `reclassify/[documentId]`, `insights`, `insights/dismiss`, `accounts`, `accounts/[id]`, `accounts/detect`, `accounts/merge`, `accounts/reset`, `settings`, `reset`
 - `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, documents, reports, subscriptions, accounts, settings
 - `src/app/page.tsx` — Redirects to `/insights`
 - `src/components/` — React client components using shadcn/ui
@@ -49,6 +49,8 @@
 - better-sqlite3: pass params as array to `.get([...])` and `.all([...])` for dynamic params; `.run()` uses positional args
 - `settings` table: key-value store with `INSERT ... ON CONFLICT DO UPDATE` upsert pattern
 - `insight_cache` table stores arbitrary JSON via stringify/parse — use `as unknown as` casts when changing cached data shape
+- `subscription_status` table: tracks ended/not_recurring merchants (replaces `dismissed_subscriptions`). `setSubscriptionStatus` with 'active' deletes the row
+- `excluded_recurring_transactions` table: individual transaction IDs excluded from recurring detection
 - Use `null` (not fallback values) for un-populated columns so backfill endpoints can find rows via `IS NULL`
 - `document_accounts` junction table: many-to-many between documents and accounts (combined statements). Stores `statement_month`/`statement_date` per link
 - Account matching: exact `institution + last_four` first, fuzzy `LIKE` substring fallback on institution name for LLM naming inconsistencies
@@ -86,6 +88,7 @@
 ### React & UI
 - React 19: avoid calling setState synchronously in useEffect; use `.then()` pattern or `setTimeout(() => setState(...), 0)`
 - Always add `.catch()` to fetch promise chains to prevent stuck loading states
+- Optimistic updates pattern: track pending changes in local state (e.g. `pendingRemovals` Map), render faded/strikethrough with undo button, fire-and-forget API call, revert state only on error. Avoid `fetchData()` after actions to prevent layout shifts
 - `next.config.ts` has `serverExternalPackages: ['better-sqlite3', 'openai', 'pdf-parse']`
 - Bash/zsh: quote paths containing parentheses, e.g. `"src/app/(app)/..."` — zsh treats `()` as glob
 - Categories: 71 entries across 16 groups; `category_group` column for UI grouping

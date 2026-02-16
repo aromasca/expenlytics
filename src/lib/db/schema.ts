@@ -267,6 +267,30 @@ export function initializeSchema(db: Database.Database): void {
     )
   `)
 
+  // Subscription status table (replaces dismissed_subscriptions)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS subscription_status (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      normalized_merchant TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL CHECK (status IN ('ended', 'not_recurring')),
+      status_changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      notes TEXT
+    )
+  `)
+
+  // Migrate dismissed_subscriptions → subscription_status
+  db.exec(`
+    INSERT OR IGNORE INTO subscription_status (normalized_merchant, status, status_changed_at)
+    SELECT normalized_merchant, 'not_recurring', dismissed_at
+    FROM dismissed_subscriptions
+  `)
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS excluded_recurring_transactions (
+      transaction_id INTEGER PRIMARY KEY REFERENCES transactions(id) ON DELETE CASCADE
+    )
+  `)
+
   // Migrate categories table - add new columns if missing
   const catColumns = db.prepare("PRAGMA table_info(categories)").all() as Array<{ name: string }>
   const catColumnNames = catColumns.map(c => c.name)

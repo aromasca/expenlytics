@@ -60,13 +60,18 @@ A local-first spending analytics app that uses AI to extract transactions from P
 - Date range filters with presets (this month, last month, quarter, YTD, 12 months, all) and grouping (monthly, quarterly, yearly)
 - Inter-account transfers, refunds, savings, and investments are automatically excluded from spending totals
 
-### Recurring Charge Detection
-- Groups transactions by normalized merchant to detect subscriptions
-- Calculates frequency (weekly, monthly, quarterly, yearly, irregular), average amount, and estimated monthly/yearly cost
-- Expandable rows showing individual transactions
+### Subscription & Recurring Charge Management
+- Groups transactions by normalized merchant (case-insensitive) to detect subscriptions
+- Calculates frequency (weekly, monthly, quarterly, semi-annual, yearly, irregular), average amount, and estimated monthly/yearly cost
+- Expandable rows showing individual transactions with per-transaction cost trend chart
+- **Subscription lifecycle**: Mark merchants as ended or not-recurring; restore with undo
+- **Bulk actions**: Select multiple merchants to end, exclude, or merge via sticky bottom bar
+- **Transaction exclusion**: Exclude individual transactions from a recurring group (e.g., one-off purchases) with undo
 - **Merge**: Select multiple merchants and merge them under a single name
-- **Dismiss/restore**: Hide merchants you don't consider recurring; restore from the dismissed section
-- Summary cards: total recurring count, monthly cost, yearly cost
+- **Optimistic UI**: Actions apply instantly without page refresh; undo available on pending items
+- **Cost trend chart**: Gradient area chart with hero total, month-over-month change, avg/low/high stats
+- **Category grouping**: Recurring charges organized by spending category with subtotals
+- Summary cards: total recurring count, monthly cost, yearly cost, cost trend over time
 
 ### Financial Intelligence
 - **Health score**: AI-generated overall financial health assessment (0–100) with income/expense ratio analysis
@@ -184,7 +189,7 @@ docker run -d \
 
 1. **Upload a statement** — Go to Documents or Transactions, drag-and-drop or browse for PDF bank/credit card statements. AI extracts and categorizes transactions in the background.
 2. **Review transactions** — Edit categories inline with the searchable combobox. Manual edits are preserved and teach the merchant memory system.
-3. **Check subscriptions** — View detected recurring charges, merge duplicate merchants, and dismiss non-recurring items.
+3. **Check subscriptions** — View detected recurring charges grouped by category, manage subscription lifecycle (end/exclude/merge), and track cost trends over time.
 4. **View reports** — Explore spending breakdowns with bar charts, pie charts, trend lines, and the Sankey money flow diagram. Adjust date ranges and grouping.
 5. **Read insights** — Browse AI-generated financial intelligence: health score, behavioral patterns, and deep spending insights.
 6. **Manage settings** — Toggle dark mode, configure AI providers/models per task, reclassify transactions, or reset the database.
@@ -211,7 +216,7 @@ src/
 │   │   ├── categories/       #   Category list
 │   │   ├── documents/        #   Document list + [id] + reprocess + retry
 │   │   ├── reports/          #   Report data + Sankey queries
-│   │   ├── recurring/        #   Detection, normalize, merge, dismiss
+│   │   ├── recurring/        #   Detection, normalize, merge, status, exclude
 │   │   ├── insights/         #   LLM financial intelligence, dismiss
 │   │   ├── settings/         #   App settings (provider/model config)
 │   │   ├── merchant-categories/ # Merchant memory backfill + apply
@@ -260,8 +265,8 @@ data/                         # SQLite DB & uploaded PDFs (gitignored)
 | GET | `/api/recurring` | Detect recurring charges |
 | POST | `/api/recurring/normalize` | Re-normalize merchant names |
 | POST | `/api/recurring/merge` | Merge merchants |
-| POST | `/api/recurring/dismiss` | Dismiss a recurring charge |
-| DELETE | `/api/recurring/dismiss` | Restore a dismissed charge |
+| POST | `/api/recurring/status` | Set subscription status (ended/not_recurring/active) |
+| POST | `/api/recurring/exclude` | Exclude/restore individual transaction from recurring |
 | GET | `/api/insights` | Generate financial intelligence |
 | POST | `/api/insights/dismiss` | Dismiss an insight |
 | DELETE | `/api/insights/dismiss` | Clear all dismissed insights |

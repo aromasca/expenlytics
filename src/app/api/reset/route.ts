@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
   db.exec('DELETE FROM insight_cache')
   db.exec('DELETE FROM dismissed_insights')
   db.exec('DELETE FROM dismissed_subscriptions')
+  db.exec('DELETE FROM subscription_status')
   db.exec('DELETE FROM merchant_categories')
 
   if (resetSettings) {

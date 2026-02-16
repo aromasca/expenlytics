@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { RecurringChargesTable } from '@/components/recurring-charges-table'
-import { RefreshCw, ChevronDown, ChevronRight, RotateCcw, Merge } from 'lucide-react'
+import { RecurringTrendChart } from '@/components/recurring-trend-chart'
+import { RefreshCw, ChevronDown, ChevronRight, RotateCcw, Merge, Ban, StopCircle } from 'lucide-react'
 import { formatCurrency } from '@/lib/format'
 import { getDatePreset } from '@/lib/date-presets'
 
@@ -16,8 +17,9 @@ const FREQUENCY_RANK: Record<string, number> = {
   weekly: 1,
   monthly: 2,
   quarterly: 3,
-  yearly: 4,
-  irregular: 5,
+  'semi-annual': 4,
+  yearly: 5,
+  irregular: 6,
 }
 
 const DEFAULT_ORDERS: Record<SortBy, 'asc' | 'desc'> = {
@@ -30,7 +32,41 @@ const DEFAULT_ORDERS: Record<SortBy, 'asc' | 'desc'> = {
   lastDate: 'desc',
 }
 
-function sortGroups(groups: RecurringGroup[], sortBy: SortBy, sortOrder: 'asc' | 'desc'): RecurringGroup[] {
+interface RecurringGroup {
+  merchantName: string
+  occurrences: number
+  totalAmount: number
+  avgAmount: number
+  estimatedMonthlyAmount: number
+  frequency: 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'irregular'
+  firstDate: string
+  lastDate: string
+  category: string | null
+  categoryColor: string | null
+  transactionIds: number[]
+  unexpectedActivity?: boolean
+}
+
+interface EndedRecurringGroup extends RecurringGroup {
+  statusChangedAt: string
+  unexpectedActivity: boolean
+}
+
+interface RecurringData {
+  activeGroups: RecurringGroup[]
+  endedGroups: EndedRecurringGroup[]
+  excludedMerchants: Array<{ merchant: string; excludedAt: string }>
+  summary: {
+    activeCount: number
+    activeMonthly: number
+    endedCount: number
+    endedWasMonthly: number
+    excludedCount: number
+  }
+  trendData: Array<{ month: string; amount: number }>
+}
+
+function sortGroups<T extends RecurringGroup>(groups: T[], sortBy: SortBy, sortOrder: 'asc' | 'desc'): T[] {
   return [...groups].sort((a, b) => {
     let cmp = 0
     switch (sortBy) {
@@ -60,28 +96,42 @@ function sortGroups(groups: RecurringGroup[], sortBy: SortBy, sortOrder: 'asc' |
   })
 }
 
-interface RecurringGroup {
-  merchantName: string
-  occurrences: number
-  totalAmount: number
-  avgAmount: number
-  estimatedMonthlyAmount: number
-  frequency: 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'irregular'
-  firstDate: string
-  lastDate: string
-  category: string | null
-  categoryColor: string | null
-  transactionIds: number[]
+function computeTrendData(groups: Array<{ firstDate: string; lastDate: string; estimatedMonthlyAmount: number }>) {
+  if (groups.length === 0) return []
+  let minDate = groups[0].firstDate
+  let maxDate = groups[0].lastDate
+  for (const g of groups) {
+    if (g.firstDate < minDate) minDate = g.firstDate
+    if (g.lastDate > maxDate) maxDate = g.lastDate
+  }
+  const months: string[] = []
+  const start = new Date(minDate.slice(0, 7) + '-01')
+  const end = new Date(maxDate.slice(0, 7) + '-01')
+  const cursor = new Date(start)
+  while (cursor <= end) {
+    months.push(cursor.toISOString().slice(0, 7))
+    cursor.setMonth(cursor.getMonth() + 1)
+  }
+  return months.map(month => {
+    let amount = 0
+    for (const g of groups) {
+      if (month >= g.firstDate.slice(0, 7) && month <= g.lastDate.slice(0, 7)) {
+        amount += g.estimatedMonthlyAmount
+      }
+    }
+    return { month, amount: Math.round(amount * 100) / 100 }
+  })
 }
 
-interface RecurringData {
-  groups: RecurringGroup[]
-  dismissedGroups: RecurringGroup[]
-  summary: {
-    totalSubscriptions: number
-    totalMonthly: number
-    totalYearly: number
+function groupByCategory(groups: RecurringGroup[]): Map<string, RecurringGroup[]> {
+  const map = new Map<string, RecurringGroup[]>()
+  for (const g of groups) {
+    const key = g.category ?? 'Other'
+    const list = map.get(key) ?? []
+    list.push(g)
+    map.set(key, list)
   }
+  return map
 }
 
 export default function SubscriptionsPage() {
@@ -90,14 +140,18 @@ export default function SubscriptionsPage() {
   const [data, setData] = useState<RecurringData | null>(null)
   const [loading, setLoading] = useState(true)
   const [normalizing, setNormalizing] = useState(false)
-  const [dismissedExpanded, setDismissedExpanded] = useState(false)
+  const [sortBy, setSortBy] = useState<SortBy>('estimatedMonthlyAmount')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [selectedMerchants, setSelectedMerchants] = useState<Set<string>>(new Set())
+  const [expandedMerchant, setExpandedMerchant] = useState<string | null>(null)
+  const [endedExpanded, setEndedExpanded] = useState(false)
+  const [excludedExpanded, setExcludedExpanded] = useState(false)
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false)
   const [mergeTarget, setMergeTarget] = useState('')
   const [customTarget, setCustomTarget] = useState('')
   const [merging, setMerging] = useState(false)
-  const [sortBy, setSortBy] = useState<SortBy>('estimatedMonthlyAmount')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [pendingRemovals, setPendingRemovals] = useState<Map<string, 'ended' | 'not_recurring'>>(new Map())
 
   const handleSort = (column: SortBy) => {
     if (sortBy === column) {
@@ -108,8 +162,22 @@ export default function SubscriptionsPage() {
     }
   }
 
+  const handleToggleExpand = (merchant: string) => {
+    setExpandedMerchant(prev => prev === merchant ? null : merchant)
+  }
+
+  const toggleCategory = (category: string) => {
+    setCollapsedCategories(prev => {
+      const next = new Set(prev)
+      if (next.has(category)) next.delete(category)
+      else next.add(category)
+      return next
+    })
+  }
+
   const fetchData = () => {
     setLoading(true)
+    setPendingRemovals(new Map())
     const params = new URLSearchParams()
     if (startDate) params.set('start_date', startDate)
     if (endDate) params.set('end_date', endDate)
@@ -165,56 +233,85 @@ export default function SubscriptionsPage() {
       .catch(() => { setNormalizing(false) })
   }
 
-  const handleDismiss = (merchantName: string) => {
+  const handleStatusChange = (merchantName: string, status: 'ended' | 'not_recurring') => {
     if (!data) return
-    const group = data.groups.find(g => g.merchantName === merchantName)
+    const group = data.activeGroups.find(g => g.merchantName === merchantName)
     if (!group) return
-    const newGroups = data.groups.filter(g => g.merchantName !== merchantName)
-    const newDismissed = [...data.dismissedGroups, group]
-    const totalMonthly = newGroups.reduce((sum, g) => sum + g.estimatedMonthlyAmount, 0)
-    setData({
-      groups: newGroups,
-      dismissedGroups: newDismissed,
-      summary: {
-        totalSubscriptions: newGroups.length,
-        totalMonthly: Math.round(totalMonthly * 100) / 100,
-        totalYearly: Math.round(totalMonthly * 12 * 100) / 100,
-      },
-    })
+
+    // Mark as pending — keep in list but faded so layout doesn't shift
+    setPendingRemovals(prev => new Map(prev).set(merchantName, status))
+
     setSelectedMerchants(prev => {
       const next = new Set(prev)
       next.delete(merchantName)
       return next
     })
 
-    fetch('/api/recurring/dismiss', {
+    fetch('/api/recurring/status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ merchant: merchantName }),
+      body: JSON.stringify({ merchant: merchantName, status, statusDate: status === 'ended' ? group.lastDate : undefined }),
+    }).catch(() => { fetchData() })
+  }
+
+  const handleUndoPending = (merchantName: string) => {
+    setPendingRemovals(prev => {
+      const next = new Map(prev)
+      next.delete(merchantName)
+      return next
+    })
+    // Revert on the server — set back to active
+    fetch('/api/recurring/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ merchant: merchantName, status: 'active' }),
+    }).catch(() => { fetchData() })
+  }
+
+  const handleReactivate = (merchantName: string) => {
+    if (!data) return
+    const group = data.endedGroups.find(g => g.merchantName === merchantName)
+    if (!group) return
+    const newEnded = data.endedGroups.filter(g => g.merchantName !== merchantName)
+    const newActive = [...data.activeGroups, group]
+    const activeMonthly = Math.round(newActive.reduce((s, g) => s + g.estimatedMonthlyAmount, 0) * 100) / 100
+    setData(prev => prev ? {
+      ...prev,
+      activeGroups: newActive,
+      endedGroups: newEnded,
+      trendData: computeTrendData(newActive),
+      summary: {
+        ...prev.summary,
+        activeCount: newActive.length,
+        activeMonthly,
+        endedCount: newEnded.length,
+        endedWasMonthly: Math.round(newEnded.reduce((s, g) => s + g.estimatedMonthlyAmount, 0) * 100) / 100,
+      },
+    } : null)
+
+    fetch('/api/recurring/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ merchant: merchantName, status: 'active' }),
     }).catch(() => { fetchData() })
   }
 
   const handleRestore = (merchantName: string) => {
     if (!data) return
-    const group = data.dismissedGroups.find(g => g.merchantName === merchantName)
-    if (!group) return
-    const newDismissed = data.dismissedGroups.filter(g => g.merchantName !== merchantName)
-    const newGroups = [...data.groups, group]
-    const totalMonthly = newGroups.reduce((sum, g) => sum + g.estimatedMonthlyAmount, 0)
-    setData({
-      groups: newGroups,
-      dismissedGroups: newDismissed,
+    const newExcluded = data.excludedMerchants.filter(e => e.merchant !== merchantName)
+    setData(prev => prev ? {
+      ...prev,
+      excludedMerchants: newExcluded,
       summary: {
-        totalSubscriptions: newGroups.length,
-        totalMonthly: Math.round(totalMonthly * 100) / 100,
-        totalYearly: Math.round(totalMonthly * 12 * 100) / 100,
+        ...prev.summary,
+        excludedCount: newExcluded.length,
       },
-    })
+    } : null)
 
-    fetch('/api/recurring/dismiss', {
-      method: 'DELETE',
+    fetch('/api/recurring/status', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ merchant: merchantName }),
+      body: JSON.stringify({ merchant: merchantName, status: 'active' }),
     }).catch(() => { fetchData() })
   }
 
@@ -244,23 +341,26 @@ export default function SubscriptionsPage() {
       .catch(() => { setMerging(false) })
   }
 
+  const sortedActive = data ? sortGroups(data.activeGroups, sortBy, sortOrder) : []
+  const categoryGroups = groupByCategory(sortedActive)
+  // Compute effective counts excluding pending removals for summary/trend
+  const effectiveActive = data ? data.activeGroups.filter(g => !pendingRemovals.has(g.merchantName)) : []
+  const effectiveActiveMonthly = Math.round(effectiveActive.reduce((s, g) => s + g.estimatedMonthlyAmount, 0) * 100) / 100
+  const effectiveTrendData = data && pendingRemovals.size > 0 ? computeTrendData(effectiveActive) : data?.trendData ?? []
+  const pendingEndedCount = Array.from(pendingRemovals.values()).filter(s => s === 'ended').length
+  const pendingExcludedCount = Array.from(pendingRemovals.values()).filter(s => s === 'not_recurring').length
+
   return (
     <div className="p-4 space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Recurring</h2>
-        <div className="flex items-center gap-2">
-          {selectedMerchants.size >= 2 && (
-            <Button size="sm" className="h-7 text-xs" onClick={openMergeDialog}>
-              <Merge className="h-3.5 w-3.5 mr-1" />
-              Merge {selectedMerchants.size}
-            </Button>
-          )}
-          <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={handleNormalize} disabled={normalizing}>
-            {normalizing ? 'Analyzing...' : 'Re-analyze'}
-          </Button>
-        </div>
+        <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={handleNormalize} disabled={normalizing}>
+          {normalizing ? 'Analyzing...' : 'Re-analyze'}
+        </Button>
       </div>
 
+      {/* Date range filters */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
           <span className="text-xs text-muted-foreground">From</span>
@@ -283,56 +383,157 @@ export default function SubscriptionsPage() {
         </div>
       ) : data ? (
         <>
+          {/* Trend chart */}
+          <RecurringTrendChart data={effectiveTrendData} />
+
+          {/* Summary cards */}
           <div className="grid grid-cols-3 gap-3">
             <Card className="p-3">
-              <p className="text-xs text-muted-foreground">Recurring</p>
-              <p className="text-xl font-semibold tabular-nums mt-0.5">{data.summary.totalSubscriptions}</p>
+              <p className="text-xs text-muted-foreground">Active</p>
+              <p className="text-xl font-semibold tabular-nums mt-0.5">{data.summary.activeCount - pendingRemovals.size}</p>
+              <p className="text-[11px] text-muted-foreground tabular-nums">{formatCurrency(effectiveActiveMonthly)}/mo</p>
             </Card>
             <Card className="p-3">
-              <p className="text-xs text-muted-foreground">Monthly</p>
-              <p className="text-xl font-semibold tabular-nums mt-0.5">{formatCurrency(data.summary.totalMonthly)}</p>
+              <p className="text-xs text-muted-foreground">Ended</p>
+              <p className="text-xl font-semibold tabular-nums mt-0.5">{data.summary.endedCount + pendingEndedCount}</p>
+              <p className="text-[11px] text-muted-foreground tabular-nums">{formatCurrency(data.summary.endedWasMonthly)} was/mo</p>
             </Card>
             <Card className="p-3">
-              <p className="text-xs text-muted-foreground">Yearly</p>
-              <p className="text-xl font-semibold tabular-nums mt-0.5">{formatCurrency(data.summary.totalYearly)}</p>
+              <p className="text-xs text-muted-foreground">Excluded</p>
+              <p className="text-xl font-semibold tabular-nums mt-0.5">{data.summary.excludedCount + pendingExcludedCount}</p>
             </Card>
           </div>
 
-          <RecurringChargesTable
-            groups={sortGroups(data.groups, sortBy, sortOrder)}
-            onDismiss={handleDismiss}
-            selectable
-            selectedMerchants={selectedMerchants}
-            onSelectionChange={setSelectedMerchants}
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            onSort={handleSort}
-          />
+          {/* Active Subscriptions by category */}
+          {Array.from(categoryGroups.entries()).map(([category, groups]) => {
+            const isCollapsed = collapsedCategories.has(category)
+            const activeInGroup = groups.filter(g => !pendingRemovals.has(g.merchantName))
+            const subtotal = activeInGroup.reduce((sum, g) => sum + g.estimatedMonthlyAmount, 0)
+            return (
+              <div key={category} className="border rounded-lg">
+                <button
+                  className="flex items-center justify-between px-3 py-2 w-full text-left hover:bg-muted/50"
+                  onClick={() => toggleCategory(category)}
+                >
+                  <span className="flex items-center gap-1.5">
+                    {isCollapsed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                    <span className="text-xs font-medium">{category}</span>
+                    <span className="text-[11px] text-muted-foreground">({groups.length})</span>
+                  </span>
+                  <span className="text-xs tabular-nums text-muted-foreground">{formatCurrency(subtotal)}/mo</span>
+                </button>
+                {!isCollapsed && (
+                  <div className="px-0">
+                    <RecurringChargesTable
+                      groups={groups}
+                      onStatusChange={handleStatusChange}
+                      selectable
+                      selectedMerchants={selectedMerchants}
+                      onSelectionChange={setSelectedMerchants}
+                      sortBy={sortBy}
+                      sortOrder={sortOrder}
+                      onSort={handleSort}
+                      expandedMerchant={expandedMerchant}
+                      onToggleExpand={handleToggleExpand}
+                      pendingRemovals={pendingRemovals}
+                      onUndoPending={handleUndoPending}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
 
-          {data.dismissedGroups.length > 0 && (
+          {sortedActive.length === 0 && (
+            <Card className="p-3">
+              <p className="text-center text-muted-foreground py-6 text-xs">
+                No active recurring charges detected.
+              </p>
+            </Card>
+          )}
+
+          {/* Ended Subscriptions section */}
+          {data.endedGroups.length > 0 && (
             <div className="border rounded-lg">
               <button
                 className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground hover:text-foreground w-full text-left"
-                onClick={() => setDismissedExpanded(e => !e)}
+                onClick={() => setEndedExpanded(e => !e)}
               >
-                {dismissedExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                Dismissed ({data.dismissedGroups.length})
+                {endedExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                Ended ({data.endedGroups.length})
               </button>
-              {dismissedExpanded && (
+              {endedExpanded && (
                 <div className="px-3 pb-2 space-y-1">
-                  {data.dismissedGroups.map(group => (
+                  {data.endedGroups.map(group => (
                     <div key={group.merchantName} className="flex items-center justify-between py-1.5 px-2 rounded text-xs bg-muted/50">
-                      <div>
+                      <div className="flex items-center gap-2">
                         <span className="font-medium">{group.merchantName}</span>
-                        <span className="text-muted-foreground ml-2">
+                        <span className="text-muted-foreground">
                           {group.occurrences}x &middot; {formatCurrency(group.estimatedMonthlyAmount)}/mo
                         </span>
+                        {group.unexpectedActivity && (
+                          <span className="text-amber-500 text-[11px] font-medium">Activity after end</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs text-muted-foreground"
+                          onClick={() => handleReactivate(group.merchantName)}
+                        >
+                          <RotateCcw className="h-3 w-3 mr-1" />
+                          Reactivate
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs text-muted-foreground"
+                          onClick={() => {
+                            fetch('/api/recurring/status', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ merchant: group.merchantName, status: 'not_recurring' }),
+                            })
+                              .then(() => fetchData())
+                              .catch(() => fetchData())
+                          }}
+                          title="Exclude from recurring"
+                        >
+                          <Ban className="h-3 w-3 mr-1" />
+                          Exclude
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Excluded Merchants section */}
+          {data.excludedMerchants.length > 0 && (
+            <div className="border rounded-lg">
+              <button
+                className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground hover:text-foreground w-full text-left"
+                onClick={() => setExcludedExpanded(e => !e)}
+              >
+                {excludedExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                Excluded ({data.excludedMerchants.length})
+              </button>
+              {excludedExpanded && (
+                <div className="px-3 pb-2 space-y-1">
+                  {data.excludedMerchants.map(item => (
+                    <div key={item.merchant} className="flex items-center justify-between py-1.5 px-2 rounded text-xs bg-muted/50">
+                      <div>
+                        <span className="font-medium">{item.merchant}</span>
+                        <span className="text-muted-foreground ml-2">{item.excludedAt.slice(0, 10)}</span>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-6 text-xs text-muted-foreground"
-                        onClick={() => handleRestore(group.merchantName)}
+                        onClick={() => handleRestore(item.merchant)}
                       >
                         <RotateCcw className="h-3 w-3 mr-1" />
                         Restore
@@ -346,6 +547,37 @@ export default function SubscriptionsPage() {
         </>
       ) : null}
 
+      {/* Sticky selection bar */}
+      {selectedMerchants.size >= 1 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-background border rounded-lg shadow-lg px-4 py-2 flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">{selectedMerchants.size} selected</span>
+          <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => {
+            for (const m of selectedMerchants) handleStatusChange(m, 'ended')
+            setSelectedMerchants(new Set())
+          }}>
+            <StopCircle className="h-3.5 w-3.5 mr-1" />
+            End
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => {
+            for (const m of selectedMerchants) handleStatusChange(m, 'not_recurring')
+            setSelectedMerchants(new Set())
+          }}>
+            <Ban className="h-3.5 w-3.5 mr-1" />
+            Exclude
+          </Button>
+          {selectedMerchants.size >= 2 && (
+            <Button size="sm" className="h-7 text-xs" onClick={openMergeDialog}>
+              <Merge className="h-3.5 w-3.5 mr-1" />
+              Merge
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setSelectedMerchants(new Set())}>
+            Clear
+          </Button>
+        </div>
+      )}
+
+      {/* Merge Dialog */}
       <Dialog open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
         <DialogContent>
           <DialogHeader>

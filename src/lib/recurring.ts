@@ -15,7 +15,7 @@ export interface RecurringGroup {
   totalAmount: number
   avgAmount: number
   estimatedMonthlyAmount: number
-  frequency: 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'irregular'
+  frequency: 'weekly' | 'monthly' | 'quarterly' | 'semi-annual' | 'yearly' | 'irregular'
   firstDate: string
   lastDate: string
   category: string | null
@@ -27,6 +27,7 @@ function detectFrequency(avgDaysBetween: number): RecurringGroup['frequency'] {
   if (avgDaysBetween <= 10) return 'weekly'
   if (avgDaysBetween <= 45) return 'monthly'
   if (avgDaysBetween <= 120) return 'quarterly'
+  if (avgDaysBetween <= 240) return 'semi-annual'
   if (avgDaysBetween <= 400) return 'yearly'
   return 'irregular'
 }
@@ -36,17 +37,19 @@ function estimateMonthlyAmount(avgAmount: number, frequency: RecurringGroup['fre
     case 'weekly': return avgAmount * (365.25 / 7 / 12)
     case 'monthly': return avgAmount
     case 'quarterly': return avgAmount / 3
+    case 'semi-annual': return avgAmount / 6
     case 'yearly': return avgAmount / 12
     case 'irregular': return avgAmount
   }
 }
 
 export function detectRecurringGroups(transactions: TransactionForRecurring[]): RecurringGroup[] {
+  // Group case-insensitively, keeping the most common casing as the display name
   const groups = new Map<string, TransactionForRecurring[]>()
 
   for (const txn of transactions) {
     if (!txn.normalized_merchant) continue
-    const key = txn.normalized_merchant
+    const key = txn.normalized_merchant.toLowerCase()
     const existing = groups.get(key) ?? []
     existing.push(txn)
     groups.set(key, existing)
@@ -54,7 +57,18 @@ export function detectRecurringGroups(transactions: TransactionForRecurring[]): 
 
   const result: RecurringGroup[] = []
 
-  for (const [merchantName, txns] of groups) {
+  for (const [, txns] of groups) {
+    // Pick the most common casing as display name
+    const nameCounts = new Map<string, number>()
+    for (const t of txns) {
+      const n = t.normalized_merchant!
+      nameCounts.set(n, (nameCounts.get(n) ?? 0) + 1)
+    }
+    let merchantName = txns[0].normalized_merchant!
+    let maxCount = 0
+    for (const [name, count] of nameCounts) {
+      if (count > maxCount) { maxCount = count; merchantName = name }
+    }
     if (txns.length < 2) continue
 
     txns.sort((a, b) => a.date.localeCompare(b.date))
@@ -69,15 +83,11 @@ export function detectRecurringGroups(transactions: TransactionForRecurring[]): 
     const spanDays = (lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)
     if (spanDays < 14) continue
 
+    // Require 3+ occurrences for most frequencies, but allow 2 for semi-annual/yearly (150+ day span)
+    if (txns.length < 3 && spanDays < 150) continue
+
     const totalAmount = txns.reduce((sum, t) => sum + t.amount, 0)
     const avgAmount = totalAmount / txns.length
-
-    // Require consistent amounts — real subscriptions charge roughly the same each time
-    // Coefficient of variation (stddev / mean) must be ≤ 30%
-    const variance = txns.reduce((sum, t) => sum + (t.amount - avgAmount) ** 2, 0) / txns.length
-    const stddev = Math.sqrt(variance)
-    const coefficientOfVariation = avgAmount > 0 ? stddev / avgAmount : 0
-    if (coefficientOfVariation > 0.3) continue
 
     // Compute avg days between distinct dates for frequency detection
     const sortedDates = [...distinctDates].sort()
