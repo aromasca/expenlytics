@@ -17,10 +17,11 @@ interface Category {
 interface CategorySelectProps {
   categories: Category[]
   value: number | null
+  placeholder?: string
   onValueChange: (categoryId: number) => void
 }
 
-export function CategorySelect({ categories, value, onValueChange }: CategorySelectProps) {
+export function CategorySelect({ categories, value, onValueChange, placeholder = 'Category' }: CategorySelectProps) {
   const [open, setOpen] = useState(false)
 
   const grouped = useMemo(() => {
@@ -47,7 +48,7 @@ export function CategorySelect({ categories, value, onValueChange }: CategorySel
           {selected ? (
             <span className="truncate" style={{ color: selected.color }}>{selected.name}</span>
           ) : (
-            <span className="text-muted-foreground">Category</span>
+            <span className="text-muted-foreground">{placeholder}</span>
           )}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>

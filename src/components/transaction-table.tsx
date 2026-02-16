@@ -182,6 +182,60 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
       {selected.size > 0 && (
         <div className="flex items-center gap-3 rounded-md bg-muted px-3 py-1.5 text-xs">
           <span className="font-medium">{selected.size} selected</span>
+          <div className="flex items-center gap-2">
+            <CategorySelect
+              categories={categories}
+              value={null}
+              placeholder="Set category..."
+              onValueChange={async (catId) => {
+                await fetch('/api/transactions', {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ ids: Array.from(selected), category_id: catId }),
+                }).catch(() => {})
+                setSelected(new Set())
+                await fetchTransactions(page)
+              }}
+            />
+            <Select value="" onValueChange={async (v) => {
+              await fetch('/api/transactions', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: Array.from(selected), type: v }),
+              }).catch(() => {})
+              setSelected(new Set())
+              await fetchTransactions(page)
+            }}>
+              <SelectTrigger className="h-6 w-[100px] text-xs">
+                <SelectValue placeholder="Set type..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="debit" className="text-xs">Debit</SelectItem>
+                <SelectItem value="credit" className="text-xs">Credit</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value="" onValueChange={async (v) => {
+              await fetch('/api/transactions', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: Array.from(selected), transaction_class: v }),
+              }).catch(() => {})
+              setSelected(new Set())
+              await fetchTransactions(page)
+            }}>
+              <SelectTrigger className="h-6 w-[110px] text-xs">
+                <SelectValue placeholder="Set class..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="purchase" className="text-xs">purchase</SelectItem>
+                <SelectItem value="payment" className="text-xs">payment</SelectItem>
+                <SelectItem value="refund" className="text-xs">refund</SelectItem>
+                <SelectItem value="fee" className="text-xs">fee</SelectItem>
+                <SelectItem value="interest" className="text-xs">interest</SelectItem>
+                <SelectItem value="transfer" className="text-xs">transfer</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Button
             variant="destructive"
             size="sm"

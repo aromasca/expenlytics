@@ -143,6 +143,27 @@ export function deleteTransaction(db: Database.Database, id: number): void {
   db.prepare('DELETE FROM transactions WHERE id = ?').run(id)
 }
 
+export function bulkUpdateType(db: Database.Database, ids: number[], type: string): number {
+  if (ids.length === 0) return 0
+  const placeholders = ids.map(() => '?').join(', ')
+  const result = db.prepare(`UPDATE transactions SET type = ? WHERE id IN (${placeholders})`).run(type, ...ids)
+  return result.changes
+}
+
+export function bulkUpdateClass(db: Database.Database, ids: number[], transactionClass: string): number {
+  if (ids.length === 0) return 0
+  const placeholders = ids.map(() => '?').join(', ')
+  const result = db.prepare(`UPDATE transactions SET transaction_class = ? WHERE id IN (${placeholders})`).run(transactionClass, ...ids)
+  return result.changes
+}
+
+export function bulkUpdateCategory(db: Database.Database, ids: number[], categoryId: number): number {
+  if (ids.length === 0) return 0
+  const placeholders = ids.map(() => '?').join(', ')
+  const result = db.prepare(`UPDATE transactions SET category_id = ?, manual_category = 1 WHERE id IN (${placeholders})`).run(categoryId, ...ids)
+  return result.changes
+}
+
 export function deleteTransactions(db: Database.Database, ids: number[]): number {
   if (ids.length === 0) return 0
   const placeholders = ids.map(() => '?').join(', ')

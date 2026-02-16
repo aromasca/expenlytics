@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
-import { listTransactions, deleteTransactions } from '@/lib/db/transactions'
+import { listTransactions, deleteTransactions, bulkUpdateType, bulkUpdateClass, bulkUpdateCategory } from '@/lib/db/transactions'
+import { setMerchantCategory } from '@/lib/db/merchant-categories'
 import { deleteOrphanedDocuments } from '@/lib/db/documents'
+
+const VALID_TYPES = ['debit', 'credit'] as const
+const VALID_CLASSES = ['purchase', 'payment', 'refund', 'fee', 'interest', 'transfer'] as const
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams
   const db = getDb()
 
-  const VALID_TYPES = ['debit', 'credit'] as const
   const VALID_SORT_BY = ['date', 'amount', 'description'] as const
   const VALID_SORT_ORDER = ['asc', 'desc'] as const
-  const VALID_CLASSES = ['purchase', 'payment', 'refund', 'fee', 'interest', 'transfer'] as const
 
   const typeParam = params.get('type')
   const type = VALID_TYPES.includes(typeParam as typeof VALID_TYPES[number])
@@ -47,6 +49,56 @@ export async function GET(request: NextRequest) {
   })
 
   return NextResponse.json(result)
+}
+
+export async function PATCH(request: NextRequest) {
+  const body = await request.json()
+  const { ids, category_id, type, transaction_class } = body
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return NextResponse.json({ error: 'ids array is required' }, { status: 400 })
+  }
+  if (!ids.every((id: unknown) => typeof id === 'number' && Number.isInteger(id))) {
+    return NextResponse.json({ error: 'ids must be integers' }, { status: 400 })
+  }
+
+  const fields = [category_id, type, transaction_class].filter(f => f !== undefined)
+  if (fields.length !== 1) {
+    return NextResponse.json({ error: 'Provide exactly one of: category_id, type, transaction_class' }, { status: 400 })
+  }
+
+  const db = getDb()
+  let updated = 0
+
+  if (category_id !== undefined) {
+    if (typeof category_id !== 'number') {
+      return NextResponse.json({ error: 'category_id must be a number' }, { status: 400 })
+    }
+    updated = bulkUpdateCategory(db, ids, category_id)
+
+    // Propagate manual override to merchant classification memory
+    const placeholders = ids.map(() => '?').join(', ')
+    const rows = db.prepare(`SELECT DISTINCT normalized_merchant FROM transactions WHERE id IN (${placeholders}) AND normalized_merchant IS NOT NULL`).all(...ids) as { normalized_merchant: string }[]
+    for (const row of rows) {
+      setMerchantCategory(db, row.normalized_merchant, category_id, 'manual', 1.0)
+    }
+  }
+
+  if (type !== undefined) {
+    if (!(VALID_TYPES as readonly string[]).includes(type)) {
+      return NextResponse.json({ error: `type must be one of: ${VALID_TYPES.join(', ')}` }, { status: 400 })
+    }
+    updated = bulkUpdateType(db, ids, type)
+  }
+
+  if (transaction_class !== undefined) {
+    if (!(VALID_CLASSES as readonly string[]).includes(transaction_class)) {
+      return NextResponse.json({ error: `transaction_class must be one of: ${VALID_CLASSES.join(', ')}` }, { status: 400 })
+    }
+    updated = bulkUpdateClass(db, ids, transaction_class)
+  }
+
+  return NextResponse.json({ updated })
 }
 
 export async function DELETE(request: NextRequest) {
