@@ -5,8 +5,6 @@ import {
   getMerchantCategoryMap,
   setMerchantCategory,
   bulkSetMerchantCategories,
-  deleteMerchantCategory,
-  getAllMerchantCategories,
 } from '@/lib/db/merchant-categories'
 
 describe('merchant-categories', () => {
@@ -25,22 +23,18 @@ describe('merchant-categories', () => {
     it('inserts a new merchant category mapping', () => {
       setMerchantCategory(db, 'Whole Foods Market', groceriesId, 'manual', 1.0)
 
-      const all = getAllMerchantCategories(db)
-      expect(all).toHaveLength(1)
-      expect(all[0].normalized_merchant).toBe('Whole Foods Market')
-      expect(all[0].category_id).toBe(groceriesId)
-      expect(all[0].source).toBe('manual')
-      expect(all[0].confidence).toBe(1.0)
+      const map = getMerchantCategoryMap(db)
+      expect(map.size).toBe(1)
+      expect(map.get('Whole Foods Market')).toEqual({ category_id: groceriesId, source: 'manual', confidence: 1.0 })
     })
 
     it('upserts on conflict', () => {
       setMerchantCategory(db, 'Shake Shack', groceriesId, 'auto', 0.6)
       setMerchantCategory(db, 'Shake Shack', fastFoodId, 'manual', 1.0)
 
-      const all = getAllMerchantCategories(db)
-      expect(all).toHaveLength(1)
-      expect(all[0].category_id).toBe(fastFoodId)
-      expect(all[0].source).toBe('manual')
+      const map = getMerchantCategoryMap(db)
+      expect(map.size).toBe(1)
+      expect(map.get('Shake Shack')).toEqual({ category_id: fastFoodId, source: 'manual', confidence: 1.0 })
     })
   })
 
@@ -68,8 +62,8 @@ describe('merchant-categories', () => {
         { merchant: 'Shake Shack', categoryId: fastFoodId, source: 'majority', confidence: 0.85 },
       ])
 
-      const all = getAllMerchantCategories(db)
-      expect(all).toHaveLength(2)
+      const map = getMerchantCategoryMap(db)
+      expect(map.size).toBe(2)
     })
 
     it('upserts existing entries', () => {
@@ -81,32 +75,6 @@ describe('merchant-categories', () => {
       const map = getMerchantCategoryMap(db)
       expect(map.get('Shake Shack')!.category_id).toBe(fastFoodId)
       expect(map.get('Shake Shack')!.confidence).toBe(0.9)
-    })
-  })
-
-  describe('deleteMerchantCategory', () => {
-    it('deletes a merchant category mapping', () => {
-      setMerchantCategory(db, 'Whole Foods Market', groceriesId, 'auto', 0.8)
-      expect(getAllMerchantCategories(db)).toHaveLength(1)
-
-      deleteMerchantCategory(db, 'Whole Foods Market')
-      expect(getAllMerchantCategories(db)).toHaveLength(0)
-    })
-
-    it('does nothing for non-existent merchant', () => {
-      deleteMerchantCategory(db, 'Non Existent')
-      expect(getAllMerchantCategories(db)).toHaveLength(0)
-    })
-  })
-
-  describe('getAllMerchantCategories', () => {
-    it('returns entries sorted by merchant name', () => {
-      setMerchantCategory(db, 'Whole Foods Market', groceriesId, 'auto', 0.8)
-      setMerchantCategory(db, 'Amazon', groceriesId, 'manual', 1.0)
-      setMerchantCategory(db, 'Shake Shack', fastFoodId, 'auto', 0.7)
-
-      const all = getAllMerchantCategories(db)
-      expect(all.map(e => e.normalized_merchant)).toEqual(['Amazon', 'Shake Shack', 'Whole Foods Market'])
     })
   })
 })

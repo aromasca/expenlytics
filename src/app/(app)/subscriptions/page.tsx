@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { RecurringChargesTable } from '@/components/recurring-charges-table'
 import { RefreshCw, ChevronDown, ChevronRight, RotateCcw, Merge } from 'lucide-react'
 import { formatCurrency } from '@/lib/format'
+import { getDatePreset } from '@/lib/date-presets'
 
 interface RecurringGroup {
   merchantName: string
@@ -30,23 +31,6 @@ interface RecurringData {
     totalSubscriptions: number
     totalMonthly: number
     totalYearly: number
-  }
-}
-
-function getDatePreset(preset: string): { start: string; end: string } {
-  const now = new Date()
-  const fmt = (d: Date) => d.toISOString().slice(0, 10)
-
-  switch (preset) {
-    case 'last12Months': {
-      const start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
-      return { start: fmt(start), end: fmt(now) }
-    }
-    case 'thisYear':
-      return { start: `${now.getFullYear()}-01-01`, end: fmt(now) }
-    case 'all':
-    default:
-      return { start: '', end: '' }
   }
 }
 
@@ -80,7 +64,7 @@ export default function SubscriptionsPage() {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
+    setTimeout(() => setLoading(true), 0)
 
     const params = new URLSearchParams()
     if (startDate) params.set('start_date', startDate)

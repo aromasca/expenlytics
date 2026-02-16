@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3'
+import { VALID_TRANSACTION_FILTER } from './filters'
 
 export interface ReportFilters {
   start_date?: string
@@ -77,8 +78,8 @@ export function getSpendingSummary(db: Database.Database, filters: ReportFilters
 
   const totals = db.prepare(`
     SELECT
-      COALESCE(SUM(CASE WHEN t.type = 'debit' AND COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest')) THEN t.amount ELSE 0 END), 0) as totalSpent,
-      COALESCE(SUM(CASE WHEN t.type = 'credit' AND COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest')) THEN t.amount ELSE 0 END), 0) as totalIncome
+      COALESCE(SUM(CASE WHEN t.type = 'debit' AND ${VALID_TRANSACTION_FILTER} THEN t.amount ELSE 0 END), 0) as totalSpent,
+      COALESCE(SUM(CASE WHEN t.type = 'credit' AND ${VALID_TRANSACTION_FILTER} THEN t.amount ELSE 0 END), 0) as totalIncome
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     ${where}
@@ -102,7 +103,7 @@ export function getSpendingSummary(db: Database.Database, filters: ReportFilters
     SELECT c.name, SUM(t.amount) as amount
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    ${debitWhere}${debitWhere ? ' AND' : ' WHERE'} COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
+    ${debitWhere}${debitWhere ? ' AND' : ' WHERE'} ${VALID_TRANSACTION_FILTER}
     GROUP BY t.category_id
     ORDER BY amount DESC
     LIMIT 1
@@ -141,7 +142,7 @@ export function getSpendingOverTime(
     SELECT ${periodExpr} as period, SUM(t.amount) as amount
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    ${where}${where ? ' AND' : ' WHERE'} COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
+    ${where}${where ? ' AND' : ' WHERE'} ${VALID_TRANSACTION_FILTER}
     GROUP BY period
     ORDER BY period ASC
   `).all(params) as SpendingOverTimeRow[]
@@ -158,7 +159,7 @@ export function getCategoryBreakdown(db: Database.Database, filters: ReportFilte
       SUM(t.amount) as amount
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    ${where}${where ? ' AND' : ' WHERE'} COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
+    ${where}${where ? ' AND' : ' WHERE'} ${VALID_TRANSACTION_FILTER}
     GROUP BY t.category_id
     ORDER BY amount DESC
   `).all(params) as Array<{ category: string; color: string; amount: number }>
@@ -172,14 +173,14 @@ export function getCategoryBreakdown(db: Database.Database, filters: ReportFilte
 }
 
 export function getSpendingTrend(db: Database.Database, filters: ReportFilters): SpendingTrendRow[] {
-  const { type: _type, ...filtersWithoutType } = filters
+  const { type: _type, ...filtersWithoutType } = filters // eslint-disable-line @typescript-eslint/no-unused-vars
   const { where, params } = buildWhere(filtersWithoutType)
 
   return db.prepare(`
     SELECT
       strftime('%Y-%m', t.date) as period,
-      COALESCE(SUM(CASE WHEN t.type = 'debit' AND COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest')) THEN t.amount ELSE 0 END), 0) as debits,
-      COALESCE(SUM(CASE WHEN t.type = 'credit' AND COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest')) THEN t.amount ELSE 0 END), 0) as credits
+      COALESCE(SUM(CASE WHEN t.type = 'debit' AND ${VALID_TRANSACTION_FILTER} THEN t.amount ELSE 0 END), 0) as debits,
+      COALESCE(SUM(CASE WHEN t.type = 'credit' AND ${VALID_TRANSACTION_FILTER} THEN t.amount ELSE 0 END), 0) as credits
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     ${where}
@@ -207,7 +208,7 @@ export function getSankeyData(db: Database.Database, filters: ReportFilters): Sa
       SUM(t.amount) as amount
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    ${where}${where ? ' AND' : ' WHERE'} COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
+    ${where}${where ? ' AND' : ' WHERE'} ${VALID_TRANSACTION_FILTER}
     GROUP BY t.category_id
     HAVING amount > 0
     ORDER BY amount DESC
@@ -227,8 +228,7 @@ export function getSankeyIncomeData(db: Database.Database, filters: ReportFilter
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     ${where}
-    AND COALESCE(c.exclude_from_totals, 0) = 0
-    AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
+    AND ${VALID_TRANSACTION_FILTER}
     GROUP BY t.category_id
     HAVING amount > 0
     ORDER BY amount DESC
@@ -244,7 +244,7 @@ export interface MoMComparisonRow {
 }
 
 export function getMoMComparison(db: Database.Database, filters: ReportFilters): MoMComparisonRow[] {
-  const { type: _type, ...filtersWithoutType } = filters
+  const { type: _type, ...filtersWithoutType } = filters // eslint-disable-line @typescript-eslint/no-unused-vars
   const { where, params } = buildWhere(filtersWithoutType)
 
   const months = db.prepare(`
@@ -268,8 +268,7 @@ export function getMoMComparison(db: Database.Database, filters: ReportFilters):
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     ${where}${where ? ' AND' : ' WHERE'} t.type = 'debit'
-      AND COALESCE(c.exclude_from_totals, 0) = 0
-      AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
+      AND ${VALID_TRANSACTION_FILTER}
       AND strftime('%Y-%m', t.date) IN (?, ?)
     GROUP BY COALESCE(c.category_group, 'Other')
     HAVING current_amount > 0 OR previous_amount > 0
@@ -302,8 +301,7 @@ export function getTopTransactions(
            c.name as category
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    ${where}${where ? ' AND' : ' WHERE'} COALESCE(c.exclude_from_totals, 0) = 0
-      AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
+    ${where}${where ? ' AND' : ' WHERE'} ${VALID_TRANSACTION_FILTER}
     ORDER BY t.amount DESC
     LIMIT ?
   `).all([...params, limit]) as TopTransactionRow[]

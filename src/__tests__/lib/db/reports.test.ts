@@ -12,7 +12,6 @@ import {
   getTopTransactions,
   getSankeyData,
 } from '@/lib/db/reports'
-import type { ReportFilters } from '@/lib/db/reports'
 
 describe('reports', () => {
   let db: Database.Database

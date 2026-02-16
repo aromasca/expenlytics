@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Checkbox } from '@/components/ui/checkbox'
 import { X } from 'lucide-react'
+import { getDatePreset } from '@/lib/date-presets'
 
 interface Category {
   id: number
@@ -41,32 +42,6 @@ const EMPTY_FILTERS: Filters = {
 interface FilterBarProps {
   filters: Filters
   onFiltersChange: (filters: Filters) => void
-}
-
-function getDatePreset(preset: string): { start: string; end: string } {
-  const now = new Date()
-  const yyyy = now.getFullYear()
-  const mm = String(now.getMonth() + 1).padStart(2, '0')
-  const dd = String(now.getDate()).padStart(2, '0')
-  const today = `${yyyy}-${mm}-${dd}`
-
-  switch (preset) {
-    case 'last30': {
-      const d = new Date(now)
-      d.setDate(d.getDate() - 30)
-      return { start: d.toISOString().slice(0, 10), end: today }
-    }
-    case 'thisMonth':
-      return { start: `${yyyy}-${mm}-01`, end: today }
-    case 'last3Months': {
-      const d = new Date(yyyy, now.getMonth() - 2, 1)
-      return { start: d.toISOString().slice(0, 10), end: today }
-    }
-    case 'thisYear':
-      return { start: `${yyyy}-01-01`, end: today }
-    default:
-      return { start: '', end: '' }
-  }
 }
 
 function hasActiveFilters(filters: Filters): boolean {

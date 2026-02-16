@@ -19,7 +19,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Read from localStorage on mount
     const stored = localStorage.getItem('theme') as Theme | null
     if (stored === 'dark' || stored === 'light') {
-      setThemeState(stored)
+      setTimeout(() => setThemeState(stored), 0)
     }
   }, [])
 

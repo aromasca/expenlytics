@@ -12,6 +12,7 @@ import { TopTransactionsTable } from '@/components/reports/top-transactions-tabl
 import { SankeyChart } from '@/components/reports/sankey-chart'
 import { SavingsRateChart } from '@/components/reports/savings-rate-chart'
 import { MoMComparisonChart } from '@/components/reports/mom-comparison-chart'
+import { getDatePreset } from '@/lib/date-presets'
 
 interface ReportData {
   summary: {
@@ -29,35 +30,6 @@ interface ReportData {
   momComparison: Array<{ group: string; current: number; previous: number; delta: number; percentChange: number }>
 }
 
-function getDatePreset(preset: string): { start: string; end: string } {
-  const now = new Date()
-  const yyyy = now.getFullYear()
-  const mm = String(now.getMonth() + 1).padStart(2, '0')
-  const dd = String(now.getDate()).padStart(2, '0')
-  const today = `${yyyy}-${mm}-${dd}`
-
-  switch (preset) {
-    case '1mo': {
-      const d = new Date(yyyy, now.getMonth() - 1, now.getDate())
-      return { start: d.toISOString().slice(0, 10), end: today }
-    }
-    case '3mo': {
-      const d = new Date(yyyy, now.getMonth() - 3, now.getDate())
-      return { start: d.toISOString().slice(0, 10), end: today }
-    }
-    case '6mo': {
-      const d = new Date(yyyy, now.getMonth() - 6, now.getDate())
-      return { start: d.toISOString().slice(0, 10), end: today }
-    }
-    case '1yr': {
-      const d = new Date(yyyy - 1, now.getMonth(), now.getDate())
-      return { start: d.toISOString().slice(0, 10), end: today }
-    }
-    default:
-      return { start: '', end: '' }
-  }
-}
-
 export default function ReportsPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -67,7 +39,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
+    setTimeout(() => setLoading(true), 0)
     const params = new URLSearchParams()
     if (startDate) params.set('start_date', startDate)
     if (endDate) params.set('end_date', endDate)

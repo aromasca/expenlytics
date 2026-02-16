@@ -65,6 +65,34 @@ export default function InsightsPage() {
     }
   }, [])
 
+  const startPolling = useCallback(() => {
+    stopPolling()
+    let elapsed = 0
+    pollRef.current = setInterval(() => {
+      elapsed += 3000
+      if (elapsed > 120000) {
+        stopPolling()
+        setGenerating(false)
+        return
+      }
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+      fetch('/api/insights', { signal: controller.signal })
+        .then((res) => res.json())
+        .then((json: InsightsResponse) => {
+          clearTimeout(timeout)
+          setData(json)
+          if (json.status === 'ready') {
+            stopPolling()
+            setGenerating(false)
+          }
+        })
+        .catch(() => {
+          clearTimeout(timeout)
+        })
+    }, 3000)
+  }, [stopPolling])
+
   const fetchInsights = useCallback((refresh = false) => {
     // Cancel any in-flight request
     abortRef.current?.abort()
@@ -101,38 +129,10 @@ export default function InsightsPage() {
         setLoading(false)
         setError(true)
       })
-  }, [stopPolling])
-
-  const startPolling = useCallback(() => {
-    stopPolling()
-    let elapsed = 0
-    pollRef.current = setInterval(() => {
-      elapsed += 3000
-      if (elapsed > 120000) {
-        stopPolling()
-        setGenerating(false)
-        return
-      }
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 10000)
-      fetch('/api/insights', { signal: controller.signal })
-        .then((res) => res.json())
-        .then((json: InsightsResponse) => {
-          clearTimeout(timeout)
-          setData(json)
-          if (json.status === 'ready') {
-            stopPolling()
-            setGenerating(false)
-          }
-        })
-        .catch(() => {
-          clearTimeout(timeout)
-        })
-    }, 3000)
-  }, [stopPolling])
+  }, [stopPolling, startPolling])
 
   useEffect(() => {
-    fetchInsights()
+    setTimeout(() => fetchInsights(), 0)
     return () => {
       stopPolling()
       abortRef.current?.abort()

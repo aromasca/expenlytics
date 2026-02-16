@@ -21,7 +21,7 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
   // Keep "Other" (unclassified) as its own slice, aggregate remaining small categories separately
   const topCategories = data.slice(0, 15)
   const rest = data.slice(15)
-  let chartData = [...topCategories]
+  const chartData = [...topCategories]
   if (rest.length > 0) {
     const restAmount = rest.reduce((s, r) => s + r.amount, 0)
     const restPercentage = rest.reduce((s, r) => s + r.percentage, 0)

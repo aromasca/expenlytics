@@ -75,8 +75,10 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
   }, [])
 
   useEffect(() => {
-    setPage(0)
-    setSelected(new Set())
+    setTimeout(() => {
+      setPage(0)
+      setSelected(new Set())
+    }, 0)
   }, [filters, refreshKey, sortBy, sortOrder])
 
   const fetchTransactions = useCallback(async (currentPage: number) => {
@@ -107,36 +109,27 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
     }
   }
 
-  const SortIcon = ({ column }: { column: SortBy }) => {
+  const sortIcon = (column: SortBy) => {
     if (sortBy !== column) return null
     const Icon = sortOrder === 'asc' ? ArrowUp : ArrowDown
     return <Icon className="inline h-3 w-3 ml-0.5" />
   }
 
-  const updateCategory = async (transactionId: number, categoryId: number) => {
-    await fetch(`/api/transactions/${transactionId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category_id: categoryId }),
-    })
-    await fetchTransactions(page)
-  }
-
-  const updateType = async (transactionId: number, type: string) => {
-    await fetch(`/api/transactions/${transactionId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type }),
-    }).catch(() => {})
-    await fetchTransactions(page)
-  }
-
-  const updateClass = async (transactionId: number, transactionClass: string) => {
-    await fetch(`/api/transactions/${transactionId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transaction_class: transactionClass }),
-    }).catch(() => {})
+  const updateTransactions = async (ids: number[], updates: Record<string, unknown>) => {
+    if (ids.length === 1) {
+      await fetch(`/api/transactions/${ids[0]}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      }).catch(() => {})
+    } else {
+      await fetch('/api/transactions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, ...updates }),
+      }).catch(() => {})
+      setSelected(new Set())
+    }
     await fetchTransactions(page)
   }
 
@@ -187,25 +180,9 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
               categories={categories}
               value={null}
               placeholder="Set category..."
-              onValueChange={async (catId) => {
-                await fetch('/api/transactions', {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ ids: Array.from(selected), category_id: catId }),
-                }).catch(() => {})
-                setSelected(new Set())
-                await fetchTransactions(page)
-              }}
+              onValueChange={(catId) => updateTransactions(Array.from(selected), { category_id: catId })}
             />
-            <Select value="" onValueChange={async (v) => {
-              await fetch('/api/transactions', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: Array.from(selected), type: v }),
-              }).catch(() => {})
-              setSelected(new Set())
-              await fetchTransactions(page)
-            }}>
+            <Select value="" onValueChange={(v) => updateTransactions(Array.from(selected), { type: v })}>
               <SelectTrigger className="h-6 w-[100px] text-xs">
                 <SelectValue placeholder="Set type..." />
               </SelectTrigger>
@@ -214,15 +191,7 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
                 <SelectItem value="credit" className="text-xs">Credit</SelectItem>
               </SelectContent>
             </Select>
-            <Select value="" onValueChange={async (v) => {
-              await fetch('/api/transactions', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: Array.from(selected), transaction_class: v }),
-              }).catch(() => {})
-              setSelected(new Set())
-              await fetchTransactions(page)
-            }}>
+            <Select value="" onValueChange={(v) => updateTransactions(Array.from(selected), { transaction_class: v })}>
               <SelectTrigger className="h-6 w-[110px] text-xs">
                 <SelectValue placeholder="Set class..." />
               </SelectTrigger>
@@ -259,9 +228,9 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
                 onCheckedChange={toggleSelectAll}
               />
             </TableHead>
-            <TableHead className="py-2 text-xs cursor-pointer select-none" onClick={() => handleSort('date')}>Date<SortIcon column="date" /></TableHead>
-            <TableHead className="py-2 text-xs cursor-pointer select-none" onClick={() => handleSort('description')}>Description<SortIcon column="description" /></TableHead>
-            <TableHead className="py-2 text-xs text-right cursor-pointer select-none" onClick={() => handleSort('amount')}>Amount<SortIcon column="amount" /></TableHead>
+            <TableHead className="py-2 text-xs cursor-pointer select-none" onClick={() => handleSort('date')}>Date{sortIcon('date')}</TableHead>
+            <TableHead className="py-2 text-xs cursor-pointer select-none" onClick={() => handleSort('description')}>Description{sortIcon('description')}</TableHead>
+            <TableHead className="py-2 text-xs text-right cursor-pointer select-none" onClick={() => handleSort('amount')}>Amount{sortIcon('amount')}</TableHead>
             <TableHead className="py-2 text-xs">Type</TableHead>
             <TableHead className="py-2 text-xs">Category</TableHead>
             <TableHead className="w-8 py-2"></TableHead>
@@ -290,7 +259,7 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
                 </TableCell>
                 <TableCell className="py-1.5">
                   <div className="flex items-center gap-1.5">
-                    <Select value={txn.type} onValueChange={(v) => updateType(txn.id, v)}>
+                    <Select value={txn.type} onValueChange={(v) => updateTransactions([txn.id], { type: v })}>
                       <SelectTrigger className="h-6 w-[72px] border-0 bg-transparent px-1 text-[11px] uppercase tracking-wide shadow-none hover:bg-muted focus:ring-0">
                         <SelectValue />
                       </SelectTrigger>
@@ -299,7 +268,7 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
                         <SelectItem value="credit" className="text-xs">Credit</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Select value={txn.transaction_class ?? 'purchase'} onValueChange={(v) => updateClass(txn.id, v)}>
+                    <Select value={txn.transaction_class ?? 'purchase'} onValueChange={(v) => updateTransactions([txn.id], { transaction_class: v })}>
                       <SelectTrigger className="h-6 w-[88px] border-0 bg-transparent px-1 text-[10px] shadow-none hover:bg-muted focus:ring-0">
                         <SelectValue />
                       </SelectTrigger>
@@ -318,7 +287,7 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
                   <CategorySelect
                     categories={categories}
                     value={txn.category_id}
-                    onValueChange={(catId) => updateCategory(txn.id, catId)}
+                    onValueChange={(catId) => updateTransactions([txn.id], { category_id: catId })}
                   />
                 </TableCell>
                 <TableCell className="py-1.5">
