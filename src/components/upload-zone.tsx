@@ -38,12 +38,12 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
     const errors: string[] = []
     await Promise.all(
       pdfFiles.map(file =>
-        uploadFile(file).catch(() => { errors.push(file.name) })
+        uploadFile(file).catch((err: Error) => { errors.push(`${file.name}: ${err.message}`) })
       )
     )
 
     if (errors.length > 0) {
-      setError(`Failed: ${errors.join(', ')}`)
+      setError(errors.join('; '))
     }
     onUploadComplete()
     setUploading(0)
