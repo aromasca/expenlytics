@@ -36,6 +36,7 @@ export function SankeyChart({ data, incomeData, totalIncome }: SankeyChartProps)
   const isDark = theme === 'dark'
   const [hoveredLink, setHoveredLink] = useState<number | null>(null)
   const [tooltip, setTooltip] = useState<{ x: number; y: number; label: string; amount: string } | null>(null)
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
   const textColor = isDark ? '#A1A1AA' : '#737373'
@@ -59,34 +60,40 @@ export function SankeyChart({ data, incomeData, totalIncome }: SankeyChartProps)
     for (const d of data) {
       groupMap.set(d.category_group, (groupMap.get(d.category_group) ?? 0) + d.amount)
     }
-    if (savings > 0) {
-      groupMap.set('Savings', savings)
-    }
-    const groups = Array.from(groupMap.entries())
+    if (savings > 0) groupMap.set('Savings', savings)
+    const groups = Array.from(groupMap.entries()).sort((a, b) => b[1] - a[1])
 
-    // Nodes: income sources | groups | spending categories (+ savings)
+    // Subcategories for expanded group only
+    const expandedCats = expandedGroup
+      ? data.filter(d => d.category_group === expandedGroup).sort((a, b) => b.amount - a.amount)
+      : []
+
+    // Build nodes
     const nodes: NodeExtra[] = [
       ...incomeSources.map(d => ({ name: d.category, color: incomeColor })),
       ...groups.map(([g]) => ({ name: g, color: g === 'Savings' ? savingsColor : groupColor })),
-      ...data.map(d => ({ name: d.category, color: d.color })),
     ]
-    // Add savings as a right-column node if applicable
-    if (savings > 0) {
+
+    // Add subcategory nodes only for expanded group
+    if (expandedGroup && expandedCats.length > 0) {
+      nodes.push(...expandedCats.map(d => ({ name: d.category, color: d.color })))
+    }
+
+    // If Savings is expanded, add Net Savings node
+    if (savings > 0 && expandedGroup === 'Savings') {
       nodes.push({ name: 'Net Savings', color: savingsColor })
     }
 
     const incomeCount = incomeSources.length
     const groupOffset = incomeCount
     const catOffset = groupOffset + groups.length
-    const savingsNodeIdx = savings > 0 ? nodes.length - 1 : -1
 
     const links: Array<{ source: number; target: number; value: number }> = []
 
-    // Income sources → spending groups (distribute proportionally)
+    // Income → groups (proportional distribution)
     const totalIncomeFromSources = incomeSources.reduce((s, d) => s + d.amount, 0)
     for (let i = 0; i < incomeSources.length; i++) {
-      const src = incomeSources[i]
-      const srcFraction = totalIncomeFromSources > 0 ? src.amount / totalIncomeFromSources : 1 / incomeSources.length
+      const srcFraction = totalIncomeFromSources > 0 ? incomeSources[i].amount / totalIncomeFromSources : 1 / incomeSources.length
       for (let g = 0; g < groups.length; g++) {
         const val = Math.round(groups[g][1] * srcFraction * 100) / 100
         if (val > 0) {
@@ -95,36 +102,46 @@ export function SankeyChart({ data, incomeData, totalIncome }: SankeyChartProps)
       }
     }
 
-    // Groups → spending categories
-    for (let c = 0; c < data.length; c++) {
-      const d = data[c]
-      const gIdx = groups.findIndex(([g]) => g === d.category_group)
-      links.push({ source: groupOffset + gIdx, target: catOffset + c, value: d.amount })
+    // Expanded group → subcategories
+    if (expandedGroup && expandedCats.length > 0) {
+      const gIdx = groups.findIndex(([g]) => g === expandedGroup)
+      if (gIdx >= 0) {
+        for (let c = 0; c < expandedCats.length; c++) {
+          links.push({ source: groupOffset + gIdx, target: catOffset + c, value: expandedCats[c].amount })
+        }
+      }
     }
 
-    // Savings group → savings node
-    if (savings > 0 && savingsNodeIdx >= 0) {
+    // Savings expansion
+    if (savings > 0 && expandedGroup === 'Savings') {
       const sIdx = groups.findIndex(([g]) => g === 'Savings')
-      links.push({ source: groupOffset + sIdx, target: savingsNodeIdx, value: savings })
+      if (sIdx >= 0) {
+        links.push({ source: groupOffset + sIdx, target: nodes.length - 1, value: savings })
+      }
     }
 
     const width = 900
-    const nodeCount = Math.max(incomeSources.length, groups.length, data.length + (savings > 0 ? 1 : 0))
-    const height = Math.max(250, Math.min(500, nodeCount * 16 + 40))
+    const rightColCount = expandedGroup ? expandedCats.length + (expandedGroup === 'Savings' ? 1 : 0) : 0
+    const effectiveNodes = Math.max(incomeSources.length, groups.length, rightColCount)
+    const height = Math.max(250, Math.min(500, effectiveNodes * 22 + 40))
 
+    const rightMargin = expandedGroup ? 120 : 40
     const generator = sankey<NodeExtra, LinkExtra>()
       .nodeWidth(12)
-      .nodePadding(4)
+      .nodePadding(6)
       .nodeSort(null)
-      .extent([[120, 4], [width - 120, height - 4]])
+      .extent([[120, 4], [width - rightMargin, height - 4]])
 
     const graph = generator({
       nodes: nodes.map(n => ({ ...n })),
       links: links.map(l => ({ ...l })),
     })
 
-    return { ...graph, width, height }
-  }, [data, incomeData, totalIncome, incomeColor, savingsColor, groupColor])
+    // Track which node names are groups (for click handling)
+    const groupNames = new Set(groups.map(([g]) => g))
+
+    return { ...graph, width, height, groupNames }
+  }, [data, incomeData, totalIncome, incomeColor, savingsColor, groupColor, expandedGroup])
 
   const showTooltip = (e: React.MouseEvent, label: string, amount: string) => {
     const svg = svgRef.current
@@ -197,7 +214,7 @@ export function SankeyChart({ data, incomeData, totalIncome }: SankeyChartProps)
             const y1 = node.y1 ?? 0
             const nodeHeight = y1 - y0
             const isLeft = node.depth === 0
-            const isRight = node.depth === (nodes as SNode[]).reduce((max, n) => Math.max(max, n.depth ?? 0), 0)
+            const isGroupNode = layout.groupNames.has(node.name)
 
             return (
               <g key={i}>
@@ -208,22 +225,33 @@ export function SankeyChart({ data, incomeData, totalIncome }: SankeyChartProps)
                   height={Math.max(1, nodeHeight)}
                   fill={node.color}
                   rx={1}
+                  style={{ cursor: isGroupNode ? 'pointer' : 'default' }}
+                  onClick={() => {
+                    if (isGroupNode) {
+                      setExpandedGroup(prev => prev === node.name ? null : node.name)
+                    }
+                  }}
                   onMouseEnter={(e) => showTooltip(e, node.name, formatCurrency(node.value ?? 0))}
                   onMouseMove={(e) => showTooltip(e, node.name, formatCurrency(node.value ?? 0))}
                   onMouseLeave={hideTooltip}
                 />
                 {nodeHeight > 8 && (
                   <text
-                    x={isLeft ? x0 - 4 : isRight ? x1 + 4 : x1 + 4}
+                    x={isLeft ? x0 - 4 : x1 + 4}
                     y={(y0 + y1) / 2}
                     dy="0.35em"
                     textAnchor={isLeft ? 'end' : 'start'}
                     fill={textColor}
                     fontSize={9}
                     fontFamily="system-ui, sans-serif"
-                    style={{ fontVariantNumeric: 'tabular-nums', pointerEvents: 'none' }}
+                    style={{
+                      fontVariantNumeric: 'tabular-nums',
+                      pointerEvents: isGroupNode ? 'auto' : 'none',
+                      cursor: isGroupNode ? 'pointer' : 'default',
+                    }}
+                    onClick={() => isGroupNode && setExpandedGroup(prev => prev === node.name ? null : node.name)}
                   >
-                    {node.name}
+                    {isGroupNode ? (expandedGroup === node.name ? '▾ ' : '▸ ') : ''}{node.name} {formatCurrency(node.value ?? 0)}
                   </text>
                 )}
               </g>
