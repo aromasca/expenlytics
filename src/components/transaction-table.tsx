@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CategorySelect } from './category-select'
 import { formatCurrencyPrecise } from '@/lib/format'
-import { Trash2 } from 'lucide-react'
+import { Trash2, ArrowUp, ArrowDown } from 'lucide-react'
 import type { Filters } from '@/components/filter-bar'
 
 interface Transaction {
@@ -34,9 +34,12 @@ interface TransactionTableProps {
   filters?: Filters
 }
 
+type SortBy = 'date' | 'amount' | 'description'
+type SortOrder = 'asc' | 'desc'
+
 const PAGE_SIZE = 50
 
-function buildParams(filters: Filters | undefined, page: number): URLSearchParams {
+function buildParams(filters: Filters | undefined, page: number, sortBy: SortBy, sortOrder: SortOrder): URLSearchParams {
   const params = new URLSearchParams()
   if (filters?.search) params.set('search', filters.search)
   if (filters?.type) params.set('type', filters.type)
@@ -46,6 +49,8 @@ function buildParams(filters: Filters | undefined, page: number): URLSearchParam
   if (filters?.category_ids && filters.category_ids.length > 0) {
     params.set('category_ids', filters.category_ids.join(','))
   }
+  params.set('sort_by', sortBy)
+  params.set('sort_order', sortOrder)
   params.set('limit', String(PAGE_SIZE))
   params.set('offset', String(page * PAGE_SIZE))
   return params
@@ -58,6 +63,8 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
   const [page, setPage] = useState(0)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [deleteDialog, setDeleteDialog] = useState<{ type: 'single' | 'bulk'; ids: number[] } | null>(null)
+  const [sortBy, setSortBy] = useState<SortBy>('date')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
 
   useEffect(() => {
     let cancelled = false
@@ -70,18 +77,18 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
   useEffect(() => {
     setPage(0)
     setSelected(new Set())
-  }, [filters, refreshKey])
+  }, [filters, refreshKey, sortBy, sortOrder])
 
   const fetchTransactions = useCallback(async (currentPage: number) => {
-    const params = buildParams(filters, currentPage)
+    const params = buildParams(filters, currentPage, sortBy, sortOrder)
     const data = await fetch(`/api/transactions?${params}`).then(r => r.json())
     setTransactions(data.transactions)
     setTotal(data.total)
-  }, [filters])
+  }, [filters, sortBy, sortOrder])
 
   useEffect(() => {
     let cancelled = false
-    const params = buildParams(filters, page)
+    const params = buildParams(filters, page, sortBy, sortOrder)
     fetch(`/api/transactions?${params}`).then(r => r.json()).then(data => {
       if (!cancelled) {
         setTransactions(data.transactions)
@@ -89,7 +96,22 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
       }
     })
     return () => { cancelled = true }
-  }, [filters, refreshKey, page])
+  }, [filters, refreshKey, page, sortBy, sortOrder])
+
+  const handleSort = (column: SortBy) => {
+    if (sortBy === column) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(column)
+      setSortOrder(column === 'description' ? 'asc' : 'desc')
+    }
+  }
+
+  const SortIcon = ({ column }: { column: SortBy }) => {
+    if (sortBy !== column) return null
+    const Icon = sortOrder === 'asc' ? ArrowUp : ArrowDown
+    return <Icon className="inline h-3 w-3 ml-0.5" />
+  }
 
   const updateCategory = async (transactionId: number, categoryId: number) => {
     await fetch(`/api/transactions/${transactionId}`, {
@@ -183,9 +205,9 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
                 onCheckedChange={toggleSelectAll}
               />
             </TableHead>
-            <TableHead className="py-2 text-xs">Date</TableHead>
-            <TableHead className="py-2 text-xs">Description</TableHead>
-            <TableHead className="py-2 text-xs text-right">Amount</TableHead>
+            <TableHead className="py-2 text-xs cursor-pointer select-none" onClick={() => handleSort('date')}>Date<SortIcon column="date" /></TableHead>
+            <TableHead className="py-2 text-xs cursor-pointer select-none" onClick={() => handleSort('description')}>Description<SortIcon column="description" /></TableHead>
+            <TableHead className="py-2 text-xs text-right cursor-pointer select-none" onClick={() => handleSort('amount')}>Amount<SortIcon column="amount" /></TableHead>
             <TableHead className="py-2 text-xs">Type</TableHead>
             <TableHead className="py-2 text-xs">Category</TableHead>
             <TableHead className="w-8 py-2"></TableHead>
