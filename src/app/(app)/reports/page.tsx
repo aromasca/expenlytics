@@ -10,6 +10,8 @@ import { CategoryPieChart } from '@/components/reports/category-pie-chart'
 import { SpendingTrendChart } from '@/components/reports/spending-trend-chart'
 import { TopTransactionsTable } from '@/components/reports/top-transactions-table'
 import { SankeyChart } from '@/components/reports/sankey-chart'
+import { SavingsRateChart } from '@/components/reports/savings-rate-chart'
+import { MoMComparisonChart } from '@/components/reports/mom-comparison-chart'
 
 interface ReportData {
   summary: {
@@ -24,6 +26,7 @@ interface ReportData {
   topTransactions: Array<{ id: number; date: string; description: string; amount: number; type: string; category: string | null }>
   sankeyData: Array<{ category: string; category_group: string; color: string; amount: number }>
   sankeyIncomeData: Array<{ category: string; category_group: string; color: string; amount: number }>
+  momComparison: Array<{ group: string; current: number; previous: number; delta: number; percentChange: number }>
 }
 
 function getDatePreset(preset: string): { start: string; end: string } {
@@ -145,7 +148,13 @@ export default function ReportsPage() {
           </div>
 
           <SankeyChart data={data.sankeyData} incomeData={data.sankeyIncomeData} totalIncome={data.summary.totalIncome} />
-          <SpendingTrendChart data={data.trend} />
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <SpendingTrendChart data={data.trend} />
+            <SavingsRateChart data={data.trend} />
+          </div>
+
+          <MoMComparisonChart data={data.momComparison} />
           <TopTransactionsTable data={data.topTransactions} />
         </>
       ) : null}
