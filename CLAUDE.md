@@ -2,7 +2,8 @@
 
 ## Tech Stack
 - Next.js 16 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui
-- SQLite via better-sqlite3, Anthropic SDK, OpenAI SDK, Zod v4, Recharts
+- SQLite via better-sqlite3, Anthropic SDK, OpenAI SDK, Zod v4, Recharts, d3-sankey
+- pdf-parse for local PDF text extraction (LLM fallback for scanned docs)
 - Vitest for testing
 
 ## Commands
@@ -16,86 +17,88 @@
 - `git reset --soft <commit>` — squash multiple commits into one (combine with `git commit` to create unified commit)
 
 ## Environment
-- `ANTHROPIC_API_KEY` — required for Anthropic provider (used by `@anthropic-ai/sdk`)
-- `OPENAI_API_KEY` — optional, required when using OpenAI provider (used by `openai` SDK)
+- `ANTHROPIC_API_KEY` — required for Anthropic provider
+- `OPENAI_API_KEY` — optional, required when using OpenAI provider
 - `data/` directory is auto-created on first upload, but the SQLite DB requires it to exist at startup
 
 ## Project Structure
 - Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`)
-- `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib)
-- `src/lib/llm/` — Multi-provider LLM abstraction layer
-- `src/lib/llm/types.ts` — `LLMProvider` interface, `LLMRequest`, `LLMDocumentRequest`, `LLMResponse`, `ProviderName` types
-- `src/lib/llm/config.ts` — `PROVIDERS` config, model lists per provider, `getDefaultModel()`, `getAvailableModels()` helpers
-- `src/lib/llm/factory.ts` — `getProviderForTask(db, task)` returns `{ provider, providerName, model }` from settings
-- `src/lib/llm/anthropic/provider.ts` — `AnthropicProvider` adapter (messages API + document blocks)
-- `src/lib/llm/openai/provider.ts` — `OpenAIProvider` adapter (chat completions + file upload via responses API)
-- `src/lib/llm/prompts/` — Provider-specific prompt variants (extraction, classification, normalization, insights)
-- `src/app/api/` — Next.js API routes (upload, transactions, transactions/backfill-class, categories, documents, documents/[id], documents/[id]/reprocess, documents/[id]/retry, reports, recurring, reclassify/backfill, settings)
+- `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib). Key modules: `schema.ts`, `transactions.ts`, `reports.ts`, `recurring.ts`, `categories.ts`, `documents.ts`, `health.ts`, `settings.ts`, `insight-cache.ts`, `merchant-categories.ts`
+- `src/lib/llm/` — Multi-provider LLM abstraction. `LLMProvider` interface in `types.ts`, `AnthropicProvider` + `OpenAIProvider` adapters, `getProviderForTask(db, task)` factory in `factory.ts`, provider-specific prompts in `prompts/`, Zod schemas in `schemas.ts`
+- `src/lib/llm/extract-transactions.ts` — `extractRawTransactions` (PDF→raw data), `classifyTransactions` (add categories), `reclassifyTransactions`. Classification prompts include TRANSFER IDENTIFICATION rules for debit-side transfers
+- `src/lib/llm/analyze-finances.ts` — LLM-powered health score, patterns, deep insights (two LLM calls)
+- `src/lib/llm/normalize-merchants.ts` — LLM merchant normalization
+- `src/lib/pipeline.ts` — Background document processing: extraction → classification → normalization → complete
+- `src/lib/insights/compact-data.ts` — SQL data compaction for LLM context (`buildCompactData`)
+- `src/lib/recurring.ts` — Pure recurring charge detection logic (no DB dependency)
+- `src/lib/format.ts` — `formatCurrency()` and `formatCurrencyPrecise()` utilities
+- `src/app/api/` — API routes: `upload`, `transactions`, `transactions/[id]`, `categories`, `documents`, `documents/[id]`, `documents/[id]/reprocess`, `documents/[id]/retry`, `reports`, `recurring`, `recurring/normalize`, `recurring/dismiss`, `recurring/merge`, `reclassify/[documentId]`, `insights`, `insights/dismiss`, `settings`, `merchant-categories/backfill`, `merchant-categories/apply`, `reset`
 - `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, documents, reports, subscriptions, settings
 - `src/app/page.tsx` — Redirects to `/insights`
 - `src/components/` — React client components using shadcn/ui
-- `src/components/reports/` — Recharts chart components + d3-sankey Sankey diagram for reports dashboard
-- `src/components/reports/sankey-chart.tsx` — d3-sankey Sankey diagram (Income → Category Groups → Categories + Savings)
-- `src/lib/db/reports.ts` — `getSankeyData` (debits) + `getSankeyIncomeData` (credits excl. Transfer/Refund)
-- `src/lib/llm/schemas.ts` — Zod schemas for LLM-generated JSON (extraction, classification, health, patterns, insights)
-- `src/lib/llm/normalize-merchants.ts` — LLM merchant normalization via provider abstraction
-- `src/lib/llm/extract-transactions.ts` — `extractRawTransactions`, `classifyTransactions`, `reclassifyTransactions` via provider abstraction. All classification prompts include TRANSFER IDENTIFICATION rules for debit-side transfers
-- `src/lib/pipeline.ts` — Background document processing pipeline (extraction → classification → normalization)
-- `src/lib/recurring.ts` — Pure recurring charge detection logic (no DB dependency)
-- `src/lib/db/recurring.ts` — DB query layer for recurring charges
-- `src/lib/insights/compact-data.ts` — SQL-based data compaction for LLM context (`buildCompactData`)
-- `src/lib/insights/types.ts` — Types for health assessment, patterns, deep insights, monthly flow
-- `src/lib/llm/analyze-finances.ts` — LLM-powered health score, patterns, deep insights (two LLM calls via provider abstraction)
-- `src/lib/db/settings.ts` — `getSetting`, `setSetting`, `getAllSettings` for key-value settings table
-- `src/lib/db/health.ts` — `getMonthlyIncomeVsSpending` for income/outflow chart
-- `src/components/insights/` — Dashboard UI: health score, pattern grid, income/outflow chart, deep insight cards
+- `src/components/reports/` — Recharts charts (spending bar/trend/pie, savings rate, MoM comparison, summary cards, top transactions) + d3-sankey Sankey diagram
+- `src/components/insights/` — Health score card, income/outflow chart
 - `src/__tests__/` — mirrors src structure
 - `data/` — gitignored; SQLite DB and uploaded PDFs
 
 ## Conventions
+
+### Database
 - DB query functions accept `db: Database.Database` as first param (testable with `:memory:`)
-- `getDb()` enables WAL mode and foreign_keys pragma
-- API routes use `getDb()` singleton from `src/lib/db/index.ts`
-- Mock LLM calls with `createMockProvider()` pattern returning `{ provider, mockComplete, mockExtract }` — see `src/__tests__/lib/llm/` for examples
-- React 19: avoid calling setState synchronously in useEffect; use `.then()` pattern
-- better-sqlite3: pass params as array to `.get([...])` and `.all([...])` when using dynamic params; `.run()` uses positional args
-- `next.config.ts` has `serverExternalPackages: ['better-sqlite3']`
-- Bash/zsh: quote paths containing parentheses, e.g. `"src/app/(app)/..."` — zsh treats `()` as glob
-- `exclude_from_totals` column on `categories` table: Transfer, Refund, Savings, Investments are flagged. Use `COALESCE(c.exclude_from_totals, 0) = 0` in all summary/chart/insight queries instead of hardcoding category names
-- `transaction_class` column on `transactions` table: structural classification (purchase, payment, refund, fee, interest, transfer). Extracted during raw extraction phase. Belt-and-suspenders filtering: all summary queries use BOTH `exclude_from_totals` AND `(t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))`. The `IS NULL` clause preserves backward compatibility for un-backfilled rows. Backfill endpoint: POST /api/transactions/backfill-class
-- Dynamic WHERE extension pattern: `${where}${where ? ' AND' : ' WHERE'} <condition>` when appending to `buildWhere()` output
-- API routes: validate query params with allowlists before passing to DB functions (never trust `as` casts for SQL-interpolated values like `sort_by`)
-- Optional LLM calls (normalization, etc.) should be wrapped in try/catch so failures don't block core operations
-- Always add `.catch()` to fetch promise chains in React to prevent stuck loading states
-- Use `null` (not fallback values) for un-populated columns so backfill endpoints can find rows via `IS NULL`
-- Recharts: `Tooltip` formatter expects `value: number | undefined`, use `Number(value)` not `(value: number)`
-- Recharts: CSS variables don't render in SVG - use explicit hex colors for `stroke`, `fill`, `tick={{ fill }}`, `labelStyle`, `itemStyle`
-- Recharts: Disable gray hover cursor with `cursor={false}` on Tooltip component
-- Dark mode: Add `suppressHydrationWarning` to `<html>` when using blocking scripts to prevent hydration errors
-- ThemeProvider: Avoid returning `null` during SSR - causes hydration mismatches; render children immediately
-- Categories: 71 entries across 15 groups; `category_group` column on categories table for UI grouping
-- `VALID_CATEGORIES` in `schemas.ts` and `SEED_CATEGORIES` in `schema.ts` must stay in sync
-- shadcn/ui Select supports `SelectGroup` and `SelectLabel` for grouped dropdowns
-- shadcn/ui components installed: button, card, table, input, select, badge, checkbox, dialog, popover, switch, command
-- Category picker uses Popover + Command (cmdk) combobox pattern, not Radix Select
-- Custom SVG charts: use `useRef` + relative container div for hover tooltips (not native `<title>`); `pointer-events: none` on text labels
-- d3-sankey + d3-shape for custom Sankey diagram (not Recharts)
-- Upload route is non-blocking: saves file, fires `processDocument()` in background, returns immediately
-- Processing pipeline phases: `upload` → `extraction` → `classification` → `normalization` → `complete` (tracked via `processing_phase` column on documents)
-- Raw extraction data (PDF → transactions without categories) stored as JSON in `documents.raw_extraction` — immutable once extracted
-- `extractRawTransactions` for extraction-only (Sonnet), `classifyTransactions` for classification-only (Sonnet) — separate LLM calls
-- Reprocess = re-run classification + normalization from existing DB transactions (not re-extraction). Retry = full pipeline from PDF.
-- When mocking multiple `@/lib/*` modules in tests, use module-level `vi.fn()` variables with `vi.mock()` factory functions (not class-based mocks)
-- Mock `fs/promises` with `vi.mock('fs/promises', ...)` when testing pipeline code (PDF files don't exist in test)
-- `insight_cache` table stores arbitrary JSON via stringify/parse — use `as unknown as` casts when changing cached data shape
-- LLM functions accept `(provider, providerName, ..., model)` — callers use `getProviderForTask(db, task)` from `@/lib/llm/factory`
-- `getProviderForTask(db, task)` returns `{ provider: LLMProvider, providerName: ProviderName, model: string }` — reads `provider_<task>` and `model_<task>` from settings, defaults to Anthropic
-- Provider adapters: `AnthropicProvider` (messages API + document blocks) and `OpenAIProvider` (chat completions + file upload via responses API)
+- `getDb()` enables WAL mode and foreign_keys pragma; API routes use singleton from `src/lib/db/index.ts`
+- better-sqlite3: pass params as array to `.get([...])` and `.all([...])` for dynamic params; `.run()` uses positional args
 - `settings` table: key-value store with `INSERT ... ON CONFLICT DO UPDATE` upsert pattern
-- TypeScript: `new Set(arr)` from `as const` arrays infers narrow literal types — use `new Set<string>(...)` when checking `string` args with `.has()`
-- Zod schemas for LLM-generated JSON: use `.transform()` with fallback mapping instead of strict `.enum()` — LLMs return unexpected values (e.g., `"positive"` instead of `"good"`, a string instead of `string[]`). Use `z.union([z.array(z.string()), z.string().transform(v => [v])])` for array fields. Strict validation causes silent failures + infinite LLM retry loops when nothing gets cached.
-- `data-sample/` directory may contain real financial data (bank PDFs, SQLite DBs) — always verify `git status` for untracked sensitive files before committing
-- Prefer automatic background operations over Settings page buttons for data maintenance tasks (backfill, consistency fixes). Wire into existing pipeline or schema init instead.
+- `insight_cache` table stores arbitrary JSON via stringify/parse — use `as unknown as` casts when changing cached data shape
+- Use `null` (not fallback values) for un-populated columns so backfill endpoints can find rows via `IS NULL`
+
+### Query Patterns
+- `exclude_from_totals` column on `categories` table: Transfer, Refund, Savings, Investments are flagged. Use `COALESCE(c.exclude_from_totals, 0) = 0` in summary/chart/insight queries instead of hardcoding category names
+- `transaction_class` column on `transactions` table: structural classification (purchase, payment, refund, fee, interest, transfer). Belt-and-suspenders: summary queries use BOTH `exclude_from_totals` AND `(t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))`. `IS NULL` for backward compat
+- Dynamic WHERE extension: `${where}${where ? ' AND' : ' WHERE'} <condition>` when appending to `buildWhere()` output
+- API routes: validate query params with allowlists before passing to DB (never trust `as` casts for SQL-interpolated values)
+
+### LLM
+- `getProviderForTask(db, task)` returns `{ provider, providerName, model }` — reads `provider_<task>` and `model_<task>` from settings, defaults to Anthropic. See `src/lib/llm/config.ts` for available models
+- LLM functions accept `(provider, providerName, ..., model)` signature
+- OpenAI: use `max_completion_tokens` not `max_tokens`; PDF extraction via file upload API (`files.create` + `responses.create`), NOT image conversion
+- Zod schemas for LLM output: use `.transform()` with fallback instead of strict `.enum()` — LLMs return unexpected values causing infinite retry loops. Use `z.union([z.array(z.string()), z.string().transform(v => [v])])` for array fields
+- Optional LLM calls (normalization, etc.) should be wrapped in try/catch so failures don't block core operations
+
+### Pipeline
+- Upload route is non-blocking: saves file, fires `processDocument()` in background, returns immediately
+- Pipeline phases: `upload` → `extraction` → `classification` → `normalization` → `complete` (tracked via `processing_phase` on documents)
+- Two-stage PDF extraction: local `pdf-parse` first, LLM fallback for scanned/image PDFs
+- Raw extraction stored as JSON in `documents.raw_extraction` — immutable once extracted
+- `extractRawTransactions` for extraction-only, `classifyTransactions` for classification-only — separate LLM calls
+- Reprocess = re-run classification + normalization from existing DB transactions. Retry = full pipeline from PDF
+- Merchant memory: `merchant_categories` table caches merchant→category mappings. Known merchants skip LLM classification. Manual overrides propagate globally
+
+### Testing
+- Test pattern: `new Database(':memory:')` + `initializeSchema(db)`
+- Mock LLM: `createMockProvider()` returning `{ provider, mockComplete, mockExtract }` — see `src/__tests__/lib/llm/`
+- When mocking multiple `@/lib/*` modules, use module-level `vi.fn()` variables with `vi.mock()` factory functions (not class-based mocks)
+- Mock `fs/promises` with `vi.mock('fs/promises', ...)` when testing pipeline code
+- `.worktrees/` excluded in `vitest.config.ts` to avoid stale test copies
+
+### React & UI
+- React 19: avoid calling setState synchronously in useEffect; use `.then()` pattern
+- Always add `.catch()` to fetch promise chains to prevent stuck loading states
+- `next.config.ts` has `serverExternalPackages: ['better-sqlite3', 'openai', 'pdf-parse']`
+- Bash/zsh: quote paths containing parentheses, e.g. `"src/app/(app)/..."` — zsh treats `()` as glob
+- Categories: 71 entries across 16 groups; `category_group` column for UI grouping
+- `VALID_CATEGORIES` in `schemas.ts` and `SEED_CATEGORIES` in `schema.ts` must stay in sync
+- Category picker uses Popover + Command (cmdk) combobox pattern, not Radix Select
+- shadcn/ui components installed: button, card, table, input, select, badge, checkbox, dialog, popover, switch, command
+- Custom SVG charts (Sankey): use `useRef` + relative container div for hover tooltips; `pointer-events: none` on text labels
+- Dark mode: `suppressHydrationWarning` on `<html>`; ThemeProvider must render children immediately (no null during SSR)
+- TypeScript: `new Set()` from `as const` arrays narrows to literal union — use `new Set<string>(...)` when `.has()` receives `string`
+- Prefer automatic background operations over Settings page buttons for data maintenance
+
+### Recharts Specifics
+- CSS variables don't render in SVG — use explicit hex colors for stroke, fill, tick, labelStyle, itemStyle
+- Theme: light: text `#737373`, grid `#E5E5E5`, bars `#0A0A0A`; dark: text `#A1A1AA`, grid `#27272A`, bars `#FAFAFA`
+- `axisLine={false} tickLine={false} vertical={false}` on CartesianGrid; height 240px
+- `Tooltip` formatter: use `Number(value)` not `(value: number)`; `cursor={false}` to disable hover cursor
 
 ## Security — Pre-Commit Checks
 - Before EVERY commit, review staged files and diffs for sensitive information. This is mandatory and non-negotiable.
@@ -107,8 +110,6 @@
 ## Design System
 - Aesthetic: minimal, data-dense dashboard (neutral monochrome, not warm/coral)
 - Color palette: near-black/near-white with zinc grays; emerald for income/credits; no color for debits
-- Recharts theme colors: derive from `isDark` toggle — light: text `#737373`, grid `#E5E5E5`, bars `#0A0A0A`; dark: text `#A1A1AA`, grid `#27272A`, bars `#FAFAFA`
-- Charts: `axisLine={false} tickLine={false} vertical={false}` on CartesianGrid for clean look; height 240px standard
 - Spacing: `p-4 space-y-4` for pages, `p-3` for cards, `py-1.5` for table rows
 - Typography: text-xs for data, text-[11px] for labels/counters, `tabular-nums` on all financial figures
 - Buttons: `variant="ghost"` + `h-7 text-xs text-muted-foreground` for secondary actions
@@ -116,12 +117,10 @@
 - Sidebar: w-48 desktop, w-12 mobile; text-[13px] nav items
 
 ## SQLite Migrations
-- `CREATE TABLE IF NOT EXISTS` doesn't modify existing tables - only creates new ones
-- Pattern: base CREATE TABLE (original columns) → PRAGMA table_info to check columns → ALTER TABLE for new columns → CREATE INDEX
-- Check existing columns: `db.prepare("PRAGMA table_info(table_name)").all()` returns `Array<{ name: string }>`
-- Example: `if (!columnNames.includes('new_col')) { db.exec('ALTER TABLE t ADD COLUMN new_col TYPE') }`
-- New seed data: unconditional `INSERT OR IGNORE` pass at end of `initializeSchema` handles newly added categories on existing DBs
-- Restart dev server after schema changes for migrations to apply to existing `data/expenlytics.db`
-- `.worktrees/` is excluded in `vitest.config.ts` — stale worktree test copies cause false failures
-- SQLite: prefer `strftime('%Y-%m', t.date)` grouping over `date('now', '-1 month', 'start of month')` boundaries — the latter breaks in tests where data uses computed dates
-- SQLite: never `GROUP BY alias` when the alias is a computed expression (e.g., `COALESCE(a, b) as name` then `GROUP BY name`) — SQLite may resolve the alias non-deterministically, producing wrong group labels. Always `GROUP BY` the full expression instead.
+- `CREATE TABLE IF NOT EXISTS` doesn't modify existing tables — only creates new ones
+- Pattern: base CREATE TABLE → `PRAGMA table_info` to check columns → `ALTER TABLE ADD COLUMN` for new columns → `CREATE INDEX`
+- Check columns: `db.prepare("PRAGMA table_info(table_name)").all()` returns `Array<{ name: string }>`
+- New seed data: unconditional `INSERT OR IGNORE` pass at end of `initializeSchema`
+- Restart dev server after schema changes for migrations to apply to existing DB
+- Never `GROUP BY alias` on computed expressions — use full expression to avoid non-deterministic labels
+- Prefer `strftime('%Y-%m', t.date)` grouping over `date('now', ...)` boundaries — the latter breaks in tests with computed dates
