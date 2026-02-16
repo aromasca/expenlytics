@@ -81,7 +81,7 @@
 - `.worktrees/` excluded in `vitest.config.ts` to avoid stale test copies
 
 ### React & UI
-- React 19: avoid calling setState synchronously in useEffect; use `.then()` pattern
+- React 19: avoid calling setState synchronously in useEffect; use `.then()` pattern or `setTimeout(() => setState(...), 0)`
 - Always add `.catch()` to fetch promise chains to prevent stuck loading states
 - `next.config.ts` has `serverExternalPackages: ['better-sqlite3', 'openai', 'pdf-parse']`
 - Bash/zsh: quote paths containing parentheses, e.g. `"src/app/(app)/..."` — zsh treats `()` as glob
