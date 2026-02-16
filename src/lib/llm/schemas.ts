@@ -72,6 +72,11 @@ export const rawTransactionSchema = z.object({
 
 export const rawExtractionSchema = z.object({
   document_type: z.enum(VALID_DOCUMENT_TYPES).describe('Type of financial document'),
+  account_name: z.string().optional().describe('Account name as shown on statement, e.g. "Chase Sapphire Reserve"'),
+  institution: z.string().optional().describe('Financial institution name, e.g. "Chase", "Bank of America"'),
+  last_four: z.string().optional().describe('Last 4 digits of account number'),
+  statement_month: z.string().optional().describe('Billing period month in YYYY-MM format'),
+  statement_date: z.string().optional().describe('Exact statement period or closing date as printed on the document'),
   transactions: z.array(rawTransactionSchema),
 })
 

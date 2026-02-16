@@ -23,7 +23,7 @@
 
 ## Project Structure
 - Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`)
-- `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib). Key modules: `schema.ts`, `transactions.ts`, `reports.ts`, `recurring.ts`, `categories.ts`, `documents.ts`, `health.ts`, `settings.ts`, `insight-cache.ts`, `merchant-categories.ts`
+- `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib). Key modules: `schema.ts`, `transactions.ts`, `reports.ts`, `recurring.ts`, `categories.ts`, `documents.ts`, `accounts.ts`, `health.ts`, `settings.ts`, `insight-cache.ts`, `merchant-categories.ts`
 - `src/lib/llm/` — Multi-provider LLM abstraction. `LLMProvider` interface in `types.ts`, `AnthropicProvider` in `anthropic/provider.ts` + `OpenAIProvider` in `openai/provider.ts`, `getProviderForTask(db, task)` factory in `factory.ts`, provider-specific prompts in `prompts/`, Zod schemas in `schemas.ts`
 - `src/lib/llm/extract-transactions.ts` — `extractRawTransactions` (PDF→raw data), `classifyTransactions` (add categories), `reclassifyTransactions`. Classification prompts include TRANSFER IDENTIFICATION rules for debit-side transfers
 - `src/lib/llm/analyze-finances.ts` — LLM-powered health score, patterns, deep insights (two LLM calls)
@@ -32,8 +32,8 @@
 - `src/lib/insights/compact-data.ts` — SQL data compaction for LLM context (`buildCompactData`)
 - `src/lib/recurring.ts` — Pure recurring charge detection logic (no DB dependency)
 - `src/lib/format.ts` — `formatCurrency()` and `formatCurrencyPrecise()` utilities
-- `src/app/api/` — API routes: `upload`, `transactions`, `transactions/[id]`, `categories`, `documents`, `documents/[id]`, `documents/[id]/reprocess`, `documents/[id]/retry`, `reports`, `recurring`, `recurring/normalize`, `recurring/dismiss`, `recurring/merge`, `reclassify/[documentId]`, `insights`, `insights/dismiss`, `settings`, `reset`
-- `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, documents, reports, subscriptions, settings
+- `src/app/api/` — API routes: `upload`, `transactions`, `transactions/[id]`, `categories`, `documents`, `documents/[id]`, `documents/[id]/reprocess`, `documents/[id]/retry`, `reports`, `recurring`, `recurring/normalize`, `recurring/dismiss`, `recurring/merge`, `reclassify/[documentId]`, `insights`, `insights/dismiss`, `accounts`, `accounts/[id]`, `accounts/detect`, `accounts/merge`, `accounts/reset`, `settings`, `reset`
+- `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, documents, reports, subscriptions, accounts, settings
 - `src/app/page.tsx` — Redirects to `/insights`
 - `src/components/` — React client components using shadcn/ui
 - `src/components/reports/` — Recharts charts (spending bar/trend/pie, savings rate, MoM comparison, summary cards, top transactions) + d3-sankey Sankey diagram (`sankey-chart.tsx`)
@@ -50,6 +50,8 @@
 - `settings` table: key-value store with `INSERT ... ON CONFLICT DO UPDATE` upsert pattern
 - `insight_cache` table stores arbitrary JSON via stringify/parse — use `as unknown as` casts when changing cached data shape
 - Use `null` (not fallback values) for un-populated columns so backfill endpoints can find rows via `IS NULL`
+- `document_accounts` junction table: many-to-many between documents and accounts (combined statements). Stores `statement_month`/`statement_date` per link
+- Account matching: exact `institution + last_four` first, fuzzy `LIKE` substring fallback on institution name for LLM naming inconsistencies
 
 ### Query Patterns
 - `exclude_from_totals` column on `categories` table: Transfer, Refund, Savings, Investments are flagged. Use `COALESCE(c.exclude_from_totals, 0) = 0` in summary/chart/insight queries instead of hardcoding category names
@@ -61,7 +63,7 @@
 - `getProviderForTask(db, task)` returns `{ provider, providerName, model }` — reads `provider_<task>` and `model_<task>` from settings, defaults to Anthropic. See `src/lib/llm/config.ts` for available models
 - LLM functions accept `(provider, providerName, ..., model)` signature
 - OpenAI: use `max_completion_tokens` not `max_tokens`; PDF extraction via file upload API (`files.create` + `responses.create`), NOT image conversion
-- Zod schemas for LLM output: use `.transform()` with fallback instead of strict `.enum()` — LLMs return unexpected values causing infinite retry loops. Use `z.union([z.array(z.string()), z.string().transform(v => [v])])` for array fields
+- Zod schemas for LLM output: use `.transform()` with fallback instead of strict `.enum()` — LLMs return unexpected values causing infinite retry loops. Use `z.union([z.array(z.string()), z.string().transform(v => [v])])` for array fields. Same pattern for object-or-array: `z.union([z.array(schema), schema.transform(v => [v])])`
 - Optional LLM calls (normalization, etc.) should be wrapped in try/catch so failures don't block core operations
 
 ### Pipeline
@@ -70,7 +72,8 @@
 - Two-stage PDF extraction: local `pdf-parse` first, LLM fallback for scanned/image PDFs
 - Raw extraction stored as JSON in `documents.raw_extraction` — immutable once extracted
 - `extractRawTransactions` for extraction-only, `classifyTransactions` for classification-only — separate LLM calls
-- Reprocess = re-run classification + normalization from existing DB transactions. Retry = full pipeline from PDF
+- Reprocess = re-run classification + normalization from existing DB transactions. Retry = full pipeline from PDF. Retry clears `raw_extraction` to force re-extraction when schema adds new fields
+- Pipeline also runs account detection: extracts `statement_month`/`statement_date` from raw result and calls `assignDocumentToAccount`
 - Merchant memory: `merchant_categories` table caches merchant→category mappings. Known merchants skip LLM classification. Manual overrides propagate globally
 
 ### Testing

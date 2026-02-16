@@ -5,6 +5,7 @@ import { extractRawTransactions, classifyTransactions } from '@/lib/llm/extract-
 import { normalizeMerchants } from '@/lib/llm/normalize-merchants'
 import { getProviderForTask } from '@/lib/llm/factory'
 import { getMerchantCategoryMap, setMerchantCategory, backfillMerchantCategories, applyMerchantCategories } from '@/lib/db/merchant-categories'
+import { createAccount, findAccountByInstitutionAndLastFour, assignDocumentToAccount } from '@/lib/db/accounts'
 import { rawExtractionSchema, type RawExtractionResult } from '@/lib/llm/schemas'
 import { readFile } from 'fs/promises'
 
@@ -77,6 +78,48 @@ export async function processDocument(db: Database.Database, documentId: number)
     updateDocumentRawExtraction(db, documentId, rawResult)
     updateDocumentType(db, documentId, rawResult.document_type)
     updateDocumentTransactionCount(db, documentId, rawResult.transactions.length)
+
+  }
+
+  // Account detection — match or create account from extraction metadata
+  try {
+    const raw = rawResult as Record<string, unknown>
+    const accountName = raw.account_name as string | undefined
+    const institution = raw.institution as string | undefined
+    const lastFour = raw.last_four as string | undefined
+    const statementMonth = raw.statement_month as string | undefined
+    const statementDate = raw.statement_date as string | undefined
+
+    if (institution && lastFour) {
+      const existing = findAccountByInstitutionAndLastFour(db, institution, lastFour)
+      if (existing) {
+        assignDocumentToAccount(db, documentId, existing.id, statementMonth, statementDate)
+        console.log(`[pipeline] Document ${documentId}: matched to account "${existing.name}" (id=${existing.id})`)
+      } else {
+        const name = accountName || `${institution} ·${lastFour}`
+        const newId = createAccount(db, { name, institution, lastFour, type: rawResult.document_type })
+        assignDocumentToAccount(db, documentId, newId, statementMonth, statementDate)
+        console.log(`[pipeline] Document ${documentId}: created new account "${name}" (id=${newId})`)
+      }
+    } else if (institution) {
+      const existing = db.prepare(
+        'SELECT * FROM accounts WHERE institution = ? AND type = ? LIMIT 1'
+      ).get(institution, rawResult.document_type) as Record<string, unknown> | undefined
+      if (existing) {
+        assignDocumentToAccount(db, documentId, existing.id as number, statementMonth, statementDate)
+        console.log(`[pipeline] Document ${documentId}: matched to account "${existing.name}" by institution+type`)
+      } else {
+        const name = accountName || institution
+        const newId = createAccount(db, { name, institution, lastFour: null, type: rawResult.document_type })
+        assignDocumentToAccount(db, documentId, newId, statementMonth, statementDate)
+        console.log(`[pipeline] Document ${documentId}: created new account "${name}" (id=${newId})`)
+      }
+    } else {
+      console.log(`[pipeline] Document ${documentId}: no account identity found in extraction`)
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    console.warn(`[pipeline] Document ${documentId}: account detection failed (non-blocking) — ${message}`)
   }
 
   // Build category map

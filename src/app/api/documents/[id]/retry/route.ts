@@ -26,6 +26,9 @@ export async function POST(
 
   updateDocumentStatus(db, docId, 'processing')
 
+  // Clear cached extraction so the pipeline re-extracts from PDF
+  db.prepare('UPDATE documents SET raw_extraction = NULL WHERE id = ?').run(docId)
+
   // Enqueue for sequential processing — only one document at a time
   enqueueDocument(() => processDocument(db, docId)).catch((error) => {
     const message = error instanceof Error ? error.message : 'Unknown error'

@@ -142,6 +142,30 @@ export function initializeSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_transactions_document ON transactions(document_id);
   `)
 
+  // Accounts table — auto-detected from uploaded statements
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      institution TEXT,
+      last_four TEXT,
+      type TEXT NOT NULL DEFAULT 'other',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
+
+  // Junction table for multi-account documents (e.g., combined checking+savings statements)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS document_accounts (
+      document_id INTEGER NOT NULL REFERENCES documents(id),
+      account_id INTEGER NOT NULL REFERENCES accounts(id),
+      statement_month TEXT,
+      statement_date TEXT,
+      PRIMARY KEY (document_id, account_id)
+    )
+  `)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_document_accounts_account ON document_accounts(account_id)')
+
   // Migrate existing tables - add new columns if they don't exist
   const columns = db.prepare("PRAGMA table_info(documents)").all() as Array<{ name: string }>
   const columnNames = columns.map(c => c.name)
@@ -160,6 +184,15 @@ export function initializeSchema(db: Database.Database): void {
   }
   if (!columnNames.includes('transaction_count')) {
     db.exec('ALTER TABLE documents ADD COLUMN transaction_count INTEGER')
+  }
+  if (!columnNames.includes('account_id')) {
+    db.exec('ALTER TABLE documents ADD COLUMN account_id INTEGER REFERENCES accounts(id)')
+  }
+  if (!columnNames.includes('statement_month')) {
+    db.exec('ALTER TABLE documents ADD COLUMN statement_month TEXT')
+  }
+  if (!columnNames.includes('statement_date')) {
+    db.exec('ALTER TABLE documents ADD COLUMN statement_date TEXT')
   }
 
   const txnColumns = db.prepare("PRAGMA table_info(transactions)").all() as Array<{ name: string }>
@@ -184,6 +217,7 @@ export function initializeSchema(db: Database.Database): void {
 
   // Create index on file_hash after migration
   db.exec('CREATE INDEX IF NOT EXISTS idx_documents_hash ON documents(file_hash)')
+  db.exec('CREATE INDEX IF NOT EXISTS idx_documents_account ON documents(account_id)')
 
   // Insight cache table for LLM-generated insights
   db.exec(`

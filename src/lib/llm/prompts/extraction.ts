@@ -11,6 +11,14 @@ STEP 1: Identify the document type:
 - "investment" — investment/brokerage statement
 - "other" — any other financial document
 
+STEP 1b: Extract account identity (if visible on the statement):
+- account_name: the account or card name (e.g., "Sapphire Reserve", "Platinum Checking")
+- institution: the bank or financial institution (e.g., "Chase", "Bank of America", "Wells Fargo")
+- last_four: the last 4 digits of the account or card number
+- statement_month: the billing period month in YYYY-MM format (use the statement closing date or period ending date)
+- statement_date: the exact statement period or closing date as printed (e.g., "June 24 - July 23, 2025")
+These fields are optional — only include them if clearly visible on the statement.
+
 STEP 2: Extract every transaction. For each:
 - date: in YYYY-MM-DD format
 - description: merchant name or transaction description (clean up codes/numbers, make human-readable)
@@ -39,6 +47,11 @@ By document type:
 Return ONLY valid JSON in this exact format:
 {
   "document_type": "credit_card|checking_account|savings_account|investment|other",
+  "account_name": "optional account name",
+  "institution": "optional institution name",
+  "last_four": "optional last 4 digits",
+  "statement_month": "optional YYYY-MM",
+  "statement_date": "optional exact date text from document",
   "transactions": [
     {"date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "type": "debit|credit", "transaction_class": "purchase|payment|refund|fee|interest|transfer"}
   ]
@@ -69,6 +82,15 @@ Choose one:
 - "savings_account" — savings account statement
 - "investment" — investment/brokerage statement
 - "other" — any other financial document
+
+## Step 1b: Extract Account Identity (if visible)
+
+If the statement shows account information, extract:
+- **account_name**: the account or card name (e.g., "Sapphire Reserve", "Platinum Checking")
+- **institution**: the bank or financial institution (e.g., "Chase", "Bank of America", "Wells Fargo")
+- **last_four**: the last 4 digits of the account or card number
+
+These fields are optional — only include them if clearly visible on the statement.
 
 ## Step 2: Extract Every Transaction
 
@@ -107,6 +129,11 @@ Return ONLY valid JSON in this exact format:
 \`\`\`json
 {
   "document_type": "credit_card|checking_account|savings_account|investment|other",
+  "account_name": "optional account name",
+  "institution": "optional institution name",
+  "last_four": "optional last 4 digits",
+  "statement_month": "optional YYYY-MM",
+  "statement_date": "optional exact date text from document",
   "transactions": [
     {"date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "type": "debit|credit", "transaction_class": "purchase|payment|refund|fee|interest|transfer"}
   ]
@@ -515,6 +542,14 @@ STEP 1: Identify the document type:
 - "investment" — investment/brokerage statement
 - "other" — any other financial document
 
+STEP 1b: Extract account identity (if visible on the statement):
+- account_name: the account or card name (e.g., "Sapphire Reserve", "Platinum Checking")
+- institution: the bank or financial institution (e.g., "Chase", "Bank of America", "Wells Fargo")
+- last_four: the last 4 digits of the account or card number
+- statement_month: the billing period month in YYYY-MM format (use the statement closing date or period ending date)
+- statement_date: the exact statement period or closing date as printed (e.g., "June 24 - July 23, 2025")
+These fields are optional — only include them if clearly visible on the statement.
+
 STEP 2: Extract every transaction. For each:
 - date: in YYYY-MM-DD format
 - description: merchant name or transaction description (clean up codes/numbers, make human-readable)
@@ -543,6 +578,11 @@ By document type:
 Return ONLY valid JSON in this exact format:
 {
   "document_type": "credit_card|checking_account|savings_account|investment|other",
+  "account_name": "optional account name",
+  "institution": "optional institution name",
+  "last_four": "optional last 4 digits",
+  "statement_month": "optional YYYY-MM",
+  "statement_date": "optional exact date text from document",
   "transactions": [
     {"date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "type": "debit|credit", "transaction_class": "purchase|payment|refund|fee|interest|transfer"}
   ]
@@ -577,6 +617,15 @@ Choose one:
 - "savings_account" — savings account statement
 - "investment" — investment/brokerage statement
 - "other" — any other financial document
+
+## Step 1b: Extract Account Identity (if visible)
+
+If the statement shows account information, extract:
+- **account_name**: the account or card name (e.g., "Sapphire Reserve", "Platinum Checking")
+- **institution**: the bank or financial institution (e.g., "Chase", "Bank of America", "Wells Fargo")
+- **last_four**: the last 4 digits of the account or card number
+
+These fields are optional — only include them if clearly visible on the statement.
 
 ## Step 2: Extract Every Transaction
 
@@ -615,6 +664,11 @@ Return ONLY valid JSON in this exact format:
 \`\`\`json
 {
   "document_type": "credit_card|checking_account|savings_account|investment|other",
+  "account_name": "optional account name",
+  "institution": "optional institution name",
+  "last_four": "optional last 4 digits",
+  "statement_month": "optional YYYY-MM",
+  "statement_date": "optional exact date text from document",
   "transactions": [
     {"date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "type": "debit|credit", "transaction_class": "purchase|payment|refund|fee|interest|transfer"}
   ]
