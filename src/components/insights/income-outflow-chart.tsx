@@ -2,6 +2,7 @@
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import type { MonthlyFlow } from '@/lib/insights/types'
+import { formatCurrency } from '@/lib/format'
 
 export function IncomeOutflowChart({ data }: { data: MonthlyFlow[] }) {
   if (data.length === 0) return null
@@ -26,7 +27,7 @@ export function IncomeOutflowChart({ data }: { data: MonthlyFlow[] }) {
             tick={{ fill: textColor, fontSize: 11 }}
             axisLine={false}
             tickLine={false}
-            tickFormatter={(v: number) => `$${(v / 1000).toFixed(1)}K`}
+            tickFormatter={(v: number) => formatCurrency(v)}
           />
           <Tooltip
             cursor={false}
@@ -37,7 +38,7 @@ export function IncomeOutflowChart({ data }: { data: MonthlyFlow[] }) {
             }}
             labelStyle={{ color: textColor }}
             itemStyle={{ color: textColor }}
-            formatter={(value: number | undefined) => [`$${Number(value).toLocaleString()}`, '']}
+            formatter={(value: number | undefined) => [formatCurrency(Number(value)), '']}
           />
           <Bar dataKey="income" fill="#10B981" radius={[2, 2, 0, 0]} name="Income" />
           <Bar dataKey="spending" fill={isDark ? '#FAFAFA' : '#0A0A0A'} radius={[2, 2, 0, 0]} name="Spending" />

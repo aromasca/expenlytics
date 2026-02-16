@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { X } from 'lucide-react'
+import { formatCurrencyPrecise } from '@/lib/format'
 
 interface RecurringGroup {
   merchantName: string
@@ -116,8 +117,8 @@ export function RecurringChargesTable({ groups, onDismiss, selectable, selectedM
                       </Badge>
                     ) : '—'}
                   </TableCell>
-                  <TableCell className="py-1.5 text-xs text-right tabular-nums">${group.avgAmount.toFixed(2)}</TableCell>
-                  <TableCell className="py-1.5 text-xs text-right tabular-nums font-medium">${group.estimatedMonthlyAmount.toFixed(2)}</TableCell>
+                  <TableCell className="py-1.5 text-xs text-right tabular-nums">{formatCurrencyPrecise(group.avgAmount)}</TableCell>
+                  <TableCell className="py-1.5 text-xs text-right tabular-nums font-medium">{formatCurrencyPrecise(group.estimatedMonthlyAmount)}</TableCell>
                   <TableCell className="py-1.5 text-xs text-center tabular-nums text-muted-foreground">{group.occurrences}</TableCell>
                   <TableCell className="py-1.5 text-xs tabular-nums text-muted-foreground">{group.lastDate}</TableCell>
                   {onDismiss && (

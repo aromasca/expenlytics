@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { RecurringChargesTable } from '@/components/recurring-charges-table'
 import { RefreshCw, ChevronDown, ChevronRight, RotateCcw, Merge } from 'lucide-react'
+import { formatCurrency } from '@/lib/format'
 
 interface RecurringGroup {
   merchantName: string
@@ -244,11 +245,11 @@ export default function SubscriptionsPage() {
             </Card>
             <Card className="p-3">
               <p className="text-xs text-muted-foreground">Monthly</p>
-              <p className="text-xl font-semibold tabular-nums mt-0.5">${data.summary.totalMonthly.toFixed(2)}</p>
+              <p className="text-xl font-semibold tabular-nums mt-0.5">{formatCurrency(data.summary.totalMonthly)}</p>
             </Card>
             <Card className="p-3">
               <p className="text-xs text-muted-foreground">Yearly</p>
-              <p className="text-xl font-semibold tabular-nums mt-0.5">${data.summary.totalYearly.toFixed(2)}</p>
+              <p className="text-xl font-semibold tabular-nums mt-0.5">{formatCurrency(data.summary.totalYearly)}</p>
             </Card>
           </div>
 
@@ -276,7 +277,7 @@ export default function SubscriptionsPage() {
                       <div>
                         <span className="font-medium">{group.merchantName}</span>
                         <span className="text-muted-foreground ml-2">
-                          {group.occurrences}x &middot; ${group.estimatedMonthlyAmount.toFixed(2)}/mo
+                          {group.occurrences}x &middot; {formatCurrency(group.estimatedMonthlyAmount)}/mo
                         </span>
                       </div>
                       <Button

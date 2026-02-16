@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CategorySelect } from './category-select'
+import { formatCurrencyPrecise } from '@/lib/format'
 import { Trash2 } from 'lucide-react'
 import type { Filters } from '@/components/filter-bar'
 
@@ -190,7 +191,7 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
                 <TableCell className="py-1.5 text-xs tabular-nums text-muted-foreground">{txn.date}</TableCell>
                 <TableCell className="py-1.5 text-xs">{txn.description}</TableCell>
                 <TableCell className={`py-1.5 text-xs text-right tabular-nums font-medium ${txn.type === 'credit' ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
-                  {txn.type === 'credit' ? '+' : '-'}${txn.amount.toFixed(2)}
+                  {txn.type === 'credit' ? '+' : '-'}{formatCurrencyPrecise(txn.amount)}
                 </TableCell>
                 <TableCell className="py-1.5">
                   <div className="flex items-center gap-1.5">
