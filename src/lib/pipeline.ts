@@ -54,12 +54,6 @@ export async function processDocument(db: Database.Database, documentId: number)
     console.log(`[pipeline] Document ${documentId}: extraction skipped — using cached raw data (${rawResult.transactions.length} transactions, ${rawResult.document_type})`)
     console.log(`[pipeline]   classification: ${classification.providerName}/${classification.model}`)
     console.log(`[pipeline]   normalization: ${normalization.providerName}/${normalization.model}`)
-
-    // Clear old transactions from previous failed attempt so we don't duplicate
-    const deleted = db.prepare('DELETE FROM transactions WHERE document_id = ?').run(documentId)
-    if (deleted.changes > 0) {
-      console.log(`[pipeline] Document ${documentId}: cleared ${deleted.changes} transactions from previous attempt`)
-    }
   } else {
     console.log(`[pipeline]   extraction: ${extraction.providerName}/${extraction.model}`)
     console.log(`[pipeline]   classification: ${classification.providerName}/${classification.model}`)
@@ -176,6 +170,13 @@ export async function processDocument(db: Database.Database, documentId: number)
   }
 
   // Phase 4: Insert + Learn
+  // Always clear existing transactions before inserting — prevents duplicates if pipeline
+  // runs concurrently (e.g., dev server restart re-enqueues a stuck document while original run continues)
+  const deleted = db.prepare('DELETE FROM transactions WHERE document_id = ?').run(documentId)
+  if (deleted.changes > 0) {
+    console.log(`[pipeline] Document ${documentId}: cleared ${deleted.changes} existing transactions before insert`)
+  }
+
   console.log(`[pipeline] Document ${documentId}: inserting ${rawResult.transactions.length} transactions...`)
   const insert = db.prepare(
     'INSERT INTO transactions (document_id, date, description, amount, type, category_id, normalized_merchant, transaction_class) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
