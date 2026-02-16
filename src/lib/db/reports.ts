@@ -247,7 +247,8 @@ export function getTopTransactions(
            c.name as category
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
-    ${where}
+    ${where}${where ? ' AND' : ' WHERE'} COALESCE(c.exclude_from_totals, 0) = 0
+      AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
     ORDER BY t.amount DESC
     LIMIT ?
   `).all([...params, limit]) as TopTransactionRow[]
