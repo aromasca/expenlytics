@@ -2,7 +2,7 @@
 
 ## Tech Stack
 - Next.js 16 (App Router), TypeScript, Tailwind CSS v4, shadcn/ui
-- SQLite via better-sqlite3, Anthropic SDK, Zod v4, Recharts
+- SQLite via better-sqlite3, Anthropic SDK, OpenAI SDK, Zod v4, Recharts
 - Vitest for testing
 
 ## Commands
@@ -16,13 +16,20 @@
 - `git reset --soft <commit>` — squash multiple commits into one (combine with `git commit` to create unified commit)
 
 ## Environment
-- `ANTHROPIC_API_KEY` — required for PDF extraction (used by `@anthropic-ai/sdk`)
+- `ANTHROPIC_API_KEY` — required for Anthropic provider (used by `@anthropic-ai/sdk`)
+- `OPENAI_API_KEY` — optional, required when using OpenAI provider (used by `openai` SDK)
 - `data/` directory is auto-created on first upload, but the SQLite DB requires it to exist at startup
 
 ## Project Structure
 - Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`)
 - `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib)
-- `src/lib/claude/` — Claude API extraction with Zod validation
+- `src/lib/llm/` — Multi-provider LLM abstraction layer
+- `src/lib/llm/types.ts` — `LLMProvider` interface, `LLMRequest`, `LLMDocumentRequest`, `LLMResponse`, `ProviderName` types
+- `src/lib/llm/config.ts` — `PROVIDERS` config, model lists per provider, `getDefaultModel()`, `getAvailableModels()` helpers
+- `src/lib/llm/factory.ts` — `getProviderForTask(db, task)` returns `{ provider, providerName, model }` from settings
+- `src/lib/llm/anthropic/provider.ts` — `AnthropicProvider` adapter (messages API + document blocks)
+- `src/lib/llm/openai/provider.ts` — `OpenAIProvider` adapter (chat completions + file upload via responses API)
+- `src/lib/llm/prompts/` — Provider-specific prompt variants (extraction, classification, normalization, insights)
 - `src/app/api/` — Next.js API routes (upload, transactions, transactions/backfill-class, categories, documents, documents/[id], documents/[id]/reprocess, documents/[id]/retry, reports, recurring, reclassify/backfill, settings)
 - `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, documents, reports, subscriptions, settings
 - `src/app/page.tsx` — Redirects to `/insights`
@@ -30,15 +37,15 @@
 - `src/components/reports/` — Recharts chart components + d3-sankey Sankey diagram for reports dashboard
 - `src/components/reports/sankey-chart.tsx` — d3-sankey Sankey diagram (Income → Category Groups → Categories + Savings)
 - `src/lib/db/reports.ts` — `getSankeyData` (debits) + `getSankeyIncomeData` (credits excl. Transfer/Refund)
-- `src/lib/claude/normalize-merchants.ts` — LLM merchant normalization (Claude Haiku)
-- `src/lib/claude/extract-transactions.ts` — `extractRawTransactions` (no categories), `classifyTransactions` (index-based), `extractTransactions` (legacy combined), `reclassifyTransactions` (ID-based). All classification prompts include TRANSFER IDENTIFICATION rules for debit-side transfers (CC payments, savings contributions, 401k, P2P self-transfers)
+- `src/lib/llm/schemas.ts` — Zod schemas for LLM-generated JSON (extraction, classification, health, patterns, insights)
+- `src/lib/llm/normalize-merchants.ts` — LLM merchant normalization via provider abstraction
+- `src/lib/llm/extract-transactions.ts` — `extractRawTransactions`, `classifyTransactions`, `reclassifyTransactions` via provider abstraction. All classification prompts include TRANSFER IDENTIFICATION rules for debit-side transfers
 - `src/lib/pipeline.ts` — Background document processing pipeline (extraction → classification → normalization)
 - `src/lib/recurring.ts` — Pure recurring charge detection logic (no DB dependency)
 - `src/lib/db/recurring.ts` — DB query layer for recurring charges
 - `src/lib/insights/compact-data.ts` — SQL-based data compaction for LLM context (`buildCompactData`)
 - `src/lib/insights/types.ts` — Types for health assessment, patterns, deep insights, monthly flow
-- `src/lib/claude/analyze-finances.ts` — Haiku-powered health score, patterns, deep insights (two LLM calls, ~$0.03/analysis)
-- `src/lib/claude/models.ts` — `AVAILABLE_MODELS`, `MODEL_TASKS` config, `getModelForTask(db, task)` for per-task model selection
+- `src/lib/llm/analyze-finances.ts` — LLM-powered health score, patterns, deep insights (two LLM calls via provider abstraction)
 - `src/lib/db/settings.ts` — `getSetting`, `setSetting`, `getAllSettings` for key-value settings table
 - `src/lib/db/health.ts` — `getMonthlyIncomeVsSpending` for income/outflow chart
 - `src/components/insights/` — Dashboard UI: health score, pattern grid, income/outflow chart, deep insight cards
@@ -49,7 +56,7 @@
 - DB query functions accept `db: Database.Database` as first param (testable with `:memory:`)
 - `getDb()` enables WAL mode and foreign_keys pragma
 - API routes use `getDb()` singleton from `src/lib/db/index.ts`
-- Mock Anthropic SDK with `class MockAnthropic {}` pattern, not `vi.fn().mockImplementation`. To spy on mock calls, extract `vi.fn()` to a module-level variable (per-instance spies are not shared)
+- Mock LLM calls with `createMockProvider()` pattern returning `{ provider, mockComplete, mockExtract }` — see `src/__tests__/lib/llm/` for examples
 - React 19: avoid calling setState synchronously in useEffect; use `.then()` pattern
 - better-sqlite3: pass params as array to `.get([...])` and `.all([...])` when using dynamic params; `.run()` uses positional args
 - `next.config.ts` has `serverExternalPackages: ['better-sqlite3']`
@@ -81,7 +88,9 @@
 - When mocking multiple `@/lib/*` modules in tests, use module-level `vi.fn()` variables with `vi.mock()` factory functions (not class-based mocks)
 - Mock `fs/promises` with `vi.mock('fs/promises', ...)` when testing pipeline code (PDF files don't exist in test)
 - `insight_cache` table stores arbitrary JSON via stringify/parse — use `as unknown as` casts when changing cached data shape
-- LLM functions accept optional `model` param with defaults — callers use `getModelForTask(db, task)` to read user-configured model from `settings` table
+- LLM functions accept `(provider, providerName, ..., model)` — callers use `getProviderForTask(db, task)` from `@/lib/llm/factory`
+- `getProviderForTask(db, task)` returns `{ provider: LLMProvider, providerName: ProviderName, model: string }` — reads `provider_<task>` and `model_<task>` from settings, defaults to Anthropic
+- Provider adapters: `AnthropicProvider` (messages API + document blocks) and `OpenAIProvider` (chat completions + file upload via responses API)
 - `settings` table: key-value store with `INSERT ... ON CONFLICT DO UPDATE` upsert pattern
 - TypeScript: `new Set(arr)` from `as const` arrays infers narrow literal types — use `new Set<string>(...)` when checking `string` args with `.has()`
 - Zod schemas for LLM-generated JSON: use `.transform()` with fallback mapping instead of strict `.enum()` — LLMs return unexpected values (e.g., `"positive"` instead of `"good"`, a string instead of `string[]`). Use `z.union([z.array(z.string()), z.string().transform(v => [v])])` for array fields. Strict validation causes silent failures + infinite LLM retry loops when nothing gets cached.

@@ -161,8 +161,8 @@ export const patternCardSchema = z.object({
   headline: z.string(),
   metric: z.string(),
   explanation: z.string(),
-  category: z.string().transform(v => {
-    if (['timing', 'merchant', 'behavioral', 'subscription', 'correlation'].includes(v)) return v
+  category: z.string().transform((v): 'timing' | 'merchant' | 'behavioral' | 'subscription' | 'correlation' => {
+    if (['timing', 'merchant', 'behavioral', 'subscription', 'correlation'].includes(v)) return v as 'timing' | 'merchant' | 'behavioral' | 'subscription' | 'correlation'
     return 'behavioral'
   }),
   severity: severitySchema,

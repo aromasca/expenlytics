@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { buildCompactData } from '@/lib/insights/compact-data'
 import { getMonthlyIncomeVsSpending } from '@/lib/db/health'
-import { analyzeHealthAndPatterns, analyzeDeepInsights } from '@/lib/claude/analyze-finances'
+import { analyzeHealthAndPatterns, analyzeDeepInsights } from '@/lib/llm/analyze-finances'
 import { generateCacheKey, getCachedInsights, setCachedInsights, clearInsightCache, getDismissedInsightIds } from '@/lib/db/insight-cache'
-import { getModelForTask } from '@/lib/claude/models'
+import { getProviderForTask } from '@/lib/llm/factory'
 import type { InsightsResponse, HealthAssessment, PatternCard, DeepInsight } from '@/lib/insights/types'
 
 // Track in-progress generation to avoid duplicate LLM calls
@@ -13,11 +13,16 @@ const generationInProgress = new Map<string, Promise<void>>()
 async function generateInsights(cacheKey: string) {
   try {
     const db = getDb()
-    const insightsModel = getModelForTask(db, 'insights')
+    const { provider, providerName, model } = getProviderForTask(db, 'insights')
     const compactData = buildCompactData(db)
     const totalTxns = compactData.monthly.reduce((s, m) => s + m.spending, 0)
 
-    if (totalTxns === 0) return
+    if (totalTxns === 0) {
+      console.log('[insights] No transactions found — skipping generation')
+      return
+    }
+
+    console.log(`[insights] Starting generation (${providerName}/${model}, ${compactData.monthly.length} months of data)`)
 
     let health: HealthAssessment | null = null
     let patterns: PatternCard[] = []
@@ -25,18 +30,26 @@ async function generateInsights(cacheKey: string) {
     let deepInsightsFailed = false
 
     try {
-      const healthAndPatterns = await analyzeHealthAndPatterns(compactData, insightsModel)
+      console.log('[insights] Health & patterns analysis starting...')
+      const t0 = Date.now()
+      const healthAndPatterns = await analyzeHealthAndPatterns(provider, providerName, compactData, model)
       health = healthAndPatterns.health
       patterns = healthAndPatterns.patterns
+      console.log(`[insights] Health & patterns complete — score: ${health?.score ?? 'n/a'}, ${patterns.length} patterns (${((Date.now() - t0) / 1000).toFixed(1)}s)`)
     } catch (error) {
-      console.error('Health/patterns analysis failed:', error)
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      console.error(`[insights] Health & patterns FAILED — ${message}`)
     }
 
     if (health) {
       try {
-        insights = await analyzeDeepInsights(compactData, health, insightsModel)
+        console.log('[insights] Deep insights analysis starting...')
+        const t1 = Date.now()
+        insights = await analyzeDeepInsights(provider, providerName, compactData, health, model)
+        console.log(`[insights] Deep insights complete — ${insights.length} insights (${((Date.now() - t1) / 1000).toFixed(1)}s)`)
       } catch (error) {
-        console.error('Deep insights analysis failed:', error)
+        const message = error instanceof Error ? error.message : 'Unknown error'
+        console.error(`[insights] Deep insights FAILED — ${message}`)
         deepInsightsFailed = true
       }
     }
@@ -45,6 +58,9 @@ async function generateInsights(cacheKey: string) {
     // so the next request retries the LLM call instead of serving empty insights for 24h
     if ((health || patterns.length > 0 || insights.length > 0) && !deepInsightsFailed) {
       setCachedInsights(db, cacheKey, { health, patterns, insights })
+      console.log('[insights] Results cached ✓')
+    } else if (deepInsightsFailed) {
+      console.warn('[insights] Not caching — deep insights failed, will retry on next request')
     }
   } finally {
     generationInProgress.delete(cacheKey)

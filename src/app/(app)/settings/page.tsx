@@ -8,17 +8,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useTheme } from '@/components/theme-provider'
 import { Tags, Cpu, Trash2, Moon, Sun, RefreshCw } from 'lucide-react'
 
-const MODEL_TASKS = [
-  { key: 'model_extraction', label: 'PDF Extraction', description: 'Extracts raw transactions from PDF documents' },
-  { key: 'model_classification', label: 'Transaction Classification', description: 'Assigns categories to transactions' },
-  { key: 'model_normalization', label: 'Merchant Normalization', description: 'Normalizes merchant names for recurring detection' },
-  { key: 'model_insights', label: 'Financial Insights', description: 'Generates health scores and spending insights' },
-]
+interface ProviderConfig {
+  name: string
+  envKey: string
+  models: { id: string; name: string }[]
+  defaults: Record<string, string>
+}
 
-const AVAILABLE_MODELS = [
-  { id: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5' },
-  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
-]
+const TASK_NAMES = ['extraction', 'classification', 'normalization', 'insights'] as const
+
+const TASK_LABELS: Record<string, { label: string; description: string }> = {
+  extraction: { label: 'PDF Extraction', description: 'Extracts raw transactions from PDF documents' },
+  classification: { label: 'Transaction Classification', description: 'Assigns categories to transactions' },
+  normalization: { label: 'Merchant Normalization', description: 'Normalizes merchant names for recurring detection' },
+  insights: { label: 'Financial Insights', description: 'Generates health scores and spending insights' },
+}
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme()
@@ -28,33 +32,79 @@ export default function SettingsPage() {
   const [reclassifyResult, setReclassifyResult] = useState<string | null>(null)
   const [backfilling, setBackfilling] = useState(false)
   const [backfillResult, setBackfillResult] = useState<string | null>(null)
-  const [modelSettings, setModelSettings] = useState<Record<string, string>>({})
-  const [savingModel, setSavingModel] = useState<string | null>(null)
+  const [providers, setProviders] = useState<Record<string, ProviderConfig>>({})
+  const [availableProviders, setAvailableProviders] = useState<string[]>([])
+  const [settings, setSettings] = useState<Record<string, string>>({})
+  const [savingKey, setSavingKey] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/settings')
       .then(res => res.json())
-      .then(data => setModelSettings(data))
+      .then(data => {
+        const { providers: p, availableProviders: ap, ...rest } = data
+        setProviders(p || {})
+        setAvailableProviders(ap || [])
+        setSettings(rest)
+      })
       .catch(() => {})
   }, [])
 
-  async function handleModelChange(key: string, value: string) {
-    setSavingModel(key)
-    setModelSettings(prev => ({ ...prev, [key]: value }))
+  async function handleProviderChange(task: string, providerName: string) {
+    const providerConfig = providers[providerName]
+    if (!providerConfig) return
+
+    const defaultModel = providerConfig.defaults[task] || providerConfig.models[0]?.id || ''
+    const providerKey = `provider_${task}`
+    const modelKey = `model_${task}`
+
+    setSavingKey(providerKey)
+    setSettings(prev => ({ ...prev, [providerKey]: providerName, [modelKey]: defaultModel }))
+
     try {
       await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [key]: value }),
+        body: JSON.stringify({ [providerKey]: providerName, [modelKey]: defaultModel }),
       })
     } catch {
       // Revert on failure
       fetch('/api/settings')
         .then(res => res.json())
-        .then(data => setModelSettings(data))
+        .then(data => {
+          const { providers: p, availableProviders: ap, ...rest } = data
+          setProviders(p || {})
+          setAvailableProviders(ap || [])
+          setSettings(rest)
+        })
         .catch(() => {})
     } finally {
-      setSavingModel(null)
+      setSavingKey(null)
+    }
+  }
+
+  async function handleModelChange(task: string, modelId: string) {
+    const modelKey = `model_${task}`
+    setSavingKey(modelKey)
+    setSettings(prev => ({ ...prev, [modelKey]: modelId }))
+
+    try {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [modelKey]: modelId }),
+      })
+    } catch {
+      fetch('/api/settings')
+        .then(res => res.json())
+        .then(data => {
+          const { providers: p, availableProviders: ap, ...rest } = data
+          setProviders(p || {})
+          setAvailableProviders(ap || [])
+          setSettings(rest)
+        })
+        .catch(() => {})
+    } finally {
+      setSavingKey(null)
     }
   }
 
@@ -93,34 +143,59 @@ export default function SettingsPage() {
           <Cpu className="h-4 w-4" />
           <div>
             <h3 className="text-sm font-medium">AI Models</h3>
-            <p className="text-xs text-muted-foreground">Choose which model to use for each task</p>
+            <p className="text-xs text-muted-foreground">Choose which provider and model to use for each task</p>
           </div>
         </div>
         <div className="space-y-3">
-          {MODEL_TASKS.map(task => (
-            <div key={task.key} className="flex items-center justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-xs font-medium">{task.label}</p>
-                <p className="text-[11px] text-muted-foreground">{task.description}</p>
+          {TASK_NAMES.map(task => {
+            const currentProvider = settings[`provider_${task}`] || 'anthropic'
+            const currentModel = settings[`model_${task}`] || ''
+            const providerConfig = providers[currentProvider]
+            const models = providerConfig?.models || []
+
+            return (
+              <div key={task} className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium">{TASK_LABELS[task].label}</p>
+                  <p className="text-[11px] text-muted-foreground">{TASK_LABELS[task].description}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={currentProvider}
+                    onValueChange={(value) => handleProviderChange(task, value)}
+                    disabled={savingKey === `provider_${task}`}
+                  >
+                    <SelectTrigger className="w-32 h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableProviders.map(p => (
+                        <SelectItem key={p} value={p} className="text-xs">
+                          {providers[p]?.name || p}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={currentModel}
+                    onValueChange={(value) => handleModelChange(task, value)}
+                    disabled={savingKey === `model_${task}`}
+                  >
+                    <SelectTrigger className="w-48 h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {models.map(model => (
+                        <SelectItem key={model.id} value={model.id} className="text-xs">
+                          {model.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <Select
-                value={modelSettings[task.key] || ''}
-                onValueChange={(value) => handleModelChange(task.key, value)}
-                disabled={savingModel === task.key}
-              >
-                <SelectTrigger className="w-48 h-7 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {AVAILABLE_MODELS.map(model => (
-                    <SelectItem key={model.id} value={model.id} className="text-xs">
-                      {model.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </Card>
 

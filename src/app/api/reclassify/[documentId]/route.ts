@@ -3,7 +3,8 @@ import { getDb } from '@/lib/db'
 import { getDocument } from '@/lib/db/documents'
 import { getAllCategories } from '@/lib/db/categories'
 import { getTransactionsByDocumentId, bulkUpdateCategories } from '@/lib/db/transactions'
-import { reclassifyTransactions } from '@/lib/claude/extract-transactions'
+import { reclassifyTransactions } from '@/lib/llm/extract-transactions'
+import { getProviderForTask } from '@/lib/llm/factory'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ documentId: string }> }) {
   const { documentId } = await params
@@ -32,7 +33,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   try {
-    const result = await reclassifyTransactions(doc.document_type ?? 'other', reclassifyInput)
+    const { provider, providerName, model } = getProviderForTask(db, 'classification')
+    const result = await reclassifyTransactions(provider, providerName, doc.document_type ?? 'other', reclassifyInput, model)
 
     const categories = getAllCategories(db)
     const categoryMap = new Map(categories.map(c => [c.name.toLowerCase(), c.id]))

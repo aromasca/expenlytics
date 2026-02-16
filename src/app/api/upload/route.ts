@@ -6,9 +6,9 @@ import { getDb } from '@/lib/db'
 import { createDocument, findDocumentByHash, updateDocumentStatus } from '@/lib/db/documents'
 import { getAllCategories } from '@/lib/db/categories'
 import { getTransactionsByDocumentId, bulkUpdateCategories } from '@/lib/db/transactions'
-import { reclassifyTransactions } from '@/lib/claude/extract-transactions'
+import { reclassifyTransactions } from '@/lib/llm/extract-transactions'
 import { processDocument, enqueueDocument } from '@/lib/pipeline'
-import { getModelForTask } from '@/lib/claude/models'
+import { getProviderForTask } from '@/lib/llm/factory'
 
 function computeHash(buffer: Buffer): string {
   return createHash('sha256').update(buffer).digest('hex')
@@ -54,8 +54,8 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      const classificationModel = getModelForTask(db, 'classification')
-      const result = await reclassifyTransactions(existingDoc.document_type ?? 'other', reclassifyInput, classificationModel)
+      const { provider, providerName, model: classificationModel } = getProviderForTask(db, 'classification')
+      const result = await reclassifyTransactions(provider, providerName, existingDoc.document_type ?? 'other', reclassifyInput, classificationModel)
 
       const categories = getAllCategories(db)
       const categoryMap = new Map(categories.map(c => [c.name.toLowerCase(), c.id]))

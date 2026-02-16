@@ -1,10 +1,11 @@
 import type Database from 'better-sqlite3'
-import { getDocument, updateDocumentStatus, updateDocumentPhase, updateDocumentType, updateDocumentRawExtraction, updateDocumentTransactionCount } from '@/lib/db/documents'
+import { getDocument, getDocumentRawExtraction, updateDocumentStatus, updateDocumentPhase, updateDocumentType, updateDocumentRawExtraction, updateDocumentTransactionCount } from '@/lib/db/documents'
 import { getAllCategories } from '@/lib/db/categories'
-import { extractRawTransactions, classifyTransactions } from '@/lib/claude/extract-transactions'
-import { normalizeMerchants } from '@/lib/claude/normalize-merchants'
-import { getModelForTask } from '@/lib/claude/models'
+import { extractRawTransactions, classifyTransactions } from '@/lib/llm/extract-transactions'
+import { normalizeMerchants } from '@/lib/llm/normalize-merchants'
+import { getProviderForTask } from '@/lib/llm/factory'
 import { getMerchantCategoryMap, setMerchantCategory, backfillMerchantCategories, applyMerchantCategories } from '@/lib/db/merchant-categories'
+import { rawExtractionSchema, type RawExtractionResult } from '@/lib/llm/schemas'
 import { readFile } from 'fs/promises'
 
 // Sequential processing queue — only one document processes at a time
@@ -38,26 +39,51 @@ export async function processDocument(db: Database.Database, documentId: number)
   const doc = getDocument(db, documentId)
   if (!doc) throw new Error(`Document ${documentId} not found`)
 
-  const extractionModel = getModelForTask(db, 'extraction')
-  const classificationModel = getModelForTask(db, 'classification')
-  const normalizationModel = getModelForTask(db, 'normalization')
+  const extraction = getProviderForTask(db, 'extraction')
+  const classification = getProviderForTask(db, 'classification')
+  const normalization = getProviderForTask(db, 'normalization')
 
-  // Phase 1: Extraction
-  updateDocumentPhase(db, documentId, 'extraction')
-  let rawResult
-  try {
-    const pdfBuffer = await readFile(doc.filepath)
-    rawResult = await extractRawTransactions(pdfBuffer, extractionModel)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    updateDocumentStatus(db, documentId, 'failed', `Extraction failed: ${message}`)
-    return
+  console.log(`[pipeline] Document ${documentId}: "${doc.filename}" — starting`)
+
+  // Phase 1: Extraction — skip if raw extraction already exists (e.g. retrying after classification/normalization failure)
+  let rawResult: RawExtractionResult
+  const existingRaw = getDocumentRawExtraction(db, documentId)
+
+  if (existingRaw) {
+    rawResult = rawExtractionSchema.parse(existingRaw)
+    console.log(`[pipeline] Document ${documentId}: extraction skipped — using cached raw data (${rawResult.transactions.length} transactions, ${rawResult.document_type})`)
+    console.log(`[pipeline]   classification: ${classification.providerName}/${classification.model}`)
+    console.log(`[pipeline]   normalization: ${normalization.providerName}/${normalization.model}`)
+
+    // Clear old transactions from previous failed attempt so we don't duplicate
+    const deleted = db.prepare('DELETE FROM transactions WHERE document_id = ?').run(documentId)
+    if (deleted.changes > 0) {
+      console.log(`[pipeline] Document ${documentId}: cleared ${deleted.changes} transactions from previous attempt`)
+    }
+  } else {
+    console.log(`[pipeline]   extraction: ${extraction.providerName}/${extraction.model}`)
+    console.log(`[pipeline]   classification: ${classification.providerName}/${classification.model}`)
+    console.log(`[pipeline]   normalization: ${normalization.providerName}/${normalization.model}`)
+
+    updateDocumentPhase(db, documentId, 'extraction')
+    try {
+      const pdfBuffer = await readFile(doc.filepath)
+      console.log(`[pipeline] Document ${documentId}: extraction starting (${(pdfBuffer.length / 1024).toFixed(0)}KB PDF)...`)
+      const t0 = Date.now()
+      rawResult = await extractRawTransactions(extraction.provider, extraction.providerName, pdfBuffer, extraction.model)
+      console.log(`[pipeline] Document ${documentId}: extraction complete — ${rawResult.transactions.length} transactions, ${rawResult.document_type} (${((Date.now() - t0) / 1000).toFixed(1)}s)`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      console.error(`[pipeline] Document ${documentId}: extraction FAILED — ${message}`)
+      updateDocumentStatus(db, documentId, 'failed', `Extraction failed: ${message}`)
+      return
+    }
+
+    // Store raw extraction data and document type
+    updateDocumentRawExtraction(db, documentId, rawResult)
+    updateDocumentType(db, documentId, rawResult.document_type)
+    updateDocumentTransactionCount(db, documentId, rawResult.transactions.length)
   }
-
-  // Store raw extraction data and document type
-  updateDocumentRawExtraction(db, documentId, rawResult)
-  updateDocumentType(db, documentId, rawResult.document_type)
-  updateDocumentTransactionCount(db, documentId, rawResult.transactions.length)
 
   // Build category map
   const categories = getAllCategories(db)
@@ -74,11 +100,15 @@ export async function processDocument(db: Database.Database, documentId: number)
   try {
     const existingMerchants = db.prepare(
       'SELECT DISTINCT normalized_merchant FROM merchant_categories'
-    ).all().map((r: { normalized_merchant: string }) => r.normalized_merchant)
+    ).all().map((r) => (r as { normalized_merchant: string }).normalized_merchant)
     const descriptions = rawResult.transactions.map(t => t.description)
-    merchantMap = await normalizeMerchants(descriptions, normalizationModel, existingMerchants)
-  } catch {
-    // Normalization failure shouldn't block transaction insertion
+    console.log(`[pipeline] Document ${documentId}: normalization starting (${descriptions.length} descriptions, ${existingMerchants.length} known merchants)...`)
+    const t1 = Date.now()
+    merchantMap = await normalizeMerchants(normalization.provider, normalization.providerName, descriptions, normalization.model, existingMerchants)
+    console.log(`[pipeline] Document ${documentId}: normalization complete — ${merchantMap.size} normalized (${((Date.now() - t1) / 1000).toFixed(1)}s)`)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.warn(`[pipeline] Document ${documentId}: normalization failed (non-blocking) — ${message}`)
   }
 
   // Phase 3: Merchant Lookup + Classification
@@ -103,7 +133,8 @@ export async function processDocument(db: Database.Database, documentId: number)
   }
 
   // Classify only unknown transactions via LLM
-  let llmClassifications = new Map<number, string>() // original index → category name
+  console.log(`[pipeline] Document ${documentId}: classification — ${knownCategories.size} known from memory, ${unknownIndices.length} need LLM`)
+  const llmClassifications = new Map<number, string>() // original index → category name
   if (unknownIndices.length > 0) {
     try {
       const unknownTransactions = unknownIndices.map(i => rawResult.transactions[i])
@@ -115,12 +146,17 @@ export async function processDocument(db: Database.Database, documentId: number)
         if (name) knownMappings.push({ merchant, category: name })
       }
 
+      console.log(`[pipeline] Document ${documentId}: classification starting (${unknownTransactions.length} transactions, ${knownMappings.length} known mappings for context)...`)
+      const t2 = Date.now()
       const classResult = await classifyTransactions(
+        classification.provider,
+        classification.providerName,
         rawResult.document_type,
         unknownTransactions,
-        classificationModel,
+        classification.model,
         knownMappings.length > 0 ? knownMappings : undefined
       )
+      console.log(`[pipeline] Document ${documentId}: classification complete — ${classResult.classifications.length} classified (${((Date.now() - t2) / 1000).toFixed(1)}s)`)
 
       // Remap LLM result indices back to original indices
       for (const c of classResult.classifications) {
@@ -131,12 +167,16 @@ export async function processDocument(db: Database.Database, documentId: number)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error'
+      console.error(`[pipeline] Document ${documentId}: classification FAILED — ${message}`)
       updateDocumentStatus(db, documentId, 'failed', `Classification failed: ${message}`)
       return
     }
+  } else {
+    console.log(`[pipeline] Document ${documentId}: classification skipped — all merchants known`)
   }
 
   // Phase 4: Insert + Learn
+  console.log(`[pipeline] Document ${documentId}: inserting ${rawResult.transactions.length} transactions...`)
   const insert = db.prepare(
     'INSERT INTO transactions (document_id, date, description, amount, type, category_id, normalized_merchant, transaction_class) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   )
@@ -184,4 +224,5 @@ export async function processDocument(db: Database.Database, documentId: number)
   // Mark complete
   updateDocumentPhase(db, documentId, 'complete')
   updateDocumentStatus(db, documentId, 'completed')
+  console.log(`[pipeline] Document ${documentId}: COMPLETE ✓`)
 }

@@ -10,13 +10,21 @@ const mockExtractRaw = vi.fn()
 const mockClassify = vi.fn()
 const mockNormalize = vi.fn()
 
-vi.mock('@/lib/claude/extract-transactions', () => ({
+vi.mock('@/lib/llm/extract-transactions', () => ({
   extractRawTransactions: (...args: unknown[]) => mockExtractRaw(...args),
   classifyTransactions: (...args: unknown[]) => mockClassify(...args),
 }))
 
-vi.mock('@/lib/claude/normalize-merchants', () => ({
+vi.mock('@/lib/llm/normalize-merchants', () => ({
   normalizeMerchants: (...args: unknown[]) => mockNormalize(...args),
+}))
+
+vi.mock('@/lib/llm/factory', () => ({
+  getProviderForTask: () => ({
+    provider: {},
+    providerName: 'anthropic',
+    model: 'test-model',
+  }),
 }))
 
 vi.mock('fs/promises', () => ({
@@ -190,8 +198,8 @@ describe('processDocument', () => {
     // Classify should only be called with the unknown transaction (New Store)
     expect(mockClassify).toHaveBeenCalledTimes(1)
     const classifyArgs = mockClassify.mock.calls[0]
-    expect(classifyArgs[1]).toHaveLength(1) // Only 1 unknown transaction sent to LLM
-    expect(classifyArgs[1][0].description).toBe('New Store')
+    expect(classifyArgs[3]).toHaveLength(1) // Only 1 unknown transaction sent to LLM
+    expect(classifyArgs[3][0].description).toBe('New Store')
 
     // Verify the known merchant got the right category from memory
     const { transactions } = listTransactions(db, { document_id: docId })
