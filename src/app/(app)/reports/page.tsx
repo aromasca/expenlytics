@@ -34,21 +34,20 @@ function getDatePreset(preset: string): { start: string; end: string } {
   const today = `${yyyy}-${mm}-${dd}`
 
   switch (preset) {
-    case 'thisMonth':
-      return { start: `${yyyy}-${mm}-01`, end: today }
-    case 'lastMonth': {
-      const d = new Date(yyyy, now.getMonth() - 1, 1)
-      const lastDay = new Date(yyyy, now.getMonth(), 0)
-      return { start: d.toISOString().slice(0, 10), end: lastDay.toISOString().slice(0, 10) }
+    case '1mo': {
+      const d = new Date(yyyy, now.getMonth() - 1, now.getDate())
+      return { start: d.toISOString().slice(0, 10), end: today }
     }
-    case 'thisQuarter': {
-      const qStart = new Date(yyyy, Math.floor(now.getMonth() / 3) * 3, 1)
-      return { start: qStart.toISOString().slice(0, 10), end: today }
+    case '3mo': {
+      const d = new Date(yyyy, now.getMonth() - 3, now.getDate())
+      return { start: d.toISOString().slice(0, 10), end: today }
     }
-    case 'thisYear':
-      return { start: `${yyyy}-01-01`, end: today }
-    case 'last12Months': {
-      const d = new Date(yyyy, now.getMonth() - 11, 1)
+    case '6mo': {
+      const d = new Date(yyyy, now.getMonth() - 6, now.getDate())
+      return { start: d.toISOString().slice(0, 10), end: today }
+    }
+    case '1yr': {
+      const d = new Date(yyyy - 1, now.getMonth(), now.getDate())
       return { start: d.toISOString().slice(0, 10), end: today }
     }
     default:
@@ -98,11 +97,11 @@ export default function ReportsPage() {
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
           <span className="text-xs text-muted-foreground">From</span>
-          <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-32 h-8 text-xs" />
+          <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-32 h-8 text-xs dark:[color-scheme:dark]" />
         </div>
         <div className="flex items-center gap-1">
           <span className="text-xs text-muted-foreground">To</span>
-          <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-32 h-8 text-xs" />
+          <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-32 h-8 text-xs dark:[color-scheme:dark]" />
         </div>
         <Select value={groupBy} onValueChange={(v) => setGroupBy(v as 'month' | 'quarter' | 'year')}>
           <SelectTrigger className="w-28 h-8 text-xs">
@@ -116,11 +115,10 @@ export default function ReportsPage() {
         </Select>
         <div className="flex gap-1">
           {[
-            { label: 'This month', value: 'thisMonth' },
-            { label: 'Last month', value: 'lastMonth' },
-            { label: 'Q', value: 'thisQuarter' },
-            { label: 'YTD', value: 'thisYear' },
-            { label: '12mo', value: 'last12Months' },
+            { label: '1mo', value: '1mo' },
+            { label: '3mo', value: '3mo' },
+            { label: '6mo', value: '6mo' },
+            { label: '1yr', value: '1yr' },
             { label: 'All', value: 'all' },
           ].map(p => (
             <Button key={p.value} variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground" onClick={() => applyPreset(p.value)}>
