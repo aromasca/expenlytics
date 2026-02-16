@@ -504,6 +504,147 @@ Return ONLY valid JSON in this exact format:
   },
 }
 
+const TEXT_EXTRACTION_PROMPTS: Record<ProviderName, PromptTemplate> = {
+  anthropic: {
+    user: `You are a precise financial statement text parser. You will receive pre-extracted text from a financial statement (bank statement, credit card statement, savings account statement, or investment statement). Parse the text and extract ALL transactions.
+
+STEP 1: Identify the document type:
+- "credit_card" — credit card statement
+- "checking_account" — checking/current account statement
+- "savings_account" — savings account statement
+- "investment" — investment/brokerage statement
+- "other" — any other financial document
+
+STEP 2: Extract every transaction. For each:
+- date: in YYYY-MM-DD format
+- description: merchant name or transaction description (clean up codes/numbers, make human-readable)
+- amount: as a positive number (no currency symbols)
+- type: "debit" or "credit" based on DOCUMENT TYPE CONTEXT (see below)
+- transaction_class: structural classification (see TRANSACTION CLASS RULES below)
+
+DOCUMENT TYPE CONTEXT — this determines how to interpret debits and credits:
+- Credit card: debits are purchases/charges, credits are payments to the card or refunds.
+- Checking/savings account: debits are money out (spending, transfers), credits are money in (salary, deposits).
+- Investment: debits are contributions/purchases, credits are withdrawals/dividends.
+
+TRANSACTION CLASS RULES — classify each transaction structurally:
+- "purchase": regular purchases, charges for goods/services
+- "payment": payments received on credit card, loan payments received
+- "refund": returned purchases, merchant credits, chargebacks, reimbursements
+- "fee": bank fees, late fees, service charges, overdraft fees, annual fees
+- "interest": interest charges, finance charges on credit cards/loans
+- "transfer": inter-account transfers, CC bill payments from checking, savings contributions, 401k contributions, P2P self-transfers (Venmo/Zelle to yourself), ACH between own accounts
+
+By document type:
+- Credit card: charges/purchases → purchase, payments received → payment, refunds/credits → refund, interest charges → interest, fees → fee
+- Checking: purchases/spending → purchase, CC payments out → transfer, transfers to savings/investments → transfer, refunds → refund, fees → fee, salary deposits → purchase (it's income, not a "purchase" per se, but use purchase for non-transfer credits)
+- All: inter-account movements → transfer
+
+Return ONLY valid JSON in this exact format:
+{
+  "document_type": "credit_card|checking_account|savings_account|investment|other",
+  "transactions": [
+    {"date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "type": "debit|credit", "transaction_class": "purchase|payment|refund|fee|interest|transfer"}
+  ]
+}
+
+FOREIGN CURRENCY TRANSACTIONS:
+- When a transaction shows a foreign currency amount and exchange rate (e.g., "4,963.00 X 0.316274430 (EXCHG RATE)"), this is ONE transaction, not two
+- The foreign currency line, exchange rate, and converted amount are supplementary details of the main transaction
+- Extract only ONE transaction using the converted/USD amount and the merchant name
+- Do NOT create a separate "currency exchange" transaction from the exchange rate line
+
+Important:
+- Include every transaction, do not skip any
+- Dates must be YYYY-MM-DD format
+- Amounts must be positive numbers
+- Apply document-type-specific debit/credit logic
+- Every transaction MUST have a transaction_class
+- Do NOT assign categories — only extract raw transaction data
+
+Here is the extracted text from the financial statement:
+
+<extracted_text>{extracted_text}</extracted_text>`,
+  },
+  openai: {
+    user: `You are a precise financial statement text parser. You will receive pre-extracted text from a financial statement (bank statement, credit card statement, savings account statement, or investment statement). Parse the text and extract ALL transactions.
+
+## Step 1: Identify Document Type
+
+Choose one:
+- "credit_card" — credit card statement
+- "checking_account" — checking/current account statement
+- "savings_account" — savings account statement
+- "investment" — investment/brokerage statement
+- "other" — any other financial document
+
+## Step 2: Extract Every Transaction
+
+For each transaction, extract:
+- **date**: in YYYY-MM-DD format
+- **description**: merchant name or transaction description (clean up codes/numbers, make human-readable)
+- **amount**: as a positive number (no currency symbols)
+- **type**: "debit" or "credit" based on document type context (see below)
+- **transaction_class**: structural classification (see transaction class rules below)
+
+## Document Type Context
+
+This determines how to interpret debits and credits:
+- **Credit card**: debits are purchases/charges, credits are payments to the card or refunds.
+- **Checking/savings account**: debits are money out (spending, transfers), credits are money in (salary, deposits).
+- **Investment**: debits are contributions/purchases, credits are withdrawals/dividends.
+
+## Transaction Class Rules
+
+Classify each transaction structurally:
+- **"purchase"**: regular purchases, charges for goods/services
+- **"payment"**: payments received on credit card, loan payments received
+- **"refund"**: returned purchases, merchant credits, chargebacks, reimbursements
+- **"fee"**: bank fees, late fees, service charges, overdraft fees, annual fees
+- **"interest"**: interest charges, finance charges on credit cards/loans
+- **"transfer"**: inter-account transfers, CC bill payments from checking, savings contributions, 401k contributions, P2P self-transfers (Venmo/Zelle to yourself), ACH between own accounts
+
+### By Document Type:
+1. **Credit card**: charges/purchases → purchase, payments received → payment, refunds/credits → refund, interest charges → interest, fees → fee
+2. **Checking**: purchases/spending → purchase, CC payments out → transfer, transfers to savings/investments → transfer, refunds → refund, fees → fee, salary deposits → purchase (it's income, not a "purchase" per se, but use purchase for non-transfer credits)
+3. **All**: inter-account movements → transfer
+
+## Output Format
+
+Return ONLY valid JSON in this exact format:
+\`\`\`json
+{
+  "document_type": "credit_card|checking_account|savings_account|investment|other",
+  "transactions": [
+    {"date": "YYYY-MM-DD", "description": "...", "amount": 0.00, "type": "debit|credit", "transaction_class": "purchase|payment|refund|fee|interest|transfer"}
+  ]
+}
+\`\`\`
+
+## Foreign Currency Transactions
+- When a transaction shows a foreign currency amount and exchange rate (e.g., "4,963.00 X 0.316274430 (EXCHG RATE)"), this is ONE transaction, not two
+- The foreign currency line, exchange rate, and converted amount are supplementary details of the main transaction
+- Extract only ONE transaction using the converted/USD amount and the merchant name
+- Do NOT create a separate "currency exchange" transaction from the exchange rate line
+
+## Important Rules
+- Include every transaction, do not skip any
+- Dates must be YYYY-MM-DD format
+- Amounts must be positive numbers
+- Apply document-type-specific debit/credit logic
+- Every transaction MUST have a transaction_class
+- Do NOT assign categories — only extract raw transaction data
+
+## Extracted Text
+
+{extracted_text}`,
+  },
+}
+
+export function getTextExtractionPrompt(provider: ProviderName): PromptTemplate {
+  return TEXT_EXTRACTION_PROMPTS[provider]
+}
+
 export function getRawExtractionPrompt(provider: ProviderName): PromptTemplate {
   return RAW_EXTRACTION_PROMPTS[provider]
 }

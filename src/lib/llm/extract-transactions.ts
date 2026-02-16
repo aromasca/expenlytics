@@ -1,5 +1,6 @@
+import { PDFParse } from 'pdf-parse'
 import type { LLMProvider, ProviderName } from './types'
-import { getRawExtractionPrompt, getLegacyExtractionPrompt } from './prompts/extraction'
+import { getRawExtractionPrompt, getTextExtractionPrompt, getLegacyExtractionPrompt } from './prompts/extraction'
 import { getClassifyPrompt, getReclassifyPrompt } from './prompts/classification'
 import { extractionSchema, reclassificationSchema, rawExtractionSchema, classificationSchema, type ExtractionResult, type ReclassificationResult, type RawExtractionResult, type ClassificationResult, type RawTransactionData } from './schemas'
 
@@ -31,6 +32,56 @@ export async function extractRawTransactions(
   pdfBuffer: Buffer,
   model: string
 ): Promise<RawExtractionResult> {
+  // Stage 1: Try local text extraction with pdf-parse
+  let extractedText: string | null = null
+  try {
+    const t0 = Date.now()
+    const pdf = new PDFParse({ data: pdfBuffer })
+    const parsed = await pdf.getText()
+    if (parsed.text && parsed.text.trim().length > 0) {
+      extractedText = parsed.text
+      console.log(`[extraction] pdf-parse extracted ${extractedText.length} chars in ${Date.now() - t0}ms`)
+    } else {
+      console.log(`[extraction] pdf-parse returned no text (scanned PDF?) — will use document upload`)
+    }
+    await pdf.destroy()
+  } catch {
+    console.warn('[extraction] pdf-parse failed, falling back to document extraction')
+  }
+
+  // Stage 2: If we have text, send to LLM via complete() (fast text-based, no document upload)
+  if (extractedText) {
+    try {
+      const prompt = getTextExtractionPrompt(providerName)
+      const filledPrompt = prompt.user.replace('{extracted_text}', extractedText)
+
+      console.log(`[extraction] using fast text path → ${providerName} complete()`)
+      const t1 = Date.now()
+      const response = await provider.complete({
+        system: prompt.system,
+        messages: [{ role: 'user', content: filledPrompt }],
+        maxTokens: 16384,
+        model,
+      })
+
+      const text = response.text
+      const jsonStr = extractJSON(text)
+      const parsed = JSON.parse(jsonStr.trim())
+      const result = rawExtractionSchema.parse(parsed)
+
+      if (result.transactions.length > 0) {
+        console.log(`[extraction] fast text path succeeded — ${result.transactions.length} transactions (${((Date.now() - t1) / 1000).toFixed(1)}s)`)
+        return result
+      }
+
+      console.warn('[extraction] text-based extraction returned 0 transactions, falling back to document upload')
+    } catch (err) {
+      console.warn('[extraction] text-based extraction failed, falling back to document upload', err)
+    }
+  }
+
+  // Stage 3: Fallback — full document upload (current behavior)
+  console.log(`[extraction] using document upload path → ${providerName} extractFromDocument()`)
   const prompt = getRawExtractionPrompt(providerName)
 
   const response = await provider.extractFromDocument({

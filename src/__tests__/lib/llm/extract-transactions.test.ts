@@ -1,4 +1,14 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+const mockGetText = vi.hoisted(() => vi.fn())
+const mockDestroy = vi.hoisted(() => vi.fn())
+vi.mock('pdf-parse', () => ({
+  PDFParse: class {
+    constructor() {}
+    getText = mockGetText
+    destroy = mockDestroy
+  },
+}))
 import type { LLMProvider } from '@/lib/llm/types'
 import { extractRawTransactions, classifyTransactions, reclassifyTransactions } from '@/lib/llm/extract-transactions'
 
@@ -13,6 +23,11 @@ function createMockProvider(responseText: string) {
 }
 
 describe('extractRawTransactions', () => {
+  beforeEach(() => {
+    mockGetText.mockReset()
+    mockGetText.mockResolvedValue({ text: 'some statement text', numpages: 1 })
+  })
+
   it('extracts transactions without categories', async () => {
     const responseJSON = JSON.stringify({
       document_type: 'checking_account',
@@ -21,7 +36,7 @@ describe('extractRawTransactions', () => {
         { date: '2025-01-16', description: 'Salary Deposit', amount: 3000, type: 'credit', transaction_class: 'purchase' },
       ],
     })
-    const { provider, mockExtract } = createMockProvider(responseJSON)
+    const { provider, mockComplete } = createMockProvider(responseJSON)
 
     const fakePdf = Buffer.from('fake pdf content')
     const result = await extractRawTransactions(provider, 'anthropic', fakePdf, 'claude-sonnet-4-5-20250929')
@@ -31,9 +46,96 @@ describe('extractRawTransactions', () => {
     expect(result.transactions[0].description).toBe('Whole Foods')
     expect(result.transactions[0]).not.toHaveProperty('category')
     expect(result.transactions[1].type).toBe('credit')
+    expect(mockComplete).toHaveBeenCalledTimes(1)
+    expect(mockComplete.mock.calls[0][0].model).toBe('claude-sonnet-4-5-20250929')
+    const prompt = mockComplete.mock.calls[0][0].messages[0].content as string
+    expect(prompt).toContain('some statement text')
+  })
+
+  it('uses local text extraction when pdf-parse returns text and LLM structures it', async () => {
+    const extractedText = '01/15/2025 WHOLE FOODS $85.50\n01/16/2025 SALARY DEPOSIT $3,000.00'
+    mockGetText.mockResolvedValue({ text: extractedText, numpages: 1 })
+
+    const responseJSON = JSON.stringify({
+      document_type: 'checking_account',
+      transactions: [
+        { date: '2025-01-15', description: 'Whole Foods', amount: 85.50, type: 'debit', transaction_class: 'purchase' },
+        { date: '2025-01-16', description: 'Salary Deposit', amount: 3000, type: 'credit', transaction_class: 'purchase' },
+      ],
+    })
+    const { provider, mockComplete, mockExtract } = createMockProvider(responseJSON)
+
+    const result = await extractRawTransactions(provider, 'anthropic', Buffer.from('fake pdf'), 'test-model')
+
+    expect(result.transactions).toHaveLength(2)
+    expect(mockComplete).toHaveBeenCalledTimes(1)
+    expect(mockExtract).not.toHaveBeenCalled()
+    const prompt = mockComplete.mock.calls[0][0].messages[0].content as string
+    expect(prompt).toContain(extractedText)
+  })
+
+  it('falls back to document extraction when text-based extraction returns 0 transactions', async () => {
+    mockGetText.mockResolvedValue({ text: 'garbled text with no transactions', numpages: 1 })
+
+    const emptyResponse = JSON.stringify({ document_type: 'other', transactions: [] })
+    const fullResponse = JSON.stringify({
+      document_type: 'credit_card',
+      transactions: [
+        { date: '2025-01-15', description: 'Target', amount: 42.99, type: 'debit', transaction_class: 'purchase' },
+      ],
+    })
+
+    const mockComplete = vi.fn().mockResolvedValue({ text: emptyResponse })
+    const mockExtract = vi.fn().mockResolvedValue({ text: fullResponse })
+    const provider = { complete: mockComplete, extractFromDocument: mockExtract } as LLMProvider
+
+    const fakePdf = Buffer.from('fake pdf')
+    const result = await extractRawTransactions(provider, 'anthropic', fakePdf, 'test-model')
+
+    expect(result.transactions).toHaveLength(1)
+    expect(result.document_type).toBe('credit_card')
+    expect(mockComplete).toHaveBeenCalledTimes(1)
     expect(mockExtract).toHaveBeenCalledTimes(1)
-    expect(mockExtract.mock.calls[0][0].model).toBe('claude-sonnet-4-5-20250929')
     expect(mockExtract.mock.calls[0][0].document).toBe(fakePdf)
+  })
+
+  it('falls back to document extraction when text-based complete() throws', async () => {
+    mockGetText.mockResolvedValue({ text: 'some statement text', numpages: 1 })
+
+    const responseJSON = JSON.stringify({
+      document_type: 'checking_account',
+      transactions: [
+        { date: '2025-01-15', description: 'Whole Foods', amount: 85.50, type: 'debit', transaction_class: 'purchase' },
+      ],
+    })
+
+    const mockComplete = vi.fn().mockRejectedValue(new Error('LLM network error'))
+    const mockExtract = vi.fn().mockResolvedValue({ text: responseJSON })
+    const provider = { complete: mockComplete, extractFromDocument: mockExtract } as LLMProvider
+
+    const result = await extractRawTransactions(provider, 'anthropic', Buffer.from('fake pdf'), 'test-model')
+
+    expect(result.transactions).toHaveLength(1)
+    expect(mockComplete).toHaveBeenCalledTimes(1)
+    expect(mockExtract).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to document extraction when pdf-parse throws', async () => {
+    mockGetText.mockRejectedValue(new Error('Invalid PDF'))
+
+    const responseJSON = JSON.stringify({
+      document_type: 'checking_account',
+      transactions: [
+        { date: '2025-01-15', description: 'Whole Foods', amount: 85.50, type: 'debit', transaction_class: 'purchase' },
+      ],
+    })
+    const { provider, mockComplete, mockExtract } = createMockProvider(responseJSON)
+
+    const result = await extractRawTransactions(provider, 'anthropic', Buffer.from('fake pdf'), 'test-model')
+
+    expect(result.transactions).toHaveLength(1)
+    expect(mockComplete).not.toHaveBeenCalled()
+    expect(mockExtract).toHaveBeenCalledTimes(1)
   })
 
   it('handles markdown code fences in response', async () => {
