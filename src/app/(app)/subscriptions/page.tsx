@@ -10,6 +10,56 @@ import { RefreshCw, ChevronDown, ChevronRight, RotateCcw, Merge } from 'lucide-r
 import { formatCurrency } from '@/lib/format'
 import { getDatePreset } from '@/lib/date-presets'
 
+type SortBy = 'merchantName' | 'frequency' | 'category' | 'avgAmount' | 'estimatedMonthlyAmount' | 'occurrences' | 'lastDate'
+
+const FREQUENCY_RANK: Record<string, number> = {
+  weekly: 1,
+  monthly: 2,
+  quarterly: 3,
+  yearly: 4,
+  irregular: 5,
+}
+
+const DEFAULT_ORDERS: Record<SortBy, 'asc' | 'desc'> = {
+  merchantName: 'asc',
+  frequency: 'asc',
+  category: 'asc',
+  avgAmount: 'desc',
+  estimatedMonthlyAmount: 'desc',
+  occurrences: 'desc',
+  lastDate: 'desc',
+}
+
+function sortGroups(groups: RecurringGroup[], sortBy: SortBy, sortOrder: 'asc' | 'desc'): RecurringGroup[] {
+  return [...groups].sort((a, b) => {
+    let cmp = 0
+    switch (sortBy) {
+      case 'merchantName':
+        cmp = a.merchantName.localeCompare(b.merchantName)
+        break
+      case 'frequency':
+        cmp = (FREQUENCY_RANK[a.frequency] ?? 99) - (FREQUENCY_RANK[b.frequency] ?? 99)
+        break
+      case 'category':
+        cmp = (a.category ?? '').localeCompare(b.category ?? '')
+        break
+      case 'avgAmount':
+        cmp = a.avgAmount - b.avgAmount
+        break
+      case 'estimatedMonthlyAmount':
+        cmp = a.estimatedMonthlyAmount - b.estimatedMonthlyAmount
+        break
+      case 'occurrences':
+        cmp = a.occurrences - b.occurrences
+        break
+      case 'lastDate':
+        cmp = a.lastDate.localeCompare(b.lastDate)
+        break
+    }
+    return sortOrder === 'asc' ? cmp : -cmp
+  })
+}
+
 interface RecurringGroup {
   merchantName: string
   occurrences: number
@@ -46,6 +96,17 @@ export default function SubscriptionsPage() {
   const [mergeTarget, setMergeTarget] = useState('')
   const [customTarget, setCustomTarget] = useState('')
   const [merging, setMerging] = useState(false)
+  const [sortBy, setSortBy] = useState<SortBy>('estimatedMonthlyAmount')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+
+  const handleSort = (column: SortBy) => {
+    if (sortBy === column) {
+      setSortOrder(o => o === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(column)
+      setSortOrder(DEFAULT_ORDERS[column])
+    }
+  }
 
   const fetchData = () => {
     setLoading(true)
@@ -238,11 +299,14 @@ export default function SubscriptionsPage() {
           </div>
 
           <RecurringChargesTable
-            groups={data.groups}
+            groups={sortGroups(data.groups, sortBy, sortOrder)}
             onDismiss={handleDismiss}
             selectable
             selectedMerchants={selectedMerchants}
             onSelectionChange={setSelectedMerchants}
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onSort={handleSort}
           />
 
           {data.dismissedGroups.length > 0 && (

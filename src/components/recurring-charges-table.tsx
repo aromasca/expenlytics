@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { X } from 'lucide-react'
+import { X, ArrowUp, ArrowDown } from 'lucide-react'
 import { formatCurrencyPrecise } from '@/lib/format'
 
 interface RecurringGroup {
@@ -23,12 +23,17 @@ interface RecurringGroup {
   transactionIds: number[]
 }
 
+type SortBy = 'merchantName' | 'frequency' | 'category' | 'avgAmount' | 'estimatedMonthlyAmount' | 'occurrences' | 'lastDate'
+
 interface RecurringChargesTableProps {
   groups: RecurringGroup[]
   onDismiss?: (merchantName: string) => void
   selectable?: boolean
   selectedMerchants?: Set<string>
   onSelectionChange?: (selected: Set<string>) => void
+  sortBy?: SortBy
+  sortOrder?: 'asc' | 'desc'
+  onSort?: (column: SortBy) => void
 }
 
 const FREQUENCY_LABELS: Record<string, string> = {
@@ -41,11 +46,19 @@ const FREQUENCY_LABELS: Record<string, string> = {
 
 const PAGE_SIZE = 20
 
-export function RecurringChargesTable({ groups, onDismiss, selectable, selectedMerchants, onSelectionChange }: RecurringChargesTableProps) {
+export function RecurringChargesTable({ groups, onDismiss, selectable, selectedMerchants, onSelectionChange, sortBy, sortOrder, onSort }: RecurringChargesTableProps) {
   const [page, setPage] = useState(0)
   const totalPages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE))
   const effectivePage = Math.min(page, totalPages - 1)
   const paged = groups.slice(effectivePage * PAGE_SIZE, (effectivePage + 1) * PAGE_SIZE)
+
+  const sortIcon = (column: SortBy) => {
+    if (sortBy !== column) return null
+    const Icon = sortOrder === 'asc' ? ArrowUp : ArrowDown
+    return <Icon className="inline h-3 w-3 ml-0.5" />
+  }
+
+  const sortable = onSort ? 'cursor-pointer select-none' : ''
 
   const selected = selectedMerchants ?? new Set<string>()
   const allPageSelected = paged.length > 0 && paged.every(g => selected.has(g.merchantName))
@@ -86,13 +99,13 @@ export function RecurringChargesTable({ groups, onDismiss, selectable, selectedM
                     <Checkbox checked={allPageSelected} onCheckedChange={toggleAll} />
                   </TableHead>
                 )}
-                <TableHead className="py-1.5 text-xs">Merchant</TableHead>
-                <TableHead className="py-1.5 text-xs">Freq</TableHead>
-                <TableHead className="py-1.5 text-xs">Category</TableHead>
-                <TableHead className="py-1.5 text-xs text-right">Avg</TableHead>
-                <TableHead className="py-1.5 text-xs text-right">Monthly</TableHead>
-                <TableHead className="py-1.5 text-xs text-center">#</TableHead>
-                <TableHead className="py-1.5 text-xs">Last</TableHead>
+                <TableHead className={`py-1.5 text-xs ${sortable}`} onClick={() => onSort?.('merchantName')}>Merchant{sortIcon('merchantName')}</TableHead>
+                <TableHead className={`py-1.5 text-xs ${sortable}`} onClick={() => onSort?.('frequency')}>Freq{sortIcon('frequency')}</TableHead>
+                <TableHead className={`py-1.5 text-xs ${sortable}`} onClick={() => onSort?.('category')}>Category{sortIcon('category')}</TableHead>
+                <TableHead className={`py-1.5 text-xs text-right ${sortable}`} onClick={() => onSort?.('avgAmount')}>Avg{sortIcon('avgAmount')}</TableHead>
+                <TableHead className={`py-1.5 text-xs text-right ${sortable}`} onClick={() => onSort?.('estimatedMonthlyAmount')}>Monthly{sortIcon('estimatedMonthlyAmount')}</TableHead>
+                <TableHead className={`py-1.5 text-xs text-center ${sortable}`} onClick={() => onSort?.('occurrences')}>#<span>{sortIcon('occurrences')}</span></TableHead>
+                <TableHead className={`py-1.5 text-xs ${sortable}`} onClick={() => onSort?.('lastDate')}>Last{sortIcon('lastDate')}</TableHead>
                 {onDismiss && <TableHead className="w-8 py-1.5"></TableHead>}
               </TableRow>
             </TableHeader>
