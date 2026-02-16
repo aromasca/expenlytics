@@ -20,35 +20,37 @@ interface CompletenessGridProps {
 
 export function CompletenessGrid({ months }: CompletenessGridProps) {
   const entries = Object.entries(months).sort(([a], [b]) => a.localeCompare(b))
-  if (entries.length === 0) return <p className="text-xs text-muted-foreground">No transaction data yet</p>
+  if (entries.length === 0) return <span className="text-[11px] text-muted-foreground/50">No data</span>
 
-  // Group by year
-  const byYear = new Map<string, Array<{ month: string; status: 'complete' | 'missing' | 'future'; documents: string[] }>>()
   const now = new Date()
   const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
+  // Group by year
+  const byYear = new Map<string, Array<{ month: string; monthNum: number; status: 'complete' | 'missing' | 'future'; documents: MonthDocument[] }>>()
+
   for (const [ym, info] of entries) {
-    const [year] = ym.split('-')
+    const [year, m] = ym.split('-')
     if (!byYear.has(year)) byYear.set(year, [])
     byYear.get(year)!.push({
       month: ym,
+      monthNum: parseInt(m, 10),
       status: ym > currentYM ? 'future' : info.status,
       documents: info.documents,
     })
   }
 
   return (
-    <div className="space-y-2">
-      {[...byYear.entries()].map(([year, months]) => {
-        const monthNums = months.map(m => parseInt(m.month.split('-')[1], 10))
+    <div className="flex items-center gap-3">
+      {[...byYear.entries()].map(([year, yearMonths]) => {
+        const monthNums = yearMonths.map(m => m.monthNum)
         const minMonth = Math.min(...monthNums)
         const maxMonth = Math.max(...monthNums)
-        const statusMap = new Map(months.map(m => [parseInt(m.month.split('-')[1], 10), m]))
+        const statusMap = new Map(yearMonths.map(m => [m.monthNum, m]))
 
         return (
-          <div key={year} className="flex items-center gap-1.5">
-            <span className="text-[11px] text-muted-foreground w-8 shrink-0 tabular-nums">{year}</span>
-            <div className="flex gap-1">
+          <div key={year} className="flex items-center gap-1">
+            <span className="text-[10px] text-muted-foreground/50 tabular-nums mr-0.5">{year}</span>
+            <div className="flex gap-[3px]">
               {Array.from({ length: maxMonth - minMonth + 1 }, (_, i) => {
                 const monthNum = minMonth + i
                 const entry = statusMap.get(monthNum)
@@ -58,29 +60,31 @@ export function CompletenessGrid({ months }: CompletenessGridProps) {
                 const isFuture = ym > currentYM
 
                 const label = `${MONTH_LABELS[monthNum - 1]} ${year}`
-                let tooltip = `${label}: ${isFuture ? 'future' : status ?? 'missing'}`
-                for (const doc of docs) {
-                  tooltip += `\n${doc.statementDate ?? doc.filename}`
+                let tooltip = label
+                if (isFuture) {
+                  tooltip += ' (upcoming)'
+                } else if (status === 'complete') {
+                  tooltip += ' — uploaded'
+                  for (const doc of docs) {
+                    tooltip += `\n  ${doc.statementDate ?? doc.filename}`
+                  }
+                } else {
+                  tooltip += ' — missing'
                 }
 
                 return (
                   <div
                     key={monthNum}
                     title={tooltip}
-                    className="flex flex-col items-center gap-0.5"
+                    className={cn(
+                      'h-4 w-4 rounded-[3px] text-[9px] font-medium flex items-center justify-center cursor-default transition-colors',
+                      isFuture && 'bg-muted/60 text-transparent',
+                      !isFuture && status === 'complete' && 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400',
+                      !isFuture && status === 'missing' && 'bg-red-500/10 text-red-400/80 dark:text-red-400/60',
+                      !isFuture && !status && 'bg-muted/60 text-transparent',
+                    )}
                   >
-                    <span className="text-[10px] text-muted-foreground leading-none">{MONTH_LABELS[monthNum - 1]}</span>
-                    <div
-                      className={cn(
-                        'h-5 w-5 rounded-sm flex items-center justify-center text-[10px]',
-                        isFuture && 'bg-muted text-muted-foreground/40',
-                        !isFuture && status === 'complete' && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-                        !isFuture && status === 'missing' && 'bg-red-500/15 text-red-500 dark:text-red-400',
-                        !isFuture && !status && 'bg-muted text-muted-foreground/40',
-                      )}
-                    >
-                      {isFuture ? '·' : status === 'complete' ? '✓' : status === 'missing' ? '✗' : '·'}
-                    </div>
+                    {MONTH_LABELS[monthNum - 1]?.[0]}
                   </div>
                 )
               })}

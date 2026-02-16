@@ -128,8 +128,8 @@ export default function AccountsPage() {
 
       {accounts.length === 0 && unassigned.length === 0 ? (
         <p className="text-xs text-muted-foreground">No accounts detected yet. Upload bank statements to get started.</p>
-      ) : (
-        <div className="space-y-2">
+      ) : accounts.length > 0 ? (
+        <div className="border border-border/50 rounded-lg divide-y divide-border/50 overflow-hidden">
           {accounts.map(account => (
             <AccountCard
               key={account.id}
@@ -140,7 +140,7 @@ export default function AccountsPage() {
             />
           ))}
         </div>
-      )}
+      ) : null}
 
       {needsDetection.length > 0 && (
         <div className="space-y-2">
