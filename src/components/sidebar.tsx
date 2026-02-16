@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -20,9 +21,9 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-48 flex-col border-r border-sidebar-border bg-sidebar max-md:w-12">
       <div className="px-4 py-3 max-md:px-2">
-        <Link href="/insights">
-          <span className="text-sm font-semibold tracking-tight text-foreground max-md:hidden">expenlytics</span>
-          <span className="hidden text-sm font-semibold text-foreground max-md:block">e</span>
+        <Link href="/insights" className="flex items-center gap-2">
+          <Image src="/logo.jpg" alt="Expenlytics" width={24} height={24} className="rounded shrink-0" />
+          <span className="text-sm font-semibold tracking-tight text-foreground max-md:hidden">Expenlytics</span>
         </Link>
       </div>
       <nav className="flex-1 px-2 space-y-0.5 max-md:px-1">

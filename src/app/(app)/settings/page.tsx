@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useTheme } from '@/components/theme-provider'
-import { Tags, Cpu, Trash2, Moon, Sun, RefreshCw } from 'lucide-react'
+import { Cpu, Trash2, Moon, Sun } from 'lucide-react'
 
 interface ProviderConfig {
   name: string
@@ -28,10 +29,8 @@ export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme()
   const [resetting, setResetting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [reclassifying, setReclassifying] = useState(false)
-  const [reclassifyResult, setReclassifyResult] = useState<string | null>(null)
-  const [backfilling, setBackfilling] = useState(false)
-  const [backfillResult, setBackfillResult] = useState<string | null>(null)
+  const [confirmText, setConfirmText] = useState('')
+  const [resetSettings, setResetSettings] = useState(false)
   const [providers, setProviders] = useState<Record<string, ProviderConfig>>({})
   const [availableProviders, setAvailableProviders] = useState<string[]>([])
   const [settings, setSettings] = useState<Record<string, string>>({})
@@ -111,13 +110,19 @@ export default function SettingsPage() {
   async function handleReset() {
     setResetting(true)
     try {
-      const res = await fetch('/api/reset', { method: 'POST' })
+      const res = await fetch('/api/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resetSettings }),
+      })
       if (res.ok) {
         window.location.href = '/transactions'
       }
     } finally {
       setResetting(false)
       setConfirmOpen(false)
+      setConfirmText('')
+      setResetSettings(false)
     }
   }
 
@@ -199,82 +204,6 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      <Card className="p-4">
-        <div className="flex items-center gap-2.5 mb-2">
-          <RefreshCw className="h-4 w-4" />
-          <h3 className="text-sm font-medium">Reclassify Transactions</h3>
-        </div>
-        <p className="text-xs text-muted-foreground mb-3">
-          Re-run AI classification using the latest taxonomy. Manual overrides preserved.
-        </p>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={async () => {
-            setReclassifying(true)
-            setReclassifyResult(null)
-            try {
-              const res = await fetch('/api/reclassify/backfill', { method: 'POST' })
-              const data = await res.json()
-              if (res.ok) {
-                setReclassifyResult(`${data.updated}/${data.total} reclassified`)
-              } else {
-                setReclassifyResult(`Error: ${data.error}`)
-              }
-            } catch {
-              setReclassifyResult('Failed to connect')
-            } finally {
-              setReclassifying(false)
-            }
-          }} disabled={reclassifying}>
-            {reclassifying ? 'Running...' : 'Reclassify All'}
-          </Button>
-          {reclassifyResult && (
-            <span className="text-xs text-muted-foreground">{reclassifyResult}</span>
-          )}
-        </div>
-      </Card>
-
-      <Card className="p-4">
-        <div className="flex items-center gap-2.5 mb-2">
-          <RefreshCw className="h-4 w-4" />
-          <h3 className="text-sm font-medium">Backfill Transaction Classes</h3>
-        </div>
-        <p className="text-xs text-muted-foreground mb-3">
-          Infer transaction class (purchase, payment, refund, fee, interest, transfer) from existing categories.
-        </p>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={async () => {
-            setBackfilling(true)
-            setBackfillResult(null)
-            try {
-              const res = await fetch('/api/transactions/backfill-class', { method: 'POST' })
-              const data = await res.json()
-              if (res.ok) {
-                setBackfillResult(`${data.updated}/${data.total} classified`)
-              } else {
-                setBackfillResult(`Error: ${data.error}`)
-              }
-            } catch {
-              setBackfillResult('Failed to connect')
-            } finally {
-              setBackfilling(false)
-            }
-          }} disabled={backfilling}>
-            {backfilling ? 'Running...' : 'Backfill All'}
-          </Button>
-          {backfillResult && (
-            <span className="text-xs text-muted-foreground">{backfillResult}</span>
-          )}
-        </div>
-      </Card>
-
-      <Card className="p-4 opacity-50">
-        <div className="flex items-center gap-2.5 mb-1">
-          <Tags className="h-4 w-4" />
-          <h3 className="text-sm font-medium">Category Management</h3>
-        </div>
-        <p className="text-xs text-muted-foreground">Coming soon</p>
-      </Card>
-
       <Card className="p-4 border-destructive/20">
         <div className="flex items-center gap-2.5 mb-1">
           <Trash2 className="h-4 w-4 text-destructive" />
@@ -286,13 +215,48 @@ export default function SettingsPage() {
             Reset Database
           </Button>
         ) : (
-          <div className="flex items-center gap-2">
-            <Button variant="destructive" size="sm" onClick={handleReset} disabled={resetting}>
-              {resetting ? 'Resetting...' : 'Confirm Delete'}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setConfirmOpen(false)} disabled={resetting}>
-              Cancel
-            </Button>
+          <div className="space-y-3">
+            <div className="text-xs space-y-1 p-2.5 rounded-md bg-destructive/5 border border-destructive/20">
+              <p className="font-medium text-destructive">This will permanently delete:</p>
+              <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
+                <li>All transactions and documents</li>
+                <li>Uploaded PDF files</li>
+                <li>Insight cache and dismissed insights</li>
+                <li>Merchant classification memory</li>
+                <li>Dismissed subscriptions</li>
+              </ul>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={resetSettings}
+                onChange={(e) => setResetSettings(e.target.checked)}
+                className="rounded border-zinc-300 dark:border-zinc-600"
+              />
+              <span className="text-xs text-muted-foreground">Also reset AI model/provider settings to defaults</span>
+            </label>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1.5">Type <span className="font-mono font-medium">RESET</span> to confirm:</p>
+              <Input
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="RESET"
+                className="h-7 text-xs w-40 mb-2"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleReset}
+                disabled={resetting || confirmText !== 'RESET'}
+              >
+                {resetting ? 'Resetting...' : 'Confirm Delete'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { setConfirmOpen(false); setConfirmText(''); setResetSettings(false) }} disabled={resetting}>
+                Cancel
+              </Button>
+            </div>
           </div>
         )}
       </Card>
