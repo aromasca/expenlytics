@@ -8,6 +8,7 @@ import {
   getTopTransactions,
   getSankeyData,
   getSankeyIncomeData,
+  getMoMComparison,
 } from '@/lib/db/reports'
 import type { ReportFilters } from '@/lib/db/reports'
 
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
   const topTransactions = getTopTransactions(db, filters, 50)
   const sankeyData = getSankeyData(db, filters)
   const sankeyIncomeData = getSankeyIncomeData(db, filters)
+  const momComparison = getMoMComparison(db, filters)
 
   return NextResponse.json({
     summary,
@@ -45,5 +47,6 @@ export async function GET(request: NextRequest) {
     topTransactions,
     sankeyData,
     sankeyIncomeData,
+    momComparison,
   })
 }

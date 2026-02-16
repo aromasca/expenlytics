@@ -235,6 +235,61 @@ export function getSankeyIncomeData(db: Database.Database, filters: ReportFilter
   `).all(params) as SankeyRow[]
 }
 
+export interface MoMComparisonRow {
+  group: string
+  current: number
+  previous: number
+  delta: number
+  percentChange: number
+}
+
+export function getMoMComparison(db: Database.Database, filters: ReportFilters): MoMComparisonRow[] {
+  const { type: _type, ...filtersWithoutType } = filters
+  const { where, params } = buildWhere(filtersWithoutType)
+
+  const months = db.prepare(`
+    SELECT DISTINCT strftime('%Y-%m', t.date) as month
+    FROM transactions t
+    ${where}
+    ORDER BY month DESC
+    LIMIT 2
+  `).all(params) as Array<{ month: string }>
+
+  if (months.length < 2) return []
+
+  const currentMonth = months[0].month
+  const previousMonth = months[1].month
+
+  const rows = db.prepare(`
+    SELECT
+      COALESCE(c.category_group, 'Other') as grp,
+      SUM(CASE WHEN strftime('%Y-%m', t.date) = ? THEN t.amount ELSE 0 END) as current_amount,
+      SUM(CASE WHEN strftime('%Y-%m', t.date) = ? THEN t.amount ELSE 0 END) as previous_amount
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    ${where}${where ? ' AND' : ' WHERE'} t.type = 'debit'
+      AND COALESCE(c.exclude_from_totals, 0) = 0
+      AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
+      AND strftime('%Y-%m', t.date) IN (?, ?)
+    GROUP BY COALESCE(c.category_group, 'Other')
+    HAVING current_amount > 0 OR previous_amount > 0
+  `).all([...params, currentMonth, previousMonth, currentMonth, previousMonth]) as Array<{ grp: string; current_amount: number; previous_amount: number }>
+
+  return rows
+    .map(r => {
+      const delta = r.current_amount - r.previous_amount
+      const percentChange = r.previous_amount > 0 ? Math.round((delta / r.previous_amount) * 1000) / 10 : (r.current_amount > 0 ? 100 : 0)
+      return {
+        group: r.grp,
+        current: r.current_amount,
+        previous: r.previous_amount,
+        delta,
+        percentChange,
+      }
+    })
+    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+}
+
 export function getTopTransactions(
   db: Database.Database,
   filters: ReportFilters,
