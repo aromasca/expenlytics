@@ -97,6 +97,13 @@
 - `data-sample/` directory may contain real financial data (bank PDFs, SQLite DBs) — always verify `git status` for untracked sensitive files before committing
 - Prefer automatic background operations over Settings page buttons for data maintenance tasks (backfill, consistency fixes). Wire into existing pipeline or schema init instead.
 
+## Security — Pre-Commit Checks
+- Before EVERY commit, review staged files and diffs for sensitive information. This is mandatory and non-negotiable.
+- Sensitive information includes but is not limited to: API keys, secrets, tokens, transaction data, PII (names, accounts, addresses), imported financial documents (PDFs, CSVs), and database files.
+- Run `git diff --cached` and inspect for anything that should not be committed.
+- If uncertain whether something is sensitive, ALWAYS ask the user before committing.
+- Known sensitive paths: `data/`, `data-sample/`, `data-backup-*`, `.env*` — these must never be committed.
+
 ## Design System
 - Aesthetic: minimal, data-dense dashboard (neutral monochrome, not warm/coral)
 - Color palette: near-black/near-white with zinc grays; emerald for income/credits; no color for debits
