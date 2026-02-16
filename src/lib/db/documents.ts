@@ -72,13 +72,26 @@ export interface DocumentWithCounts extends Document {
   actual_transaction_count: number
 }
 
-export function listDocumentsWithCounts(db: Database.Database): DocumentWithCounts[] {
+const VALID_SORT_COLUMNS = ['filename', 'uploaded_at', 'document_type', 'status', 'actual_transaction_count'] as const
+type DocumentSortBy = typeof VALID_SORT_COLUMNS[number]
+
+export function listDocumentsWithCounts(
+  db: Database.Database,
+  sortBy: DocumentSortBy = 'uploaded_at',
+  sortOrder: 'asc' | 'desc' = 'desc'
+): DocumentWithCounts[] {
+  const validatedSort = VALID_SORT_COLUMNS.includes(sortBy) ? sortBy : 'uploaded_at'
+  const validatedOrder = sortOrder === 'asc' ? 'ASC' : 'DESC'
+  const orderExpr = validatedSort === 'actual_transaction_count'
+    ? `COUNT(t.id) ${validatedOrder}`
+    : `d.${validatedSort} ${validatedOrder}`
+
   return db.prepare(`
     SELECT d.*, COUNT(t.id) as actual_transaction_count
     FROM documents d
     LEFT JOIN transactions t ON t.document_id = d.id
     GROUP BY d.id
-    ORDER BY d.uploaded_at DESC, d.id DESC
+    ORDER BY ${orderExpr}, d.id DESC
   `).all() as DocumentWithCounts[]
 }
 

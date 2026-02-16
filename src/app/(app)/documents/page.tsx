@@ -16,19 +16,24 @@ interface DocumentRow {
   actual_transaction_count: number
 }
 
+type SortBy = 'filename' | 'uploaded_at' | 'document_type' | 'status' | 'actual_transaction_count'
+type SortOrder = 'asc' | 'desc'
+
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<DocumentRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [sortBy, setSortBy] = useState<SortBy>('uploaded_at')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
 
   const fetchDocuments = useCallback(() => {
-    fetch('/api/documents')
+    fetch(`/api/documents?sort_by=${sortBy}&sort_order=${sortOrder}`)
       .then(res => res.json())
       .then(data => {
         setDocuments(data)
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [])
+  }, [sortBy, sortOrder])
 
   useEffect(() => {
     fetchDocuments()
@@ -56,7 +61,20 @@ export default function DocumentsPage() {
       {loading ? (
         <div className="text-sm text-muted-foreground">Loading...</div>
       ) : (
-        <DocumentsTable documents={documents} onRefresh={fetchDocuments} />
+        <DocumentsTable
+          documents={documents}
+          onRefresh={fetchDocuments}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSort={(column: SortBy) => {
+            if (sortBy === column) {
+              setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+            } else {
+              setSortBy(column)
+              setSortOrder(column === 'filename' || column === 'document_type' || column === 'status' ? 'asc' : 'desc')
+            }
+          }}
+        />
       )}
     </div>
   )

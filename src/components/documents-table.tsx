@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ProcessingStatus } from '@/components/processing-status'
-import { RotateCw, Trash2, RefreshCw } from 'lucide-react'
+import { RotateCw, Trash2, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react'
 
 interface DocumentRow {
   id: number
@@ -18,12 +18,17 @@ interface DocumentRow {
   actual_transaction_count: number
 }
 
+type SortBy = 'filename' | 'uploaded_at' | 'document_type' | 'status' | 'actual_transaction_count'
+
 interface DocumentsTableProps {
   documents: DocumentRow[]
   onRefresh: () => void
+  sortBy: SortBy
+  sortOrder: 'asc' | 'desc'
+  onSort: (column: SortBy) => void
 }
 
-export function DocumentsTable({ documents, onRefresh }: DocumentsTableProps) {
+export function DocumentsTable({ documents, onRefresh, sortBy, sortOrder, onSort }: DocumentsTableProps) {
   const [actionInProgress, setActionInProgress] = useState<number | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [batchInProgress, setBatchInProgress] = useState(false)
@@ -103,6 +108,12 @@ export function DocumentsTable({ documents, onRefresh }: DocumentsTableProps) {
     }
   }
 
+  const sortIcon = (column: SortBy) => {
+    if (sortBy !== column) return null
+    const Icon = sortOrder === 'asc' ? ArrowUp : ArrowDown
+    return <Icon className="inline h-3 w-3 ml-0.5" />
+  }
+
   if (documents.length === 0) {
     return (
       <div className="text-center py-12 text-sm text-muted-foreground">
@@ -140,11 +151,11 @@ export function DocumentsTable({ documents, onRefresh }: DocumentsTableProps) {
                   aria-label="Select all"
                 />
               </th>
-              <th className="text-left font-medium text-muted-foreground px-3 py-2">File</th>
-              <th className="text-left font-medium text-muted-foreground px-3 py-2">Uploaded</th>
-              <th className="text-left font-medium text-muted-foreground px-3 py-2">Type</th>
-              <th className="text-left font-medium text-muted-foreground px-3 py-2">Status</th>
-              <th className="text-right font-medium text-muted-foreground px-3 py-2 tabular-nums">Txns</th>
+              <th className="text-left font-medium text-muted-foreground px-3 py-2 cursor-pointer select-none" onClick={() => onSort('filename')}>File{sortIcon('filename')}</th>
+              <th className="text-left font-medium text-muted-foreground px-3 py-2 cursor-pointer select-none" onClick={() => onSort('uploaded_at')}>Uploaded{sortIcon('uploaded_at')}</th>
+              <th className="text-left font-medium text-muted-foreground px-3 py-2 cursor-pointer select-none" onClick={() => onSort('document_type')}>Type{sortIcon('document_type')}</th>
+              <th className="text-left font-medium text-muted-foreground px-3 py-2 cursor-pointer select-none" onClick={() => onSort('status')}>Status{sortIcon('status')}</th>
+              <th className="text-right font-medium text-muted-foreground px-3 py-2 tabular-nums cursor-pointer select-none" onClick={() => onSort('actual_transaction_count')}>Txns{sortIcon('actual_transaction_count')}</th>
               <th className="text-right font-medium text-muted-foreground px-3 py-2">Actions</th>
             </tr>
           </thead>
