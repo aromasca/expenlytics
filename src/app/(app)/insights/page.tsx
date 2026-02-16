@@ -4,32 +4,35 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { HealthScore } from '@/components/insights/health-score'
 import { IncomeOutflowChart } from '@/components/insights/income-outflow-chart'
-import { PatternGrid } from '@/components/insights/pattern-grid'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { RefreshCw, Receipt, BarChart3, CreditCard, ChevronLeft, ChevronRight, X, AlertCircle } from 'lucide-react'
-import type { InsightsResponse, DeepInsight } from '@/lib/insights/types'
+import { RefreshCw, Receipt, BarChart3, CreditCard, X, AlertCircle } from 'lucide-react'
+import type { InsightsResponse, Insight } from '@/lib/insights/types'
 
-const severityColor = {
+const severityColor: Record<string, string> = {
   concerning: 'border-l-red-500',
   notable: 'border-l-amber-500',
   favorable: 'border-l-emerald-500',
   informational: 'border-l-zinc-400',
 }
 
-function InsightCard({ insight, expanded, onToggle }: { insight: DeepInsight; expanded: boolean; onToggle: () => void }) {
+const typeLabel: Record<string, string> = { behavioral_shift: 'Behavior', money_leak: 'Leak', projection: 'Trend' }
+
+function InsightCard({ insight, expanded, onToggle }: { insight: Insight; expanded: boolean; onToggle: () => void }) {
   return (
     <Card
       className={`p-3 border-l-2 ${severityColor[insight.severity]} cursor-pointer hover:bg-muted/50 transition-colors`}
       onClick={onToggle}
     >
-      <p className="text-xs font-medium leading-tight">{insight.headline}</p>
-      <p className="text-[11px] text-muted-foreground tabular-nums mt-1">{insight.key_metric}</p>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{typeLabel[insight.type] ?? insight.type}</span>
+      </div>
+      <p className="text-xs font-medium leading-tight mt-1">{insight.headline}</p>
       {expanded && (
         <div className="mt-2 space-y-1.5">
           <p className="text-xs text-muted-foreground leading-relaxed">{insight.explanation}</p>
-          {insight.action_suggestion && (
-            <p className="text-xs text-emerald-600 dark:text-emerald-400">{insight.action_suggestion}</p>
+          {insight.action && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400">{insight.action}</p>
           )}
         </div>
       )}
@@ -51,7 +54,6 @@ export default function InsightsPage() {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState(false)
-  const [carouselIndex, setCarouselIndex] = useState(0)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -91,7 +93,6 @@ export default function InsightsPage() {
           startPolling()
         } else {
           setGenerating(false)
-          setCarouselIndex(0)
         }
       })
       .catch((err) => {
@@ -122,7 +123,6 @@ export default function InsightsPage() {
           if (json.status === 'ready') {
             stopPolling()
             setGenerating(false)
-            setCarouselIndex(0)
           }
         })
         .catch(() => {
@@ -162,13 +162,9 @@ export default function InsightsPage() {
   }
 
   const insights = data?.insights ?? []
-  const pageSize = 3
-  const pageCount = Math.max(1, Math.ceil(insights.length / pageSize))
-  const page = Math.min(carouselIndex, pageCount - 1)
-  const visibleInsights = insights.slice(page * pageSize, page * pageSize + pageSize)
 
-  const hasContent = data && (data.health || insights.length > 0 || (data.patterns ?? []).length > 0)
-  const isEmpty = data && !generating && !data.health && insights.length === 0 && (data.patterns ?? []).length === 0
+  const hasContent = data && (data.health || insights.length > 0)
+  const isEmpty = data && !generating && !data.health && insights.length === 0
   const hasMonthlyFlow = data?.monthlyFlow && data.monthlyFlow.length > 0
 
   return (
@@ -254,51 +250,20 @@ export default function InsightsPage() {
             </section>
           )}
 
-          {data?.patterns && data.patterns.length > 0 && (
-            <section>
-              <h2 className="text-sm font-medium mb-2">Patterns</h2>
-              <PatternGrid patterns={data.patterns} />
-            </section>
-          )}
-
-          {/* Skeleton patterns while generating */}
-          {generating && (!data?.patterns || data.patterns.length === 0) && (
-            <section>
-              <h2 className="text-sm font-medium mb-2">Patterns</h2>
-              <div className="grid grid-cols-2 gap-2">
-                {[1, 2].map((i) => (
-                  <Card key={i} className="p-3">
-                    <div className="h-3.5 w-3/4 bg-muted rounded animate-pulse" />
-                    <div className="h-3 w-1/2 bg-muted rounded animate-pulse mt-1.5" />
-                  </Card>
-                ))}
-              </div>
-            </section>
-          )}
-
           {insights.length > 0 && (
             <section>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-medium">AI Insights</h2>
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="icon" className="h-6 w-6" disabled={page === 0} onClick={() => setCarouselIndex(i => i - 1)}>
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </Button>
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {page * pageSize + 1}&ndash;{Math.min((page + 1) * pageSize, insights.length)} / {insights.length}
-                  </span>
-                  <Button variant="ghost" size="icon" className="h-6 w-6" disabled={page >= pageCount - 1} onClick={() => setCarouselIndex(i => i + 1)}>
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </Button>
                   {(data?.dismissedCount ?? 0) > 0 && (
-                    <button onClick={handleClearDismissals} className="text-xs text-muted-foreground hover:text-foreground ml-2">
+                    <button onClick={handleClearDismissals} className="text-xs text-muted-foreground hover:text-foreground">
                       {data?.dismissedCount} dismissed
                     </button>
                   )}
                 </div>
               </div>
               <div className="space-y-2">
-                {visibleInsights.map((insight) => (
+                {insights.map((insight) => (
                   <div key={insight.id} className="relative group">
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDismiss(insight.id) }}

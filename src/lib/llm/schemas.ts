@@ -96,24 +96,7 @@ export const classificationSchema = z.object({
   })),
 })
 
-export const llmInsightSchema = z.object({
-  insights: z.array(z.object({
-    headline: z.string(),
-    category: z.string(),
-    severity: z.enum(['concerning', 'notable', 'favorable', 'informational']),
-    key_metric: z.string(),
-    explanation: z.string(),
-    evidence: z.object({
-      category_a: z.string().optional(),
-      category_b: z.string().optional(),
-      merchant_names: z.array(z.string()).optional(),
-    }),
-    action_suggestion: z.string().optional(),
-  })),
-})
-
 export type ClassificationResult = z.infer<typeof classificationSchema>
-export type LLMInsightData = z.infer<typeof llmInsightSchema>
 
 export type ExtractionResult = z.infer<typeof extractionSchema>
 export type TransactionData = z.infer<typeof transactionSchema>
@@ -156,45 +139,28 @@ export const healthAssessmentSchema = z.object({
   })),
 })
 
-export const patternCardSchema = z.object({
-  id: z.string(),
-  headline: z.string(),
-  metric: z.string(),
-  explanation: z.string(),
-  category: z.string().transform((v): 'timing' | 'merchant' | 'behavioral' | 'subscription' | 'correlation' => {
-    if (['timing', 'merchant', 'behavioral', 'subscription', 'correlation'].includes(v)) return v as 'timing' | 'merchant' | 'behavioral' | 'subscription' | 'correlation'
-    return 'behavioral'
-  }),
-  severity: severitySchema,
-  evidence: z.object({
-    merchants: stringOrArraySchema,
-    categories: stringOrArraySchema,
-    time_period: z.string().optional(),
-  }),
+export const insightTypeSchema = z.string().transform((v): 'behavioral_shift' | 'money_leak' | 'projection' => {
+  if (['behavioral_shift', 'behavior', 'shift', 'correlation'].includes(v)) return 'behavioral_shift'
+  if (['money_leak', 'leak', 'waste', 'subscription'].includes(v)) return 'money_leak'
+  if (['projection', 'trend', 'forecast', 'warning'].includes(v)) return 'projection'
+  return 'behavioral_shift'
 })
 
-export const healthAndPatternsSchema = z.object({
+export const financialAnalysisSchema = z.object({
   health: healthAssessmentSchema,
-  patterns: z.array(patternCardSchema),
-})
-
-export const deepInsightSchema = z.object({
   insights: z.array(z.object({
+    type: insightTypeSchema,
     headline: z.string(),
     severity: severitySchema,
-    key_metric: z.string(),
     explanation: z.string(),
-    action_suggestion: z.string().optional(),
     evidence: z.object({
-      category_a: z.string().optional(),
-      category_b: z.string().optional(),
-      merchant_names: z.union([
-        z.array(z.string()),
-        z.string().transform(v => [v]),
-      ]).optional(),
+      merchants: stringOrArraySchema,
+      categories: stringOrArraySchema,
+      amounts: z.record(z.string(), z.number()).optional(),
+      time_period: z.string().optional(),
     }),
+    action: z.string().optional(),
   })),
 })
 
-export type HealthAndPatternsResult = z.infer<typeof healthAndPatternsSchema>
-export type DeepInsightResult = z.infer<typeof deepInsightSchema>
+export type FinancialAnalysisResult = z.infer<typeof financialAnalysisSchema>

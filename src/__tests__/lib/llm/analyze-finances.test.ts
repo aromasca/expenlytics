@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { LLMProvider } from '@/lib/llm/types'
-import { analyzeHealthAndPatterns, analyzeDeepInsights } from '@/lib/llm/analyze-finances'
+import { analyzeFinances } from '@/lib/llm/analyze-finances'
 import type { CompactFinancialData } from '@/lib/insights/compact-data'
 
 function createMockProvider(responseText: string) {
@@ -33,10 +33,16 @@ const SAMPLE_DATA: CompactFinancialData = {
   recurring: [{ merchant: 'Netflix', amount: 15.99, frequency: 'monthly', months: 6 }],
   outliers: [],
   top_merchants_by_category: [],
+  recent_transactions: [
+    { date: '2026-01-15', description: 'Whole Foods Market', normalized_merchant: 'Whole Foods', amount: 85.50, type: 'debit', category: 'Groceries', transaction_class: 'purchase' },
+  ],
+  merchant_month_deltas: [
+    { merchant: 'Whole Foods', months: { '2026-01': 400, '2025-12': 350 } },
+  ],
 }
 
-describe('analyzeHealthAndPatterns', () => {
-  it('parses LLM response into health assessment and patterns', async () => {
+describe('analyzeFinances', () => {
+  it('makes a single LLM call and returns health + insights', async () => {
     const responseJSON = JSON.stringify({
       health: {
         score: 72,
@@ -44,57 +50,55 @@ describe('analyzeHealthAndPatterns', () => {
         color: 'green',
         metrics: [
           { label: 'Savings Rate', value: '30%', trend: 'down', sentiment: 'good' },
-          { label: 'Monthly Burn', value: '$3,500', trend: 'up', sentiment: 'neutral' },
         ],
       },
-      patterns: [{
-        id: 'friday-spending',
-        headline: 'Friday Spending Spike',
-        metric: '$120 avg on Fridays vs $75 other days',
-        explanation: 'Your Friday spending is 60% higher than your weekday average.',
-        category: 'timing',
-        severity: 'notable',
-        evidence: { time_period: 'Fridays' },
-      }],
-    })
-    const { provider, mockComplete } = createMockProvider(responseJSON)
-
-    const result = await analyzeHealthAndPatterns(provider, 'anthropic', SAMPLE_DATA, 'claude-haiku-4-5-20251001')
-
-    expect(result.health.score).toBe(72)
-    expect(result.health.metrics.length).toBeGreaterThanOrEqual(1)
-    expect(result.patterns.length).toBeGreaterThanOrEqual(1)
-    expect(result.patterns[0].headline).toBe('Friday Spending Spike')
-    expect(mockComplete).toHaveBeenCalledTimes(1)
-    expect(mockComplete.mock.calls[0][0].system).toBeDefined()
-  })
-})
-
-describe('analyzeDeepInsights', () => {
-  it('parses LLM response into deep insights', async () => {
-    const responseJSON = JSON.stringify({
       insights: [{
-        headline: 'Grocery spending is steady',
-        severity: 'favorable',
-        key_metric: '$400/mo',
-        explanation: 'Your grocery spending has been consistent.',
-        evidence: { category_a: 'Groceries' },
+        type: 'behavioral_shift',
+        headline: 'Grocery-to-delivery shift',
+        severity: 'concerning',
+        explanation: 'Your grocery spending dropped while food delivery doubled.',
+        evidence: { categories: ['Groceries', 'Food Delivery'], time_period: 'Jan vs Dec' },
+        action: 'Try meal planning to reduce delivery reliance.',
       }],
     })
     const { provider, mockComplete } = createMockProvider(responseJSON)
 
-    const result = await analyzeDeepInsights(provider, 'anthropic', SAMPLE_DATA, {
-      score: 72, summary: 'Good', color: 'green' as const, metrics: []
-    }, 'claude-haiku-4-5-20251001')
+    const result = await analyzeFinances(provider, 'anthropic', SAMPLE_DATA, 'claude-sonnet-4-5-20250929')
 
-    expect(result.length).toBeGreaterThanOrEqual(1)
-    expect(result[0].headline).toBe('Grocery spending is steady')
-    expect(result[0].id).toBe('llm-insight-0')
     expect(mockComplete).toHaveBeenCalledTimes(1)
+    expect(result.health.score).toBe(72)
+    expect(result.insights).toHaveLength(1)
+    expect(result.insights[0]).toMatchObject({
+      id: 'llm-insight-0',
+      type: 'behavioral_shift',
+      headline: 'Grocery-to-delivery shift',
+    })
+  })
 
-    // Verify the system prompt has the score/summary filled in
-    const systemPrompt = mockComplete.mock.calls[0][0].system as string
-    expect(systemPrompt).toContain('72')
-    expect(systemPrompt).toContain('Good')
+  it('includes recent_transactions context in prompt', async () => {
+    const responseJSON = JSON.stringify({
+      health: { score: 50, summary: 'OK', color: 'yellow', metrics: [] },
+      insights: [],
+    })
+    const { provider, mockComplete } = createMockProvider(responseJSON)
+
+    await analyzeFinances(provider, 'anthropic', SAMPLE_DATA, 'claude-sonnet-4-5-20250929')
+
+    const userPrompt = mockComplete.mock.calls[0][0].messages[0].content as string
+    expect(userPrompt).toContain('Whole Foods Market')
+    expect(userPrompt).toContain('recent_transactions')
+  })
+
+  it('works with openai provider name', async () => {
+    const responseJSON = JSON.stringify({
+      health: { score: 60, summary: 'Fair', color: 'yellow', metrics: [] },
+      insights: [],
+    })
+    const { provider, mockComplete } = createMockProvider(responseJSON)
+
+    const result = await analyzeFinances(provider, 'openai', SAMPLE_DATA, 'gpt-5')
+
+    expect(mockComplete).toHaveBeenCalledTimes(1)
+    expect(result.health.score).toBe(60)
   })
 })

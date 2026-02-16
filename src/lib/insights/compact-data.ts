@@ -13,6 +13,11 @@ export interface CompactFinancialData {
   recurring: Array<{ merchant: string; amount: number; frequency: string; months: number }>
   outliers: Array<{ date: string; description: string; amount: number; category: string }>
   top_merchants_by_category: Array<{ category: string; merchants: Array<{ name: string; total: number; count: number }> }>
+  recent_transactions: Array<{
+    date: string; description: string; normalized_merchant: string | null;
+    amount: number; type: string; category: string; transaction_class: string | null
+  }>
+  merchant_month_deltas: Array<{ merchant: string; months: Record<string, number> }>
 }
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -216,5 +221,46 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     .filter(cat => catMerchantMap.has(cat))
     .map(cat => ({ category: cat, merchants: catMerchantMap.get(cat)! }))
 
-  return { monthly, categories, merchants, day_of_week, daily_recent, recurring, outliers, top_merchants_by_category }
+  // Individual transactions for last 90 days (gives LLM specific purchase context)
+  const recent_transactions = db.prepare(`
+    SELECT t.date, t.description,
+           t.normalized_merchant,
+           t.amount, t.type,
+           COALESCE(c.name, 'Uncategorized') as category,
+           t.transaction_class
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.date >= date('now', '-90 days')
+      AND COALESCE(c.exclude_from_totals, 0) = 0
+      AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
+    ORDER BY t.date DESC
+  `).all() as CompactFinancialData['recent_transactions']
+
+  // Month-by-month spending for top 20 merchants (lets LLM spot merchant trends)
+  const merchantMonthRows = db.prepare(`
+    SELECT COALESCE(t.normalized_merchant, t.description) as merchant,
+           strftime('%Y-%m', t.date) as month,
+           SUM(t.amount) as total
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.type = 'debit' AND t.date >= date('now', '-6 months')
+      AND COALESCE(c.exclude_from_totals, 0) = 0
+      AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))
+    GROUP BY COALESCE(t.normalized_merchant, t.description), strftime('%Y-%m', t.date)
+    ORDER BY total DESC
+  `).all() as Array<{ merchant: string; month: string; total: number }>
+
+  const deltaMap = new Map<string, Record<string, number>>()
+  const deltaTotals = new Map<string, number>()
+  for (const r of merchantMonthRows) {
+    if (!deltaMap.has(r.merchant)) deltaMap.set(r.merchant, {})
+    deltaMap.get(r.merchant)![r.month] = Math.round(r.total * 100) / 100
+    deltaTotals.set(r.merchant, (deltaTotals.get(r.merchant) ?? 0) + r.total)
+  }
+  const merchant_month_deltas = [...deltaTotals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20)
+    .map(([merchant]) => ({ merchant, months: deltaMap.get(merchant)! }))
+
+  return { monthly, categories, merchants, day_of_week, daily_recent, recurring, outliers, top_merchants_by_category, recent_transactions, merchant_month_deltas }
 }

@@ -14,34 +14,6 @@ export interface HealthAssessment {
   metrics: HealthMetric[]
 }
 
-export interface PatternCard {
-  id: string
-  headline: string
-  metric: string
-  explanation: string
-  category: 'timing' | 'merchant' | 'behavioral' | 'subscription' | 'correlation'
-  severity: InsightSeverity
-  evidence: {
-    merchants?: string[]
-    categories?: string[]
-    time_period?: string
-  }
-}
-
-export interface DeepInsight {
-  id: string
-  headline: string
-  severity: InsightSeverity
-  key_metric: string
-  explanation: string
-  action_suggestion?: string
-  evidence: {
-    category_a?: string
-    category_b?: string
-    merchant_names?: string[]
-  }
-}
-
 export interface MonthlyFlow {
   month: string
   income: number
@@ -49,12 +21,28 @@ export interface MonthlyFlow {
   net: number
 }
 
+export type InsightType = 'behavioral_shift' | 'money_leak' | 'projection'
+
+export interface Insight {
+  id: string
+  type: InsightType
+  headline: string
+  severity: InsightSeverity
+  explanation: string
+  evidence: {
+    merchants?: string[]
+    categories?: string[]
+    amounts?: Record<string, number>
+    time_period?: string
+  }
+  action?: string
+}
+
 export interface InsightsResponse {
   status: 'ready' | 'generating'
   health: HealthAssessment | null
   monthlyFlow: MonthlyFlow[]
-  patterns: PatternCard[]
-  insights: DeepInsight[]
+  insights: Insight[]
   dismissedCount: number
   generatedAt: string
 }

@@ -41,26 +41,42 @@ CATEGORIES BY GROUP:
 - Other: Other
 
 KEY DISAMBIGUATION:
-- Starbucks/Dunkin → Coffee & Cafes (not Restaurants)
-- DoorDash/Uber Eats → Food Delivery (not Restaurants)
-- Netflix/Spotify/Disney+ → Streaming Services
-- Amazon → General Merchandise (unless description indicates Books, Electronics, Groceries)
+- Coffee shops and tea shops → Coffee & Cafes (not Restaurants)
+- Food delivery apps → Food Delivery (not Restaurants)
+- Media streaming subscriptions → Streaming Services
+- Large online marketplaces → General Merchandise (unless description indicates Books, Electronics, Groceries)
 - Internet/cable/phone → Internet & Phone (not Utilities)
 - Auto insurance → Car Insurance | Home insurance → Home Insurance | Health insurance → Health Insurance
 
 ADDITIONAL DISAMBIGUATION:
-- Bakeries (Paris Baguette, Panera): "Coffee & Cafes" (cafe-style service)
-- Shake Shack, Five Guys, Chipotle, Sweetgreen: "Fast Food" (counter service)
-- Apple.com/Bill recurring charges: "SaaS & Subscriptions" (iCloud, Apple services)
-- One-time Apple purchases (apple.com/us, large amounts): "Electronics"
-- OpenAI, ChatGPT, Claude, Copilot: "AI & Productivity Software"
-- Hosting (Bluehost, DreamHost, DigitalOcean): "SaaS & Subscriptions"
-- Indoor play (Urban Air, trampoline parks, bowling): "Kids Activities"
+- Bakeries and cafe-style eateries: "Coffee & Cafes" (cafe-style counter service)
+- Counter-service/fast-casual chains (burger joints, burrito bars, salad bars): "Fast Food"
+- Small recurring tech platform billing (cloud storage, media bundles): "Streaming Services" if primarily media/content, "SaaS & Subscriptions" if primarily tools/productivity
+- Large one-time tech purchases (devices, hardware, big-ticket electronics): "Electronics" — even if from the same vendor that also does subscriptions
+- AI tools, coding assistants, LLM services: "AI & Productivity Software"
+- Web hosting, cloud infrastructure, domain registrars: "SaaS & Subscriptions"
+- Indoor play centers, trampoline parks, bowling alleys: "Kids Activities"
 - Museums, galleries, exhibits: "Hobbies"
 - School district charges: "Tuition & School Fees"
 - Vending machines: "Fast Food"
-- Pet insurance (Healthy Paws, Trupanion): "Veterinary"
-- Childcare apps (Brightwheel): always "Childcare"
+- Pet insurance: "Veterinary"
+- Childcare management apps/platforms: always "Childcare"
+
+RESORT & VACATION VENUE RULES:
+- Purchases at resort restaurants, cafes, and shops should be categorized as "Hotels & Lodging" (not "Restaurants" or "Groceries") — these are part of the lodging experience
+- Holiday parks, vacation villages, and resort complexes: always "Hotels & Lodging" regardless of what was purchased on-site
+
+FITNESS vs SPORTS vs CHILDCARE:
+- Recurring memberships at sports facilities (tennis clubs, swimming pools, recreation centers): "Fitness & Gym" (not "Sports & Outdoors")
+- "Sports & Outdoors" is for one-off activities: event tickets, outdoor recreation, sports leagues
+- Community/recreation centers with high monthly fees ($200+): likely "Childcare" (camps, after-school programs) — not "Fitness & Gym"
+- Youth programs at recreation centers: "Childcare" or "Kids Activities" based on context
+
+FOOD VENUE PRECISION:
+- Ice cream shops, gelato shops, chocolate shops, candy stores: "Restaurants" (not "Coffee & Cafes")
+- "Coffee & Cafes" is specifically for coffee/tea-focused establishments and bakery-cafes
+- When unsure between "Restaurants" and "Fast Food": if it has table service → "Restaurants"; if counter/pickup only → "Fast Food"
+
 - "Other" is a LAST RESORT — if ANY recognizable word exists, classify specifically
 
 {known_mappings}Return ONLY valid JSON:
@@ -115,26 +131,42 @@ For each transaction, first identify which GROUP it belongs to, then pick the mo
 - **Other**: Other
 
 ## Key Disambiguation Rules
-- Starbucks/Dunkin → Coffee & Cafes (not Restaurants)
-- DoorDash/Uber Eats → Food Delivery (not Restaurants)
-- Netflix/Spotify/Disney+ → Streaming Services
-- Amazon → General Merchandise (unless description indicates Books, Electronics, Groceries)
+- Coffee shops and tea shops → Coffee & Cafes (not Restaurants)
+- Food delivery apps → Food Delivery (not Restaurants)
+- Media streaming subscriptions → Streaming Services
+- Large online marketplaces → General Merchandise (unless description indicates Books, Electronics, Groceries)
 - Internet/cable/phone → Internet & Phone (not Utilities)
 - Auto insurance → Car Insurance | Home insurance → Home Insurance | Health insurance → Health Insurance
 
 ## Additional Disambiguation
-- Bakeries (Paris Baguette, Panera): "Coffee & Cafes" (cafe-style service)
-- Shake Shack, Five Guys, Chipotle, Sweetgreen: "Fast Food" (counter service)
-- Apple.com/Bill recurring charges: "SaaS & Subscriptions" (iCloud, Apple services)
-- One-time Apple purchases (apple.com/us, large amounts): "Electronics"
-- OpenAI, ChatGPT, Claude, Copilot: "AI & Productivity Software"
-- Hosting (Bluehost, DreamHost, DigitalOcean): "SaaS & Subscriptions"
-- Indoor play (Urban Air, trampoline parks, bowling): "Kids Activities"
+- Bakeries and cafe-style eateries: "Coffee & Cafes" (cafe-style counter service)
+- Counter-service/fast-casual chains (burger joints, burrito bars, salad bars): "Fast Food"
+- Small recurring tech platform billing (cloud storage, media bundles): "Streaming Services" if primarily media/content, "SaaS & Subscriptions" if primarily tools/productivity
+- Large one-time tech purchases (devices, hardware, big-ticket electronics): "Electronics" — even if from the same vendor that also does subscriptions
+- AI tools, coding assistants, LLM services: "AI & Productivity Software"
+- Web hosting, cloud infrastructure, domain registrars: "SaaS & Subscriptions"
+- Indoor play centers, trampoline parks, bowling alleys: "Kids Activities"
 - Museums, galleries, exhibits: "Hobbies"
 - School district charges: "Tuition & School Fees"
 - Vending machines: "Fast Food"
-- Pet insurance (Healthy Paws, Trupanion): "Veterinary"
-- Childcare apps (Brightwheel): always "Childcare"
+- Pet insurance: "Veterinary"
+- Childcare management apps/platforms: always "Childcare"
+
+## Resort & Vacation Venue Rules
+- Purchases at resort restaurants, cafes, and shops → "Hotels & Lodging" (not "Restaurants" or "Groceries") — these are part of the lodging experience
+- Holiday parks, vacation villages, and resort complexes → always "Hotels & Lodging" regardless of what was purchased on-site
+
+## Fitness vs Sports vs Childcare
+- Recurring memberships at sports facilities (tennis clubs, swimming pools, recreation centers) → "Fitness & Gym" (not "Sports & Outdoors")
+- "Sports & Outdoors" is for one-off activities: event tickets, outdoor recreation, sports leagues
+- Community/recreation centers with high monthly fees ($200+) → likely "Childcare" (camps, after-school programs) — not "Fitness & Gym"
+- Youth programs at recreation centers → "Childcare" or "Kids Activities" based on context
+
+## Food Venue Precision
+- Ice cream shops, gelato shops, chocolate shops, candy stores → "Restaurants" (not "Coffee & Cafes")
+- "Coffee & Cafes" is specifically for coffee/tea-focused establishments and bakery-cafes
+- When unsure between "Restaurants" and "Fast Food": if it has table service → "Restaurants"; if counter/pickup only → "Fast Food"
+
 - "Other" is a LAST RESORT — if ANY recognizable word exists, classify specifically
 
 {known_mappings}## Output Format
@@ -202,18 +234,34 @@ KEY DISAMBIGUATION:
 - Auto insurance → Car Insurance | Home insurance → Home Insurance | Health insurance → Health Insurance
 
 ADDITIONAL DISAMBIGUATION:
-- Bakeries (Paris Baguette, Panera): "Coffee & Cafes" (cafe-style service)
-- Shake Shack, Five Guys, Chipotle, Sweetgreen: "Fast Food" (counter service)
-- Apple.com/Bill recurring charges: "SaaS & Subscriptions" (iCloud, Apple services)
-- One-time Apple purchases (apple.com/us, large amounts): "Electronics"
-- OpenAI, ChatGPT, Claude, Copilot: "AI & Productivity Software"
-- Hosting (Bluehost, DreamHost, DigitalOcean): "SaaS & Subscriptions"
-- Indoor play (Urban Air, trampoline parks, bowling): "Kids Activities"
+- Bakeries and cafe-style eateries: "Coffee & Cafes" (cafe-style counter service)
+- Counter-service/fast-casual chains (burger joints, burrito bars, salad bars): "Fast Food"
+- Small recurring tech platform billing (cloud storage, media bundles): "Streaming Services" if primarily media/content, "SaaS & Subscriptions" if primarily tools/productivity
+- Large one-time tech purchases (devices, hardware, big-ticket electronics): "Electronics" — even if from the same vendor that also does subscriptions
+- AI tools, coding assistants, LLM services: "AI & Productivity Software"
+- Web hosting, cloud infrastructure, domain registrars: "SaaS & Subscriptions"
+- Indoor play centers, trampoline parks, bowling alleys: "Kids Activities"
 - Museums, galleries, exhibits: "Hobbies"
 - School district charges: "Tuition & School Fees"
 - Vending machines: "Fast Food"
-- Pet insurance (Healthy Paws, Trupanion): "Veterinary"
-- Childcare apps (Brightwheel): always "Childcare"
+- Pet insurance: "Veterinary"
+- Childcare management apps/platforms: always "Childcare"
+
+RESORT & VACATION VENUE RULES:
+- Purchases at resort restaurants, cafes, and shops should be categorized as "Hotels & Lodging" (not "Restaurants" or "Groceries") — these are part of the lodging experience
+- Holiday parks, vacation villages, and resort complexes: always "Hotels & Lodging" regardless of what was purchased on-site
+
+FITNESS vs SPORTS vs CHILDCARE:
+- Recurring memberships at sports facilities (tennis clubs, swimming pools, recreation centers): "Fitness & Gym" (not "Sports & Outdoors")
+- "Sports & Outdoors" is for one-off activities: event tickets, outdoor recreation, sports leagues
+- Community/recreation centers with high monthly fees ($200+): likely "Childcare" (camps, after-school programs) — not "Fitness & Gym"
+- Youth programs at recreation centers: "Childcare" or "Kids Activities" based on context
+
+FOOD VENUE PRECISION:
+- Ice cream shops, gelato shops, chocolate shops, candy stores: "Restaurants" (not "Coffee & Cafes")
+- "Coffee & Cafes" is specifically for coffee/tea-focused establishments and bakery-cafes
+- When unsure between "Restaurants" and "Fast Food": if it has table service → "Restaurants"; if counter/pickup only → "Fast Food"
+
 - "Other" is a LAST RESORT — if ANY recognizable word exists, classify specifically
 
 Return ONLY valid JSON:
@@ -268,26 +316,42 @@ For each transaction, first identify which GROUP it belongs to, then pick the mo
 - **Other**: Other
 
 ## Key Disambiguation Rules
-- Starbucks/Dunkin → Coffee & Cafes (not Restaurants)
-- DoorDash/Uber Eats → Food Delivery (not Restaurants)
-- Netflix/Spotify/Disney+ → Streaming Services
-- Amazon → General Merchandise (unless description indicates Books, Electronics, Groceries)
+- Coffee shops and tea shops → Coffee & Cafes (not Restaurants)
+- Food delivery apps → Food Delivery (not Restaurants)
+- Media streaming subscriptions → Streaming Services
+- Large online marketplaces → General Merchandise (unless description indicates Books, Electronics, Groceries)
 - Internet/cable/phone → Internet & Phone (not Utilities)
 - Auto insurance → Car Insurance | Home insurance → Home Insurance | Health insurance → Health Insurance
 
 ## Additional Disambiguation
-- Bakeries (Paris Baguette, Panera): "Coffee & Cafes" (cafe-style service)
-- Shake Shack, Five Guys, Chipotle, Sweetgreen: "Fast Food" (counter service)
-- Apple.com/Bill recurring charges: "SaaS & Subscriptions" (iCloud, Apple services)
-- One-time Apple purchases (apple.com/us, large amounts): "Electronics"
-- OpenAI, ChatGPT, Claude, Copilot: "AI & Productivity Software"
-- Hosting (Bluehost, DreamHost, DigitalOcean): "SaaS & Subscriptions"
-- Indoor play (Urban Air, trampoline parks, bowling): "Kids Activities"
+- Bakeries and cafe-style eateries: "Coffee & Cafes" (cafe-style counter service)
+- Counter-service/fast-casual chains (burger joints, burrito bars, salad bars): "Fast Food"
+- Small recurring tech platform billing (cloud storage, media bundles): "Streaming Services" if primarily media/content, "SaaS & Subscriptions" if primarily tools/productivity
+- Large one-time tech purchases (devices, hardware, big-ticket electronics): "Electronics" — even if from the same vendor that also does subscriptions
+- AI tools, coding assistants, LLM services: "AI & Productivity Software"
+- Web hosting, cloud infrastructure, domain registrars: "SaaS & Subscriptions"
+- Indoor play centers, trampoline parks, bowling alleys: "Kids Activities"
 - Museums, galleries, exhibits: "Hobbies"
 - School district charges: "Tuition & School Fees"
 - Vending machines: "Fast Food"
-- Pet insurance (Healthy Paws, Trupanion): "Veterinary"
-- Childcare apps (Brightwheel): always "Childcare"
+- Pet insurance: "Veterinary"
+- Childcare management apps/platforms: always "Childcare"
+
+## Resort & Vacation Venue Rules
+- Purchases at resort restaurants, cafes, and shops → "Hotels & Lodging" (not "Restaurants" or "Groceries") — these are part of the lodging experience
+- Holiday parks, vacation villages, and resort complexes → always "Hotels & Lodging" regardless of what was purchased on-site
+
+## Fitness vs Sports vs Childcare
+- Recurring memberships at sports facilities (tennis clubs, swimming pools, recreation centers) → "Fitness & Gym" (not "Sports & Outdoors")
+- "Sports & Outdoors" is for one-off activities: event tickets, outdoor recreation, sports leagues
+- Community/recreation centers with high monthly fees ($200+) → likely "Childcare" (camps, after-school programs) — not "Fitness & Gym"
+- Youth programs at recreation centers → "Childcare" or "Kids Activities" based on context
+
+## Food Venue Precision
+- Ice cream shops, gelato shops, chocolate shops, candy stores → "Restaurants" (not "Coffee & Cafes")
+- "Coffee & Cafes" is specifically for coffee/tea-focused establishments and bakery-cafes
+- When unsure between "Restaurants" and "Fast Food": if it has table service → "Restaurants"; if counter/pickup only → "Fast Food"
+
 - "Other" is a LAST RESORT — if ANY recognizable word exists, classify specifically
 
 ## Output Format
