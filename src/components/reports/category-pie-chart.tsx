@@ -1,7 +1,7 @@
 'use client'
 
 import { Card } from '@/components/ui/card'
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, type PieLabelRenderProps } from 'recharts'
 import { useTheme } from '@/components/theme-provider'
 import { formatCurrency } from '@/lib/format'
 
@@ -30,7 +30,7 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
       {chartData.length === 0 ? (
         <p className="text-center text-muted-foreground py-6 text-xs">No data</p>
       ) : (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={280}>
           <PieChart>
             <Pie
               data={chartData}
@@ -41,7 +41,15 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
               innerRadius={55}
               outerRadius={85}
               paddingAngle={2}
-              label={{ fill: fgColor, fontSize: 11 }}
+              label={(props: PieLabelRenderProps) => {
+                const { percent, x, y, textAnchor } = props as PieLabelRenderProps & { x: number; y: number; textAnchor: string }
+                const percentage = (percent ?? 0) * 100
+                return percentage > 5 ? (
+                  <text x={x} y={y} textAnchor={textAnchor} fill={fgColor} fontSize={11}>
+                    {percentage.toFixed(0)}%
+                  </text>
+                ) : null
+              }}
             >
               {chartData.map((entry, i) => (
                 <Cell key={i} fill={entry.color} />
@@ -49,9 +57,18 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
             </Pie>
             <Tooltip
               formatter={(value) => formatCurrency(Number(value))}
-              contentStyle={{ backgroundColor: cardBg, border: `1px solid ${gridColor}`, borderRadius: '6px', fontSize: '12px', color: fgColor }}
+              contentStyle={{ backgroundColor: cardBg, border: `1px solid ${gridColor}`, borderRadius: '6px', fontSize: '12px' }}
+              itemStyle={{ color: fgColor }}
+              labelStyle={{ color: fgColor }}
+              cursor={false}
             />
-            <Legend wrapperStyle={{ color: textColor, fontSize: '11px' }} iconType="circle" iconSize={8} />
+            <Legend
+              verticalAlign="bottom"
+              align="center"
+              wrapperStyle={{ color: textColor, fontSize: '11px', paddingTop: '8px' }}
+              iconType="circle"
+              iconSize={8}
+            />
           </PieChart>
         </ResponsiveContainer>
       )}
