@@ -26,7 +26,7 @@ export function Sidebar() {
           <span className="text-sm font-semibold tracking-tight text-foreground max-md:hidden">Expenlytics</span>
         </Link>
       </div>
-      <nav className="flex-1 px-2 space-y-0.5 max-md:px-1">
+      <nav className="flex-1 px-2 space-y-0.5 max-md:px-1" data-walkthrough="sidebar">
         {navItems.map(({ href, label, icon: Icon }) => {
           const isActive = pathname.startsWith(href)
           return (

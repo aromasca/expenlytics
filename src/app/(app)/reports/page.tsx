@@ -134,7 +134,7 @@ export default function ReportsPage() {
       {loading ? (
         <p className="text-sm text-muted-foreground py-8 text-center">Loading...</p>
       ) : data ? (
-        <>
+        <div data-walkthrough="reports" className="space-y-4">
           <SummaryCards
             totalSpent={data.summary.totalSpent}
             totalIncome={data.summary.totalIncome}
@@ -156,7 +156,7 @@ export default function ReportsPage() {
 
           <MoMComparisonChart data={data.momComparison} />
           <TopTransactionsTable data={data.topTransactions} />
-        </>
+        </div>
       ) : null}
     </div>
   )

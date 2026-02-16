@@ -53,7 +53,9 @@ export default function TransactionsPage() {
         </Button>
       </div>
       <FilterBar filters={filters} onFiltersChange={setFilters} />
-      <TransactionTable filters={filters} />
+      <div data-walkthrough="transactions">
+        <TransactionTable filters={filters} />
+      </div>
     </div>
   )
 }

@@ -7,7 +7,8 @@ import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useTheme } from '@/components/theme-provider'
-import { Cpu, Trash2, Moon, Sun } from 'lucide-react'
+import { Cpu, Trash2, Moon, Sun, RotateCcw } from 'lucide-react'
+import { useWalkthrough } from '@/components/walkthrough-provider'
 
 interface ProviderConfig {
   name: string
@@ -27,6 +28,7 @@ const TASK_LABELS: Record<string, { label: string; description: string }> = {
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme()
+  const { startWalkthrough } = useWalkthrough()
   const [resetting, setResetting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmText, setConfirmText] = useState('')
@@ -140,6 +142,21 @@ export default function SettingsPage() {
             </div>
           </div>
           <Switch checked={theme === 'dark'} onCheckedChange={toggleTheme} />
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <RotateCcw className="h-4 w-4" />
+            <div>
+              <h3 className="text-sm font-medium">Walkthrough</h3>
+              <p className="text-xs text-muted-foreground">Replay the getting-started guide</p>
+            </div>
+          </div>
+          <Button variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={startWalkthrough}>
+            Restart
+          </Button>
         </div>
       </Card>
 

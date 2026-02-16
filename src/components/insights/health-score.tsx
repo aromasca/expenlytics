@@ -18,7 +18,7 @@ const trendArrow = { up: '\u2191', down: '\u2193', stable: '\u2192' }
 
 export function HealthScore({ health }: { health: HealthAssessment }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-walkthrough="health-score">
       <div className="flex items-baseline gap-3">
         <span className={`text-4xl font-semibold tabular-nums ${colorMap[health.color]}`}>
           {health.score}

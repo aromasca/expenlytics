@@ -49,7 +49,9 @@ export default function DocumentsPage() {
         <h1 className="text-lg font-semibold">Documents</h1>
       </div>
 
-      <UploadZone onUploadComplete={fetchDocuments} />
+      <div data-walkthrough="upload">
+        <UploadZone onUploadComplete={fetchDocuments} />
+      </div>
 
       {loading ? (
         <div className="text-sm text-muted-foreground">Loading...</div>
