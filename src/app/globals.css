@@ -133,3 +133,8 @@
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* Fix date input in dark mode — color-scheme controls the native calendar popup, icon, and text */
+.dark input[type="date"] {
+  color-scheme: dark;
+}

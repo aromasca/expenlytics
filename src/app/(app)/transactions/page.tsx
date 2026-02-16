@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { UploadZone } from '@/components/upload-zone'
 import { TransactionTable } from '@/components/transaction-table'
 import { FilterBar, EMPTY_FILTERS, type Filters } from '@/components/filter-bar'
 import { Download } from 'lucide-react'
@@ -42,12 +41,7 @@ function exportCsv(filters: Filters) {
 }
 
 export default function TransactionsPage() {
-  const [refreshKey, setRefreshKey] = useState(0)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
-
-  const handleUploadComplete = useCallback(() => {
-    setRefreshKey(k => k + 1)
-  }, [])
 
   return (
     <div className="p-4 space-y-4">
@@ -58,9 +52,8 @@ export default function TransactionsPage() {
           Export CSV
         </Button>
       </div>
-      <UploadZone onUploadComplete={handleUploadComplete} />
       <FilterBar filters={filters} onFiltersChange={setFilters} />
-      <TransactionTable refreshKey={refreshKey} filters={filters} />
+      <TransactionTable filters={filters} />
     </div>
   )
 }

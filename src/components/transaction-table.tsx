@@ -30,7 +30,7 @@ interface Category {
 }
 
 interface TransactionTableProps {
-  refreshKey: number
+  refreshKey?: number
   filters?: Filters
 }
 
