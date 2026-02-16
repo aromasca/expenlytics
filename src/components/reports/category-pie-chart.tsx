@@ -18,23 +18,14 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
   const cardBg = isDark ? '#111113' : '#FFFFFF'
   const fgColor = isDark ? '#FAFAFA' : '#0A0A0A'
 
-  // Aggregate small categories into "Other", merging with existing "Other" if present
-  const top8 = data.slice(0, 8)
-  const rest = data.slice(8)
-  let chartData = [...top8]
+  // Keep "Other" (unclassified) as its own slice, aggregate remaining small categories separately
+  const topCategories = data.slice(0, 15)
+  const rest = data.slice(15)
+  let chartData = [...topCategories]
   if (rest.length > 0) {
     const restAmount = rest.reduce((s, r) => s + r.amount, 0)
     const restPercentage = rest.reduce((s, r) => s + r.percentage, 0)
-    const existingOtherIdx = chartData.findIndex(d => d.category === 'Other')
-    if (existingOtherIdx >= 0) {
-      chartData[existingOtherIdx] = {
-        ...chartData[existingOtherIdx],
-        amount: chartData[existingOtherIdx].amount + restAmount,
-        percentage: chartData[existingOtherIdx].percentage + restPercentage,
-      }
-    } else {
-      chartData.push({ category: 'Other', color: '#71717A', amount: restAmount, percentage: restPercentage })
-    }
+    chartData.push({ category: 'Remaining', color: '#71717A', amount: restAmount, percentage: restPercentage })
   }
 
   return (
