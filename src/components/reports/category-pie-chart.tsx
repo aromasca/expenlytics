@@ -18,11 +18,24 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
   const cardBg = isDark ? '#111113' : '#FFFFFF'
   const fgColor = isDark ? '#FAFAFA' : '#0A0A0A'
 
+  // Aggregate small categories into "Other", merging with existing "Other" if present
   const top8 = data.slice(0, 8)
   const rest = data.slice(8)
-  const chartData = rest.length > 0
-    ? [...top8, { category: 'Other', color: '#71717A', amount: rest.reduce((s, r) => s + r.amount, 0), percentage: rest.reduce((s, r) => s + r.percentage, 0) }]
-    : top8
+  let chartData = [...top8]
+  if (rest.length > 0) {
+    const restAmount = rest.reduce((s, r) => s + r.amount, 0)
+    const restPercentage = rest.reduce((s, r) => s + r.percentage, 0)
+    const existingOtherIdx = chartData.findIndex(d => d.category === 'Other')
+    if (existingOtherIdx >= 0) {
+      chartData[existingOtherIdx] = {
+        ...chartData[existingOtherIdx],
+        amount: chartData[existingOtherIdx].amount + restAmount,
+        percentage: chartData[existingOtherIdx].percentage + restPercentage,
+      }
+    } else {
+      chartData.push({ category: 'Other', color: '#71717A', amount: restAmount, percentage: restPercentage })
+    }
+  }
 
   return (
     <Card className="p-3">
@@ -41,15 +54,16 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
               innerRadius={55}
               outerRadius={85}
               paddingAngle={2}
-              label={(props: PieLabelRenderProps) => {
-                const { percent, x, y, textAnchor } = props as PieLabelRenderProps & { x: number; y: number; textAnchor: string }
-                const percentage = (percent ?? 0) * 100
-                return percentage > 5 ? (
+              label={({ percent, x, y, textAnchor }: PieLabelRenderProps & { x: number; y: number; textAnchor: string }) => {
+                const pct = (percent ?? 0) * 100
+                if (pct <= 5) return <text />
+                return (
                   <text x={x} y={y} textAnchor={textAnchor} fill={fgColor} fontSize={11}>
-                    {percentage.toFixed(0)}%
+                    {pct.toFixed(0)}%
                   </text>
-                ) : null
+                )
               }}
+              labelLine={false}
             >
               {chartData.map((entry, i) => (
                 <Cell key={i} fill={entry.color} />
