@@ -40,7 +40,9 @@ export async function PUT(request: NextRequest) {
   const updated: string[] = []
 
   for (const [key, value] of Object.entries(body)) {
-    if (!VALID_KEYS.has(key)) continue
+    if (!VALID_KEYS.has(key)) {
+      return NextResponse.json({ error: `Invalid setting key: ${key}` }, { status: 400 })
+    }
 
     if (key.startsWith('provider_')) {
       if (!isValidProvider(value as string)) {

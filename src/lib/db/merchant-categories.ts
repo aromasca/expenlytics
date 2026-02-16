@@ -135,6 +135,55 @@ export function backfillMerchantCategories(db: Database.Database): number {
 }
 
 /**
+ * Force-rebuild merchant_categories from existing transaction data using majority vote.
+ * Unlike backfillMerchantCategories, this always runs (overwrites existing mappings).
+ * Manual overrides (manual_category=1) take priority over frequency.
+ */
+export function forceBackfillMerchantCategories(db: Database.Database): number {
+  const rows = db.prepare(`
+    SELECT t.normalized_merchant, t.category_id, COUNT(*) as cnt,
+           SUM(CASE WHEN t.manual_category = 1 THEN 1 ELSE 0 END) as manual_count
+    FROM transactions t
+    WHERE t.normalized_merchant IS NOT NULL AND t.category_id IS NOT NULL
+    GROUP BY t.normalized_merchant, t.category_id
+  `).all() as Array<{
+    normalized_merchant: string
+    category_id: number
+    cnt: number
+    manual_count: number
+  }>
+
+  const merchantData = new Map<string, Array<{ category_id: number; cnt: number; manual_count: number }>>()
+  for (const row of rows) {
+    if (!merchantData.has(row.normalized_merchant)) {
+      merchantData.set(row.normalized_merchant, [])
+    }
+    merchantData.get(row.normalized_merchant)!.push(row)
+  }
+
+  const entries: Array<{ merchant: string; categoryId: number; source: string; confidence: number }> = []
+  for (const [merchant, categories] of merchantData) {
+    const totalCount = categories.reduce((s, c) => s + c.cnt, 0)
+    const totalManual = categories.reduce((s, c) => s + c.manual_count, 0)
+
+    if (totalManual > 0) {
+      const manualCats = categories.filter(c => c.manual_count > 0)
+      const best = manualCats.sort((a, b) => b.manual_count - a.manual_count)[0]
+      entries.push({ merchant, categoryId: best.category_id, source: 'manual', confidence: 1.0 })
+    } else {
+      const best = categories.sort((a, b) => b.cnt - a.cnt)[0]
+      const confidence = Math.round((best.cnt / totalCount) * 100) / 100
+      entries.push({ merchant, categoryId: best.category_id, source: 'majority', confidence })
+    }
+  }
+
+  if (entries.length > 0) {
+    bulkSetMerchantCategories(db, entries)
+  }
+  return entries.length
+}
+
+/**
  * Apply merchant_categories to all non-manual transactions.
  * Returns the number of transactions updated.
  */

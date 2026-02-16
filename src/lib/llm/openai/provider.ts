@@ -1,6 +1,25 @@
 import OpenAI from 'openai'
 import type { LLMProvider, LLMRequest, LLMDocumentRequest, LLMResponse } from '../types'
 
+// Typed interfaces for OpenAI Responses API (not fully covered by SDK types)
+interface ResponsesAPIInput {
+  role: 'system' | 'user'
+  content: Array<{ type: string; text?: string; file_id?: string }>
+}
+
+interface ResponsesAPIOutputContent {
+  type: string
+  text?: string
+}
+
+interface ResponsesAPIOutput {
+  content?: ResponsesAPIOutputContent[]
+}
+
+interface ResponsesAPIResult {
+  output?: ResponsesAPIOutput[]
+}
+
 export class OpenAIProvider implements LLMProvider {
   private client: OpenAI
 
@@ -35,7 +54,7 @@ export class OpenAIProvider implements LLMProvider {
       }
 
       // Empty response — log diagnostics
-      const refusal = (choice?.message as Record<string, unknown>)?.refusal
+      const refusal = (choice?.message as unknown as Record<string, unknown>)?.refusal
       console.warn(`[openai] Empty response from ${request.model} (finish_reason: ${finishReason}, refusal: ${refusal ?? 'none'}, attempt ${attempt + 1}/${MAX_RETRIES + 1})`)
 
       if (finishReason === 'length') {
@@ -69,7 +88,7 @@ export class OpenAIProvider implements LLMProvider {
 
     const userMessage = request.messages.find(m => m.role === 'user')
 
-    const input: Array<Record<string, unknown>> = []
+    const input: ResponsesAPIInput[] = []
 
     if (request.system) {
       input.push({
@@ -89,18 +108,19 @@ export class OpenAIProvider implements LLMProvider {
     // Step 2: Call Responses API (this is the slow part — OpenAI processes the PDF server-side)
     console.log(`[openai] Calling responses API (model: ${request.model})... this may take a while for PDFs`)
     const t1 = Date.now()
+    // Responses API input shape isn't fully typed in the SDK yet
     const response = await this.client.responses.create({
       model: request.model,
       input,
-    } as unknown as Parameters<typeof this.client.responses.create>[0])
+    } as Parameters<typeof this.client.responses.create>[0])
     console.log(`[openai] Response received (${((Date.now() - t1) / 1000).toFixed(1)}s)`)
 
     // Extract text from response output
-    const resp = response as unknown as { output?: Array<Record<string, unknown>> }
-    const text = ((resp.output || []) as Array<Record<string, unknown>>)
-      .flatMap((item) => (item.content || []) as Array<Record<string, unknown>>)
+    const resp = response as unknown as ResponsesAPIResult
+    const text = (resp.output || [])
+      .flatMap((item) => item.content || [])
       .filter((c) => c.type === 'output_text')
-      .map((c) => c.text as string)
+      .map((c) => c.text ?? '')
       .join('\n')
 
     return { text }

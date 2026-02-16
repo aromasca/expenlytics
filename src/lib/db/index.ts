@@ -39,5 +39,12 @@ function resumeStuckDocuments(database: Database.Database): void {
           .run(`Resume failed: ${message}`, doc.id)
       })
     }
+  }).catch((error) => {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error(`[startup] Failed to load pipeline module — marking ${stuck.length} document(s) as failed: ${message}`)
+    for (const doc of stuck) {
+      database.prepare("UPDATE documents SET status = 'failed', error_message = ? WHERE id = ?")
+        .run(`Resume failed: pipeline module unavailable — ${message}`, doc.id)
+    }
   })
 }

@@ -22,3 +22,8 @@ export interface LLMProvider {
 export type ProviderName = 'anthropic' | 'openai'
 
 export type TaskName = 'extraction' | 'classification' | 'normalization' | 'insights'
+
+export interface PromptTemplate {
+  system?: string
+  user: string
+}

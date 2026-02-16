@@ -5,17 +5,22 @@ import { normalizationSchema, type NormalizationResult } from './schemas'
 // Smaller models (nano/mini) need smaller batches to avoid hitting output token limits
 const BATCH_SIZE_LARGE = 80
 const BATCH_SIZE_SMALL = 30
-const SMALL_MODELS = ['gpt-5-mini', 'gpt-4o-mini', 'claude-haiku']
+const SMALL_MODEL_PATTERNS = ['mini', 'nano', 'haiku']
+
+function isSmallModel(model: string): boolean {
+  const lower = model.toLowerCase()
+  return SMALL_MODEL_PATTERNS.some(p => lower.includes(p))
+}
 
 function getBatchSize(model: string): number {
-  return SMALL_MODELS.some(m => model.includes(m)) ? BATCH_SIZE_SMALL : BATCH_SIZE_LARGE
+  return isSmallModel(model) ? BATCH_SIZE_SMALL : BATCH_SIZE_LARGE
 }
 
 async function normalizeBatch(provider: LLMProvider, providerName: ProviderName, batch: string[], model: string, existingMerchants?: string[]): Promise<Map<string, string>> {
   let existingMerchantsBlock = ''
   if (existingMerchants && existingMerchants.length > 0) {
     // Limit context for smaller models
-    const limit = SMALL_MODELS.some(m => model.includes(m)) ? 50 : 100
+    const limit = isSmallModel(model) ? 50 : 100
     const list = JSON.stringify(existingMerchants.slice(0, limit))
     existingMerchantsBlock = `EXISTING MERCHANT NAMES (match to these when the description refers to the same business):\n${list}\n\n`
   }

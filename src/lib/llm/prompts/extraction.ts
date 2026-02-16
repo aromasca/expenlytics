@@ -1,9 +1,4 @@
-import type { ProviderName } from '../types'
-
-interface PromptTemplate {
-  system?: string
-  user: string
-}
+import type { ProviderName, PromptTemplate } from '../types'
 
 const RAW_EXTRACTION_PROMPTS: Record<ProviderName, PromptTemplate> = {
   anthropic: {

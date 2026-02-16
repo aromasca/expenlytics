@@ -9,44 +9,40 @@ export class AnthropicProvider implements LLMProvider {
   }
 
   async complete(request: LLMRequest): Promise<LLMResponse> {
-    const params: Record<string, unknown> = {
+    const params: Anthropic.MessageCreateParamsNonStreaming = {
       model: request.model,
       max_tokens: request.maxTokens,
       messages: request.messages,
-    }
-    if (request.system) {
-      params.system = request.system
+      ...(request.system ? { system: request.system } : {}),
     }
 
-    const response = await this.client.messages.create(params as unknown as Anthropic.MessageCreateParamsNonStreaming)
+    const response = await this.client.messages.create(params)
     const text = response.content[0]?.type === 'text' ? response.content[0].text : ''
     return { text }
   }
 
   async extractFromDocument(request: LLMDocumentRequest): Promise<LLMResponse> {
     const userMessage = request.messages.find(m => m.role === 'user')
-    const content = [
+    const content: Anthropic.ContentBlockParam[] = [
       {
-        type: 'document' as const,
+        type: 'document',
         source: {
-          type: 'base64' as const,
-          media_type: request.documentMediaType,
+          type: 'base64',
+          media_type: request.documentMediaType as 'application/pdf',
           data: request.document.toString('base64'),
         },
       },
-      { type: 'text' as const, text: userMessage?.content ?? '' },
+      { type: 'text', text: userMessage?.content ?? '' },
     ]
 
-    const params: Record<string, unknown> = {
+    const params: Anthropic.MessageCreateParamsNonStreaming = {
       model: request.model,
       max_tokens: request.maxTokens,
       messages: [{ role: 'user', content }],
-    }
-    if (request.system) {
-      params.system = request.system
+      ...(request.system ? { system: request.system } : {}),
     }
 
-    const response = await this.client.messages.create(params as unknown as Anthropic.MessageCreateParamsNonStreaming)
+    const response = await this.client.messages.create(params)
     const text = response.content[0]?.type === 'text' ? response.content[0].text : ''
     return { text }
   }

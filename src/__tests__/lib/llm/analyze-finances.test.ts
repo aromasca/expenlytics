@@ -32,6 +32,7 @@ const SAMPLE_DATA: CompactFinancialData = {
   daily_recent: [{ date: '2026-01-15', amount: 150, is_income_day: true }],
   recurring: [{ merchant: 'Netflix', amount: 15.99, frequency: 'monthly', months: 6 }],
   outliers: [],
+  top_merchants_by_category: [],
 }
 
 describe('analyzeHealthAndPatterns', () => {

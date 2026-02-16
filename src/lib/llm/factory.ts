@@ -14,12 +14,20 @@ const TASK_SETTINGS_KEYS: Record<TaskName, { provider: string; model: string }> 
 
 const DEFAULT_PROVIDER: ProviderName = 'anthropic'
 
-function createProvider(name: ProviderName): LLMProvider {
+const providerCache = new Map<ProviderName, LLMProvider>()
+
+function getOrCreateProvider(name: ProviderName): LLMProvider {
+  const cached = providerCache.get(name)
+  if (cached) return cached
+
+  let provider: LLMProvider
   switch (name) {
-    case 'anthropic': return new AnthropicProvider()
-    case 'openai': return new OpenAIProvider()
+    case 'anthropic': provider = new AnthropicProvider(); break
+    case 'openai': provider = new OpenAIProvider(); break
     default: throw new Error(`Unknown provider: ${name}`)
   }
+  providerCache.set(name, provider)
+  return provider
 }
 
 export interface ProviderForTask {
@@ -43,7 +51,7 @@ export function getProviderForTask(db: Database.Database, task: TaskName): Provi
       : providerConfig.defaults[task]
 
   return {
-    provider: createProvider(providerName),
+    provider: getOrCreateProvider(providerName),
     providerName,
     model,
   }

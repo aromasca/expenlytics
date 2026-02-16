@@ -1,9 +1,4 @@
-import type { ProviderName } from '../types'
-
-interface PromptTemplate {
-  system?: string
-  user: string
-}
+import type { ProviderName, PromptTemplate } from '../types'
 
 const CLASSIFY_PROMPTS: Record<ProviderName, PromptTemplate> = {
   anthropic: {
@@ -195,6 +190,7 @@ CATEGORIES BY GROUP:
 - Financial: Fees & Charges, Interest & Finance Charges, Taxes, Investments, Savings
 - Gifts & Giving: Gifts, Charitable Donations
 - Income & Transfers: Salary & Wages, Freelance Income, Refund, Transfer, ATM Withdrawal
+- Software & Services: AI & Productivity Software, SaaS & Subscriptions
 - Other: Other
 
 KEY DISAMBIGUATION:
@@ -268,6 +264,7 @@ For each transaction, first identify which GROUP it belongs to, then pick the mo
 - **Financial**: Fees & Charges, Interest & Finance Charges, Taxes, Investments, Savings
 - **Gifts & Giving**: Gifts, Charitable Donations
 - **Income & Transfers**: Salary & Wages, Freelance Income, Refund, Transfer, ATM Withdrawal
+- **Software & Services**: AI & Productivity Software, SaaS & Subscriptions
 - **Other**: Other
 
 ## Key Disambiguation Rules
