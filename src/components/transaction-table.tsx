@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CategorySelect } from './category-select'
 import { formatCurrencyPrecise } from '@/lib/format'
 import { Trash2 } from 'lucide-react'
@@ -96,6 +97,24 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ category_id: categoryId }),
     })
+    await fetchTransactions(page)
+  }
+
+  const updateType = async (transactionId: number, type: string) => {
+    await fetch(`/api/transactions/${transactionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type }),
+    }).catch(() => {})
+    await fetchTransactions(page)
+  }
+
+  const updateClass = async (transactionId: number, transactionClass: string) => {
+    await fetch(`/api/transactions/${transactionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transaction_class: transactionClass }),
+    }).catch(() => {})
     await fetchTransactions(page)
   }
 
@@ -195,14 +214,28 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
                 </TableCell>
                 <TableCell className="py-1.5">
                   <div className="flex items-center gap-1.5">
-                    <span className={`text-[11px] uppercase tracking-wide ${txn.type === 'credit' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
-                      {txn.type}
-                    </span>
-                    {txn.transaction_class && txn.transaction_class !== 'purchase' && (
-                      <span className="text-[10px] rounded px-1 py-0.5 bg-muted text-muted-foreground">
-                        {txn.transaction_class}
-                      </span>
-                    )}
+                    <Select value={txn.type} onValueChange={(v) => updateType(txn.id, v)}>
+                      <SelectTrigger className="h-6 w-[72px] border-0 bg-transparent px-1 text-[11px] uppercase tracking-wide shadow-none hover:bg-muted focus:ring-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="debit" className="text-xs">Debit</SelectItem>
+                        <SelectItem value="credit" className="text-xs">Credit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={txn.transaction_class ?? 'purchase'} onValueChange={(v) => updateClass(txn.id, v)}>
+                      <SelectTrigger className="h-6 w-[88px] border-0 bg-transparent px-1 text-[10px] shadow-none hover:bg-muted focus:ring-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="purchase" className="text-xs">purchase</SelectItem>
+                        <SelectItem value="payment" className="text-xs">payment</SelectItem>
+                        <SelectItem value="refund" className="text-xs">refund</SelectItem>
+                        <SelectItem value="fee" className="text-xs">fee</SelectItem>
+                        <SelectItem value="interest" className="text-xs">interest</SelectItem>
+                        <SelectItem value="transfer" className="text-xs">transfer</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </TableCell>
                 <TableCell className="py-1.5">
