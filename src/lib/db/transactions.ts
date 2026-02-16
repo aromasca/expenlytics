@@ -116,6 +116,14 @@ export function updateTransactionCategory(db: Database.Database, transactionId: 
 }
 
 
+export function updateTransactionType(db: Database.Database, transactionId: number, type: 'debit' | 'credit'): void {
+  db.prepare('UPDATE transactions SET type = ? WHERE id = ?').run(type, transactionId)
+}
+
+export function updateTransactionClass(db: Database.Database, transactionId: number, transactionClass: string): void {
+  db.prepare('UPDATE transactions SET transaction_class = ? WHERE id = ?').run(transactionClass, transactionId)
+}
+
 export function bulkUpdateCategories(
   db: Database.Database,
   updates: Array<{ transactionId: number; categoryId: number }>

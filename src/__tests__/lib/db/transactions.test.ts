@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import Database from 'better-sqlite3'
 import { initializeSchema } from '@/lib/db/schema'
 import { createDocument } from '@/lib/db/documents'
-import { insertTransactions, listTransactions, updateTransactionCategory, bulkUpdateCategories, deleteTransaction, deleteTransactions } from '@/lib/db/transactions'
+import { insertTransactions, listTransactions, updateTransactionCategory, updateTransactionType, updateTransactionClass, bulkUpdateCategories, deleteTransaction, deleteTransactions } from '@/lib/db/transactions'
 import { getAllCategories } from '@/lib/db/categories'
 
 describe('transactions', () => {
@@ -180,6 +180,26 @@ describe('transactions', () => {
     const columns = db.prepare("PRAGMA table_info(transactions)").all() as Array<{ name: string }>
     const names = columns.map(c => c.name)
     expect(names).toContain('normalized_merchant')
+  })
+
+  it('updates transaction type', () => {
+    insertTransactions(db, docId, [
+      { date: '2025-01-15', description: 'Store', amount: 50, type: 'debit' },
+    ])
+    const txns = listTransactions(db, {})
+    updateTransactionType(db, txns.transactions[0].id, 'credit')
+    const updated = listTransactions(db, {})
+    expect(updated.transactions[0].type).toBe('credit')
+  })
+
+  it('updates transaction class', () => {
+    insertTransactions(db, docId, [
+      { date: '2025-01-15', description: 'Store', amount: 50, type: 'debit' },
+    ])
+    const txns = listTransactions(db, {})
+    updateTransactionClass(db, txns.transactions[0].id, 'transfer')
+    const updated = listTransactions(db, {})
+    expect(updated.transactions[0].transaction_class).toBe('transfer')
   })
 
   it('filters by multiple category_ids', () => {
