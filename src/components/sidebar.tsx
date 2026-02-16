@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { Receipt, BarChart3, RefreshCw, Settings, Lightbulb, FileText, Building2 } from 'lucide-react'
+import { Receipt, BarChart3, RefreshCw, Settings, Lightbulb, FileText, Building2, Store } from 'lucide-react'
 
 const navItems = [
   { href: '/insights', label: 'Insights', icon: Lightbulb },
@@ -13,6 +13,7 @@ const navItems = [
   { href: '/accounts', label: 'Accounts', icon: Building2 },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
   { href: '/subscriptions', label: 'Recurring', icon: RefreshCw },
+  { href: '/merchants', label: 'Merchants', icon: Store },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 

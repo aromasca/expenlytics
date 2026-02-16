@@ -40,6 +40,13 @@ A local-first spending analytics app that uses AI to extract transactions from P
 - Runs automatically at upload time (non-blocking — failures don't prevent import)
 - Re-analyze button on Subscriptions page to re-normalize all merchants
 
+### Merchant Management
+- Dedicated merchants page showing all unique normalized merchants with transaction counts, totals, categories, and date ranges
+- Search/filter merchants by name
+- Select and merge merchants with inconsistent names (e.g., "Cincinnati Insurance" + "The Cincinnati Insurance")
+- **AI-powered merge suggestions**: LLM analyzes all merchant names and suggests groups that likely refer to the same business
+- Apply or dismiss merge suggestions individually
+
 ### Transaction Management
 - Filterable table with search, type (debit/credit), category multi-select, document, and date range
 - Date presets: 30 days, this month, 3 months, year-to-date, all time
@@ -84,7 +91,7 @@ A local-first spending analytics app that uses AI to extract transactions from P
 
 ### Multi-Provider LLM Support
 - Choose between **Anthropic** (Claude) and **OpenAI** (GPT) models for each AI task
-- Per-task model selection: extraction, classification, normalization, insights
+- Per-task model selection: extraction, classification, normalization, insights, merge suggestions
 - Supported models: Claude Sonnet 4.5, Claude Haiku 4.5, GPT-4o, GPT-4o-mini, GPT-5, GPT-5-mini, GPT-5-nano, GPT-5.2
 - Configure provider and model per task from the Settings page
 
@@ -217,6 +224,7 @@ src/
 │   │   ├── documents/        #   Document list + [id] + reprocess + retry
 │   │   ├── reports/          #   Report data + Sankey queries
 │   │   ├── recurring/        #   Detection, normalize, merge, status, exclude
+│   │   ├── merchants/        #   Merchant list + LLM merge suggestions
 │   │   ├── insights/         #   LLM financial intelligence, dismiss
 │   │   ├── settings/         #   App settings (provider/model config)
 │   │   ├── merchant-categories/ # Merchant memory backfill + apply
@@ -228,6 +236,7 @@ src/
 │   │   ├── documents/        #   Document management & processing
 │   │   ├── reports/          #   Charts & spending analytics
 │   │   ├── subscriptions/    #   Recurring charge detection
+│   │   ├── merchants/        #   Merchant management & merge suggestions
 │   │   └── settings/         #   Theme, LLM config, reclassify, reset
 │   └── page.tsx              # Redirects to /insights
 ├── components/               # React components (shadcn/ui based)
@@ -267,6 +276,8 @@ data/                         # SQLite DB & uploaded PDFs (gitignored)
 | POST | `/api/recurring/merge` | Merge merchants |
 | POST | `/api/recurring/status` | Set subscription status (ended/not_recurring/active) |
 | POST | `/api/recurring/exclude` | Exclude/restore individual transaction from recurring |
+| GET | `/api/merchants` | List all merchants with stats (filterable by `?q=`) |
+| POST | `/api/merchants/suggest-merges` | LLM-powered merchant duplicate detection |
 | GET | `/api/insights` | Generate financial intelligence |
 | POST | `/api/insights/dismiss` | Dismiss an insight |
 | DELETE | `/api/insights/dismiss` | Clear all dismissed insights |

@@ -23,17 +23,18 @@
 
 ## Project Structure
 - Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`)
-- `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib). Key modules: `schema.ts`, `transactions.ts`, `reports.ts`, `recurring.ts`, `categories.ts`, `documents.ts`, `accounts.ts`, `health.ts`, `settings.ts`, `insight-cache.ts`, `merchant-categories.ts`
+- `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib). Key modules: `schema.ts`, `transactions.ts`, `reports.ts`, `recurring.ts`, `categories.ts`, `documents.ts`, `accounts.ts`, `health.ts`, `settings.ts`, `insight-cache.ts`, `merchant-categories.ts`, `merchants.ts`
 - `src/lib/llm/` — Multi-provider LLM abstraction. `LLMProvider` interface in `types.ts`, `AnthropicProvider` in `anthropic/provider.ts` + `OpenAIProvider` in `openai/provider.ts`, `getProviderForTask(db, task)` factory in `factory.ts`, provider-specific prompts in `prompts/`, Zod schemas in `schemas.ts`
 - `src/lib/llm/extract-transactions.ts` — `extractRawTransactions` (PDF→raw data), `classifyTransactions` (add categories), `reclassifyTransactions`. Classification prompts include TRANSFER IDENTIFICATION rules for debit-side transfers
 - `src/lib/llm/analyze-finances.ts` — LLM-powered health score, patterns, deep insights (two LLM calls)
 - `src/lib/llm/normalize-merchants.ts` — LLM merchant normalization
+- `src/lib/llm/suggest-merges.ts` — LLM-powered merchant duplicate detection
 - `src/lib/pipeline.ts` — Background document processing: extraction → classification → normalization → complete
 - `src/lib/insights/compact-data.ts` — SQL data compaction for LLM context (`buildCompactData`)
 - `src/lib/recurring.ts` — Pure recurring charge detection logic (no DB dependency). Groups by case-insensitive `normalized_merchant` (picks most common casing). Frequencies: weekly/monthly/quarterly/semi-annual/yearly/irregular. 2 occurrences allowed for 150+ day spans
 - `src/lib/format.ts` — `formatCurrency()` and `formatCurrencyPrecise()` utilities
-- `src/app/api/` — API routes: `upload`, `transactions`, `transactions/[id]`, `categories`, `documents`, `documents/[id]`, `documents/[id]/reprocess`, `documents/[id]/retry`, `reports`, `recurring`, `recurring/normalize`, `recurring/status`, `recurring/exclude`, `recurring/merge`, `reclassify/[documentId]`, `insights`, `insights/dismiss`, `accounts`, `accounts/[id]`, `accounts/detect`, `accounts/merge`, `accounts/reset`, `settings`, `reset`
-- `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, documents, reports, subscriptions, accounts, settings
+- `src/app/api/` — API routes: `upload`, `transactions`, `transactions/[id]`, `categories`, `documents`, `documents/[id]`, `documents/[id]/reprocess`, `documents/[id]/retry`, `reports`, `recurring`, `recurring/normalize`, `recurring/status`, `recurring/exclude`, `recurring/merge`, `reclassify/[documentId]`, `insights`, `insights/dismiss`, `accounts`, `accounts/[id]`, `accounts/detect`, `accounts/merge`, `accounts/reset`, `merchants`, `merchants/suggest-merges`, `settings`, `reset`
+- `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, documents, reports, subscriptions, merchants, accounts, settings
 - `src/app/page.tsx` — Redirects to `/insights`
 - `src/components/` — React client components using shadcn/ui
 - `src/components/reports/` — Recharts charts (spending bar/trend/pie, savings rate, MoM comparison, summary cards, top transactions) + d3-sankey Sankey diagram (`sankey-chart.tsx`)

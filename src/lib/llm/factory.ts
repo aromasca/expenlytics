@@ -10,6 +10,7 @@ const TASK_SETTINGS_KEYS: Record<TaskName, { provider: string; model: string }> 
   classification: { provider: 'provider_classification', model: 'model_classification' },
   normalization: { provider: 'provider_normalization', model: 'model_normalization' },
   insights: { provider: 'provider_insights', model: 'model_insights' },
+  merge_suggestions: { provider: 'provider_merge_suggestions', model: 'model_merge_suggestions' },
 }
 
 const DEFAULT_PROVIDER: ProviderName = 'anthropic'

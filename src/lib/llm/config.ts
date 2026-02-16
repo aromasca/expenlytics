@@ -25,6 +25,7 @@ export const PROVIDERS: Record<ProviderName, ProviderConfig> = {
       classification: 'claude-sonnet-4-5-20250929',
       normalization: 'claude-haiku-4-5-20251001',
       insights: 'claude-sonnet-4-5-20250929',
+      merge_suggestions: 'claude-haiku-4-5-20251001',
     },
   },
   openai: {
@@ -41,6 +42,7 @@ export const PROVIDERS: Record<ProviderName, ProviderConfig> = {
       classification: 'gpt-5-mini',
       normalization: 'gpt-5-mini',
       insights: 'gpt-5',
+      merge_suggestions: 'gpt-5-mini',
     },
   },
 }
