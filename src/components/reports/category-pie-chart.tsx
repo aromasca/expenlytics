@@ -3,6 +3,7 @@
 import { Card } from '@/components/ui/card'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { useTheme } from '@/components/theme-provider'
+import { formatCurrency } from '@/lib/format'
 
 interface CategoryPieChartProps {
   data: Array<{ category: string; color: string; amount: number; percentage: number }>
@@ -47,7 +48,7 @@ export function CategoryPieChart({ data }: CategoryPieChartProps) {
               ))}
             </Pie>
             <Tooltip
-              formatter={(value) => `$${Number(value).toFixed(2)}`}
+              formatter={(value) => formatCurrency(Number(value))}
               contentStyle={{ backgroundColor: cardBg, border: `1px solid ${gridColor}`, borderRadius: '6px', fontSize: '12px', color: fgColor }}
             />
             <Legend wrapperStyle={{ color: textColor, fontSize: '11px' }} iconType="circle" iconSize={8} />

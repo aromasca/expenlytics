@@ -3,6 +3,7 @@
 import { Card } from '@/components/ui/card'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useTheme } from '@/components/theme-provider'
+import { formatCurrency } from '@/lib/format'
 
 interface SpendingBarChartProps {
   data: Array<{ period: string; amount: number }>
@@ -27,9 +28,9 @@ export function SpendingBarChart({ data }: SpendingBarChartProps) {
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
             <XAxis dataKey="period" fontSize={11} stroke={textColor} tick={{ fill: textColor }} axisLine={false} tickLine={false} />
-            <YAxis fontSize={11} tickFormatter={(v) => `$${v}`} stroke={textColor} tick={{ fill: textColor }} axisLine={false} tickLine={false} />
+            <YAxis fontSize={11} tickFormatter={(v) => formatCurrency(v)} stroke={textColor} tick={{ fill: textColor }} axisLine={false} tickLine={false} />
             <Tooltip
-              formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Spent']}
+              formatter={(value) => [formatCurrency(Number(value)), 'Spent']}
               contentStyle={{ backgroundColor: cardBg, border: `1px solid ${gridColor}`, borderRadius: '6px', fontSize: '12px', color: isDark ? '#FAFAFA' : '#0A0A0A' }}
               labelStyle={{ color: isDark ? '#FAFAFA' : '#0A0A0A' }}
               itemStyle={{ color: isDark ? '#FAFAFA' : '#0A0A0A' }}

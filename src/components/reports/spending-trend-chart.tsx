@@ -3,6 +3,7 @@
 import { Card } from '@/components/ui/card'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { useTheme } from '@/components/theme-provider'
+import { formatCurrency } from '@/lib/format'
 
 interface SpendingTrendChartProps {
   data: Array<{ period: string; debits: number; credits: number }>
@@ -27,9 +28,9 @@ export function SpendingTrendChart({ data }: SpendingTrendChartProps) {
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
             <XAxis dataKey="period" fontSize={11} stroke={textColor} tick={{ fill: textColor }} axisLine={false} tickLine={false} />
-            <YAxis fontSize={11} tickFormatter={(v) => `$${v}`} stroke={textColor} tick={{ fill: textColor }} axisLine={false} tickLine={false} />
+            <YAxis fontSize={11} tickFormatter={(v) => formatCurrency(v)} stroke={textColor} tick={{ fill: textColor }} axisLine={false} tickLine={false} />
             <Tooltip
-              formatter={(value) => `$${Number(value).toFixed(2)}`}
+              formatter={(value) => formatCurrency(Number(value))}
               contentStyle={{ backgroundColor: cardBg, border: `1px solid ${gridColor}`, borderRadius: '6px', fontSize: '12px', color: fgColor }}
               labelStyle={{ color: fgColor }}
               itemStyle={{ color: fgColor }}

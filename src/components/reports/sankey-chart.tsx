@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react'
 import { sankey, sankeyLinkHorizontal, SankeyNode, SankeyLink } from 'd3-sankey'
 import { useTheme } from '@/components/theme-provider'
 import { Card } from '@/components/ui/card'
+import { formatCurrency } from '@/lib/format'
 
 interface SankeyRow {
   category: string
@@ -29,8 +30,6 @@ interface LinkExtra {
 
 type SNode = SankeyNode<NodeExtra, LinkExtra>
 type SLink = SankeyLink<NodeExtra, LinkExtra>
-
-const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 
 export function SankeyChart({ data, incomeData, totalIncome }: SankeyChartProps) {
   const { theme } = useTheme()
@@ -181,9 +180,9 @@ export function SankeyChart({ data, incomeData, totalIncome }: SankeyChartProps)
                 opacity={opacity}
                 onMouseEnter={(e) => {
                   setHoveredLink(i)
-                  showTooltip(e, `${source.name} → ${target.name}`, fmt.format(link.value))
+                  showTooltip(e, `${source.name} → ${target.name}`, formatCurrency(link.value))
                 }}
-                onMouseMove={(e) => showTooltip(e, `${source.name} → ${target.name}`, fmt.format(link.value))}
+                onMouseMove={(e) => showTooltip(e, `${source.name} → ${target.name}`, formatCurrency(link.value))}
                 onMouseLeave={() => { setHoveredLink(null); hideTooltip() }}
                 style={{ transition: 'opacity 0.15s' }}
               />
@@ -209,8 +208,8 @@ export function SankeyChart({ data, incomeData, totalIncome }: SankeyChartProps)
                   height={Math.max(1, nodeHeight)}
                   fill={node.color}
                   rx={1}
-                  onMouseEnter={(e) => showTooltip(e, node.name, fmt.format(node.value ?? 0))}
-                  onMouseMove={(e) => showTooltip(e, node.name, fmt.format(node.value ?? 0))}
+                  onMouseEnter={(e) => showTooltip(e, node.name, formatCurrency(node.value ?? 0))}
+                  onMouseMove={(e) => showTooltip(e, node.name, formatCurrency(node.value ?? 0))}
                   onMouseLeave={hideTooltip}
                 />
                 {nodeHeight > 8 && (

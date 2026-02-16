@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { formatCurrencyPrecise } from '@/lib/format'
 
 interface TopTransactionsTableProps {
   data: Array<{ id: number; date: string; description: string; amount: number; type: string; category: string | null }>
@@ -39,7 +40,7 @@ export function TopTransactionsTable({ data }: TopTransactionsTableProps) {
                   <TableCell className="py-1.5 text-xs">{txn.description}</TableCell>
                   <TableCell className="py-1.5 text-xs text-muted-foreground">{txn.category ?? 'Uncategorized'}</TableCell>
                   <TableCell className={`py-1.5 text-xs text-right tabular-nums font-medium ${txn.type === 'credit' ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
-                    {txn.type === 'credit' ? '+' : '-'}${txn.amount.toFixed(2)}
+                    {txn.type === 'credit' ? '+' : '-'}{formatCurrencyPrecise(txn.amount)}
                   </TableCell>
                 </TableRow>
               ))}
