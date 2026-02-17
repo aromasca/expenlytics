@@ -32,6 +32,7 @@
 - `src/lib/pipeline.ts` — Background document processing: extraction → classification → normalization → complete
 - `src/lib/insights/compact-data.ts` — SQL data compaction for LLM context (`buildCompactData`)
 - `src/lib/recurring.ts` — Pure recurring charge detection logic (no DB dependency). Groups by case-insensitive `normalized_merchant` (picks most common casing). Frequencies: weekly/monthly/quarterly/semi-annual/yearly/irregular. 2 occurrences allowed for 150+ day spans
+- `estimateMonthlyAmount`: for frequent charges (weekly/monthly/irregular), uses `totalAmount / max(distinctCalendarMonths, roundedSpanMonths)` — handles both multiple charges per month and billing-date drift. For infrequent charges (quarterly/semi-annual/yearly), amortizes `avgAmount / divisor`
 - `src/lib/format.ts` — `formatCurrency()` and `formatCurrencyPrecise()` utilities
 - `src/app/api/` — API routes: `upload`, `transactions`, `transactions/[id]`, `categories`, `documents`, `documents/[id]`, `documents/[id]/reprocess`, `documents/[id]/retry`, `reports`, `recurring`, `recurring/normalize`, `recurring/status`, `recurring/exclude`, `recurring/merge`, `reclassify/[documentId]`, `insights`, `insights/dismiss`, `accounts`, `accounts/[id]`, `accounts/detect`, `accounts/merge`, `accounts/reset`, `merchants`, `merchants/suggest-merges`, `settings`, `reset`
 - `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, documents, reports, subscriptions, merchants, accounts, settings
@@ -81,6 +82,7 @@
 
 ### Testing
 - Test pattern: `new Database(':memory:')` + `initializeSchema(db)`
+- NEVER use real merchant names, amounts, or dates from user data in tests — use generic fictional names (e.g. "Acme SaaS") and round amounts
 - Mock LLM: `createMockProvider()` returning `{ provider, mockComplete, mockExtract }` — see `src/__tests__/lib/llm/`
 - When mocking multiple `@/lib/*` modules, use module-level `vi.fn()` variables with `vi.mock()` factory functions (not class-based mocks)
 - Mock `fs/promises` with `vi.mock('fs/promises', ...)` when testing pipeline code
