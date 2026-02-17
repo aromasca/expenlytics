@@ -22,12 +22,18 @@ async function generateInsights(cacheKey: string) {
       return
     }
 
-    console.log(`[insights] Starting generation (${providerName}/${model}, ${compactData.monthly.length} months, ${compactData.recent_transactions.length} recent txns)`)
+    const { active_commitments, commitment_baseline, account_summaries } = compactData
+    console.log(`[insights] Starting generation (${providerName}/${model})`)
+    console.log(`[insights]   data: ${compactData.monthly.length} months, ${compactData.recent_transactions.length} recent txns, ${compactData.merchants.length} merchants`)
+    console.log(`[insights]   commitments: ${active_commitments.length} active, $${commitment_baseline.total_monthly.toFixed(0)}/mo baseline`)
+    console.log(`[insights]   accounts: ${account_summaries.length} linked`)
 
     try {
       const t0 = Date.now()
       const { health, insights } = await analyzeFinances(provider, providerName, compactData, model)
-      console.log(`[insights] Analysis complete — score: ${health?.score ?? 'n/a'}, ${insights.length} insights (${((Date.now() - t0) / 1000).toFixed(1)}s)`)
+      const types = insights.map(i => i.type).join(', ')
+      console.log(`[insights] Analysis complete (${((Date.now() - t0) / 1000).toFixed(1)}s)`)
+      console.log(`[insights]   score: ${health?.score ?? 'n/a'} (${health?.color ?? '?'}), ${insights.length} alerts [${types}]`)
       setCachedInsights(db, cacheKey, { health, insights })
       console.log('[insights] Results cached ✓')
     } catch (error) {
@@ -63,6 +69,7 @@ export async function GET(request: NextRequest) {
 
     const refresh = request.nextUrl.searchParams.get('refresh')
     if (refresh === 'true') {
+      console.log('[insights] Cache cleared (manual refresh)')
       clearInsightCache(db)
     }
 
@@ -74,6 +81,7 @@ export async function GET(request: NextRequest) {
     // Cache hit — return immediately
     if (cached) {
       const cachedData = cached as unknown as { health: HealthAssessment; insights: Insight[] }
+      console.log(`[insights] Cache hit (key: ${cacheKey.slice(0, 8)}…, ${cachedData.insights.length} alerts, ${dismissedIds.size} dismissed)`)
       return NextResponse.json(
         buildResponse('ready', cachedData.health, monthlyFlow, cachedData.insights, dismissedIds)
       )
@@ -81,12 +89,14 @@ export async function GET(request: NextRequest) {
 
     // Generation already in progress — tell client to poll
     if (generationInProgress.has(cacheKey)) {
+      console.log(`[insights] Generation in progress (key: ${cacheKey.slice(0, 8)}…), polling`)
       return NextResponse.json(
         buildResponse('generating', null, monthlyFlow, [], dismissedIds)
       )
     }
 
     // Start background generation, return immediately so client can poll
+    console.log(`[insights] Cache miss (key: ${cacheKey.slice(0, 8)}…), starting background generation`)
     const promise = generateInsights(cacheKey)
     generationInProgress.set(cacheKey, promise)
 

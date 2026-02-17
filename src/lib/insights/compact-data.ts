@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3'
 import { VALID_TRANSACTION_FILTER } from '@/lib/db/filters'
+import { detectCommitmentGroups, type TransactionForCommitment } from '@/lib/commitments'
 
 export interface CompactFinancialData {
   monthly: Array<{ month: string; income: number; spending: number; net: number }>
@@ -11,7 +12,27 @@ export interface CompactFinancialData {
   }>
   day_of_week: Array<{ day: string; avg_spend: number; transaction_count: number }>
   daily_recent: Array<{ date: string; amount: number; is_income_day: boolean }>
-  commitments: Array<{ merchant: string; amount: number; frequency: string; months: number }>
+  active_commitments: Array<{
+    merchant: string
+    frequency: string
+    estimated_monthly: number
+    recent_amounts: number[]
+    first_seen: string
+    last_seen: string
+    category: string
+    account?: string
+  }>
+  commitment_baseline: {
+    total_monthly: number
+    count: number
+  }
+  account_summaries: Array<{
+    name: string
+    type: string
+    months: Record<string, { spending: number; income: number; txn_count: number }>
+    top_categories: Array<{ category: string; total: number }>
+    top_merchants: Array<{ name: string; total: number }>
+  }>
   outliers: Array<{ date: string; description: string; amount: number; category: string }>
   top_merchants_by_category: Array<{ category: string; merchants: Array<{ name: string; total: number; count: number }> }>
   recent_transactions: Array<{
@@ -137,34 +158,77 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     is_income_day: incomeDates.has(r.date),
   }))
 
-  // Recurring charges (merchants with 2+ charges, consistent amounts)
-  const commitmentRows = db.prepare(`
-    SELECT COALESCE(t.normalized_merchant, t.description) as merchant,
-           ROUND(AVG(t.amount), 2) as amount,
-           COUNT(*) as occurrences,
-           COUNT(DISTINCT strftime('%Y-%m', t.date)) as months,
-           MIN(t.date) as first_date,
-           MAX(t.date) as last_date
-    FROM transactions t
-    WHERE t.type = 'debit'
-      AND t.date >= date('now', '-12 months')
-      AND t.normalized_merchant IS NOT NULL
-    GROUP BY COALESCE(t.normalized_merchant, t.description)
-    HAVING occurrences >= 2
-      AND (MAX(t.amount) - MIN(t.amount)) / NULLIF(AVG(t.amount), 0) < 0.3
-    ORDER BY amount DESC
-  `).all() as Array<{ merchant: string; amount: number; occurrences: number; months: number; first_date: string; last_date: string }>
+  // Active commitments via detectCommitmentGroups (same logic as commitments page)
+  const endedMerchants = new Set(
+    (db.prepare(`SELECT normalized_merchant FROM commitment_status WHERE status IN ('ended', 'not_recurring')`).all() as Array<{ normalized_merchant: string }>)
+      .map(r => r.normalized_merchant.toLowerCase())
+  )
+  const excludedTxIds = new Set(
+    (db.prepare(`SELECT transaction_id FROM excluded_commitment_transactions`).all() as Array<{ transaction_id: number }>)
+      .map(r => r.transaction_id)
+  )
 
-  const commitments = commitmentRows.map(r => {
-    const spanDays = (new Date(r.last_date).getTime() - new Date(r.first_date).getTime()) / (1000 * 60 * 60 * 24)
-    const avgDays = r.occurrences > 1 ? spanDays / (r.occurrences - 1) : 0
-    let frequency = 'irregular'
-    if (avgDays <= 10) frequency = 'weekly'
-    else if (avgDays <= 45) frequency = 'monthly'
-    else if (avgDays <= 120) frequency = 'quarterly'
-    else if (avgDays <= 400) frequency = 'yearly'
-    return { merchant: r.merchant, amount: r.amount, frequency, months: r.months }
+  const commitmentTxns = db.prepare(`
+    SELECT t.id, t.date, t.description, t.normalized_merchant, t.amount, t.type,
+           c.name as category_name, c.color as category_color
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.type = 'debit' AND t.normalized_merchant IS NOT NULL
+      AND COALESCE(c.exclude_from_totals, 0) = 0
+  `).all() as TransactionForCommitment[]
+
+  const filteredTxns = commitmentTxns.filter(t => !excludedTxIds.has(t.id))
+  const allGroups = detectCommitmentGroups(filteredTxns)
+  const activeGroups = allGroups.filter(g => !endedMerchants.has(g.merchantName.toLowerCase()))
+
+  // Build account lookup: transaction_id → account label
+  const txAccountRows = db.prepare(`
+    SELECT t.id as txn_id, a.name, a.institution, a.last_four
+    FROM transactions t
+    JOIN documents d ON t.document_id = d.id
+    JOIN document_accounts da ON da.document_id = d.id
+    JOIN accounts a ON da.account_id = a.id
+  `).all() as Array<{ txn_id: number; name: string; institution: string | null; last_four: string | null }>
+
+  const txAccountMap = new Map<number, string>()
+  for (const r of txAccountRows) {
+    const label = `${r.institution ?? r.name}${r.last_four ? ' (...' + r.last_four + ')' : ''}`
+    txAccountMap.set(r.txn_id, label)
+  }
+
+  const active_commitments: CompactFinancialData['active_commitments'] = activeGroups.map(g => {
+    // Last 4 transaction amounts for drift detection
+    const sortedIds = g.transactionIds.slice()
+    const txnsByDate = filteredTxns
+      .filter(t => sortedIds.includes(t.id))
+      .sort((a, b) => a.date.localeCompare(b.date))
+    const recent_amounts = txnsByDate.slice(-4).map(t => t.amount)
+
+    // Find account from any transaction in this group
+    let account: string | undefined
+    for (const tid of g.transactionIds) {
+      if (txAccountMap.has(tid)) {
+        account = txAccountMap.get(tid)
+        break
+      }
+    }
+
+    return {
+      merchant: g.merchantName,
+      frequency: g.frequency,
+      estimated_monthly: g.estimatedMonthlyAmount,
+      recent_amounts,
+      first_seen: g.firstDate,
+      last_seen: g.lastDate,
+      category: g.category ?? 'Uncategorized',
+      ...(account ? { account } : {}),
+    }
   })
+
+  const commitment_baseline: CompactFinancialData['commitment_baseline'] = {
+    total_monthly: Math.round(active_commitments.reduce((s, c) => s + c.estimated_monthly, 0) * 100) / 100,
+    count: active_commitments.length,
+  }
 
   // Outlier transactions (last 3 months, >2x category average)
   const outliers = db.prepare(`
@@ -254,5 +318,74 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     .slice(0, 20)
     .map(([merchant]) => ({ merchant, months: deltaMap.get(merchant)! }))
 
-  return { monthly, categories, merchants, day_of_week, daily_recent, commitments, outliers, top_merchants_by_category, recent_transactions, merchant_month_deltas }
+  // Account summaries: per-account monthly profiles with top categories/merchants
+  const accountRows = db.prepare(`
+    SELECT a.id, a.name, a.institution, a.last_four, COALESCE(a.type, 'unknown') as type
+    FROM accounts a
+    ORDER BY a.name
+  `).all() as Array<{ id: number; name: string; institution: string | null; last_four: string | null; type: string }>
+
+  const account_summaries: CompactFinancialData['account_summaries'] = accountRows.map(acct => {
+    const label = `${acct.institution ?? acct.name}${acct.last_four ? ' (...' + acct.last_four + ')' : ''}`
+
+    // Monthly profiles
+    const monthlyAcctRows = db.prepare(`
+      SELECT strftime('%Y-%m', t.date) as month,
+             SUM(CASE WHEN t.type = 'debit' THEN t.amount ELSE 0 END) as spending,
+             SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END) as income,
+             COUNT(*) as txn_count
+      FROM transactions t
+      LEFT JOIN categories c ON t.category_id = c.id
+      JOIN document_accounts da ON da.document_id = t.document_id
+      WHERE da.account_id = ?
+        AND ${VALID_TRANSACTION_FILTER}
+      GROUP BY month
+      ORDER BY month
+    `).all([acct.id]) as Array<{ month: string; spending: number; income: number; txn_count: number }>
+
+    const months: Record<string, { spending: number; income: number; txn_count: number }> = {}
+    for (const r of monthlyAcctRows) {
+      months[r.month] = {
+        spending: Math.round(r.spending * 100) / 100,
+        income: Math.round(r.income * 100) / 100,
+        txn_count: r.txn_count,
+      }
+    }
+
+    // Top 3 categories
+    const top_categories = db.prepare(`
+      SELECT COALESCE(c.name, 'Uncategorized') as category, SUM(t.amount) as total
+      FROM transactions t
+      LEFT JOIN categories c ON t.category_id = c.id
+      JOIN document_accounts da ON da.document_id = t.document_id
+      WHERE da.account_id = ? AND t.type = 'debit'
+        AND ${VALID_TRANSACTION_FILTER}
+      GROUP BY category
+      ORDER BY total DESC
+      LIMIT 3
+    `).all([acct.id]) as Array<{ category: string; total: number }>
+
+    // Top 5 merchants
+    const top_merchants = db.prepare(`
+      SELECT COALESCE(t.normalized_merchant, t.description) as name, SUM(t.amount) as total
+      FROM transactions t
+      LEFT JOIN categories c ON t.category_id = c.id
+      JOIN document_accounts da ON da.document_id = t.document_id
+      WHERE da.account_id = ? AND t.type = 'debit'
+        AND ${VALID_TRANSACTION_FILTER}
+      GROUP BY name
+      ORDER BY total DESC
+      LIMIT 5
+    `).all([acct.id]) as Array<{ name: string; total: number }>
+
+    return {
+      name: label,
+      type: acct.type,
+      months,
+      top_categories: top_categories.map(r => ({ category: r.category, total: Math.round(r.total * 100) / 100 })),
+      top_merchants: top_merchants.map(r => ({ name: r.name, total: Math.round(r.total * 100) / 100 })),
+    }
+  })
+
+  return { monthly, categories, merchants, day_of_week, daily_recent, active_commitments, commitment_baseline, account_summaries, outliers, top_merchants_by_category, recent_transactions, merchant_month_deltas }
 }

@@ -21,8 +21,8 @@ export async function analyzeFinances(
   const dateRange = months.length > 0 ? `${months[0]} to ${months[months.length - 1]}` : 'no data'
   const txnCount = data.recent_transactions.length
 
-  // Separate recent_transactions and merchant_month_deltas from aggregated data
-  const { recent_transactions, merchant_month_deltas, ...aggregated } = data
+  // Separate sections from aggregated data
+  const { recent_transactions, merchant_month_deltas, active_commitments, commitment_baseline, account_summaries, ...aggregated } = data
 
   const filledPrompt = prompt.user
     .replace('{date_range}', dateRange)
@@ -30,6 +30,10 @@ export async function analyzeFinances(
     .replace('{data_json}', JSON.stringify(aggregated))
     .replace('{recent_txns_json}', JSON.stringify(recent_transactions))
     .replace('{merchant_deltas_json}', JSON.stringify(merchant_month_deltas))
+    .replace('{account_summaries_json}', JSON.stringify(account_summaries))
+    .replace('{active_commitments_json}', JSON.stringify(active_commitments))
+    .replace('__baseline_total__', String(commitment_baseline.total_monthly))
+    .replace('__baseline_count__', String(commitment_baseline.count))
 
   const response = await provider.complete({
     system: prompt.system,

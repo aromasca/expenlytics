@@ -10,7 +10,15 @@ export function generateCacheKey(db: Database.Database): string {
     FROM transactions WHERE type = 'debit'
   `).get() as { last_date: string | null; count: number; total: number }
 
-  const raw = `${row.last_date ?? ''}:${row.count}:${Math.round(row.total ?? 0)}`
+  const commitmentRow = db.prepare(`
+    SELECT COUNT(*) as ended_count FROM commitment_status
+  `).get() as { ended_count: number }
+
+  const accountRow = db.prepare(`
+    SELECT COUNT(*) as account_count FROM accounts
+  `).get() as { account_count: number }
+
+  const raw = `${row.last_date ?? ''}:${row.count}:${Math.round(row.total ?? 0)}:${commitmentRow.ended_count}:${accountRow.account_count}`
   return createHash('sha256').update(raw).digest('hex').slice(0, 16)
 }
 

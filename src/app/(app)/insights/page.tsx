@@ -6,7 +6,7 @@ import { HealthScore } from '@/components/insights/health-score'
 import { IncomeOutflowChart } from '@/components/insights/income-outflow-chart'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { RefreshCw, Receipt, BarChart3, CreditCard, X, AlertCircle } from 'lucide-react'
+import { RefreshCw, Receipt, BarChart3, CreditCard, Landmark, X, AlertCircle } from 'lucide-react'
 import type { InsightsResponse, Insight } from '@/lib/insights/types'
 
 const severityColor: Record<string, string> = {
@@ -16,7 +16,81 @@ const severityColor: Record<string, string> = {
   informational: 'border-l-zinc-400',
 }
 
-const typeLabel: Record<string, string> = { behavioral_shift: 'Behavior', money_leak: 'Leak', projection: 'Trend' }
+const typeLabel: Record<string, string> = {
+  behavioral_shift: 'Behavior',
+  money_leak: 'Leak',
+  projection: 'Trend',
+  commitment_drift: 'Drift',
+  account_anomaly: 'Anomaly',
+  baseline_gap: 'Baseline',
+}
+
+const sentimentColor: Record<string, string> = {
+  good: 'text-emerald-600 dark:text-emerald-400',
+  neutral: 'text-foreground',
+  bad: 'text-red-600 dark:text-red-400',
+}
+
+function renderExplanationWithLinks(explanation: string, evidence: Insight['evidence']) {
+  const linkMap: Array<{ text: string; href: string }> = []
+
+  for (const merchant of evidence.merchants ?? []) {
+    linkMap.push({ text: merchant, href: `/transactions?search=${encodeURIComponent(merchant)}` })
+  }
+  for (const category of evidence.categories ?? []) {
+    linkMap.push({ text: category, href: `/transactions?search=${encodeURIComponent(category)}` })
+  }
+  for (const account of evidence.accounts ?? []) {
+    linkMap.push({ text: account, href: '/accounts' })
+  }
+  if (evidence.commitment_merchant) {
+    linkMap.push({ text: evidence.commitment_merchant, href: '/commitments' })
+  }
+
+  if (linkMap.length === 0) return explanation
+
+  // Sort by length desc to match longer names first
+  linkMap.sort((a, b) => b.text.length - a.text.length)
+
+  // Split text by entity matches and interleave with links
+  type Segment = { type: 'text'; value: string } | { type: 'link'; text: string; href: string }
+  let segments: Segment[] = [{ type: 'text', value: explanation }]
+
+  for (const link of linkMap) {
+    const newSegments: Segment[] = []
+    for (const seg of segments) {
+      if (seg.type !== 'text') {
+        newSegments.push(seg)
+        continue
+      }
+      const parts = seg.value.split(link.text)
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i]) newSegments.push({ type: 'text', value: parts[i] })
+        if (i < parts.length - 1) newSegments.push({ type: 'link', text: link.text, href: link.href })
+      }
+    }
+    segments = newSegments
+  }
+
+  return (
+    <>
+      {segments.map((seg, i) =>
+        seg.type === 'text' ? (
+          <span key={i}>{seg.value}</span>
+        ) : (
+          <Link
+            key={i}
+            href={seg.href}
+            className="underline decoration-dotted underline-offset-2 hover:text-foreground"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {seg.text}
+          </Link>
+        )
+      )}
+    </>
+  )
+}
 
 function InsightCard({ insight, expanded, onToggle }: { insight: Insight; expanded: boolean; onToggle: () => void }) {
   return (
@@ -30,7 +104,9 @@ function InsightCard({ insight, expanded, onToggle }: { insight: Insight; expand
       <p className="text-xs font-medium leading-tight mt-1">{insight.headline}</p>
       {expanded && (
         <div className="mt-2 space-y-1.5">
-          <p className="text-xs text-muted-foreground leading-relaxed">{insight.explanation}</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {renderExplanationWithLinks(insight.explanation, insight.evidence)}
+          </p>
           {insight.action && (
             <p className="text-xs text-emerald-600 dark:text-emerald-400">{insight.action}</p>
           )}
@@ -54,9 +130,18 @@ export default function InsightsPage() {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState(false)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
@@ -236,17 +321,10 @@ export default function InsightsPage() {
           {/* Skeleton health score while generating */}
           {generating && !data?.health && (
             <section>
-              <Card className="p-3">
-                <div className="h-5 w-16 bg-muted rounded animate-pulse mx-auto" />
-                <div className="h-3 w-48 bg-muted rounded animate-pulse mx-auto mt-2" />
-              </Card>
-            </section>
-          )}
-
-          {hasMonthlyFlow && (
-            <section>
-              <h2 className="text-sm font-medium mb-2">Income vs Outflow</h2>
-              <IncomeOutflowChart data={data!.monthlyFlow} />
+              <div className="flex items-center gap-3">
+                <div className="h-5 w-16 bg-muted rounded animate-pulse" />
+                <div className="h-3 w-48 bg-muted rounded animate-pulse" />
+              </div>
             </section>
           )}
 
@@ -274,8 +352,8 @@ export default function InsightsPage() {
                     </button>
                     <InsightCard
                       insight={insight}
-                      expanded={expandedId === insight.id}
-                      onToggle={() => setExpandedId(prev => prev === insight.id ? null : insight.id)}
+                      expanded={expandedIds.has(insight.id)}
+                      onToggle={() => toggleExpand(insight.id)}
                     />
                   </div>
                 ))}
@@ -302,6 +380,13 @@ export default function InsightsPage() {
             </div>
           )}
 
+          {hasMonthlyFlow && (
+            <section>
+              <h2 className="text-sm font-medium mb-2">Income vs Outflow</h2>
+              <IncomeOutflowChart data={data!.monthlyFlow} />
+            </section>
+          )}
+
           <section className="pt-3 border-t flex flex-wrap items-center gap-2">
             <Link href="/reports">
               <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
@@ -316,6 +401,11 @@ export default function InsightsPage() {
             <Link href="/commitments">
               <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
                 <CreditCard className="h-3.5 w-3.5 mr-1" /> Commitments
+              </Button>
+            </Link>
+            <Link href="/accounts">
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
+                <Landmark className="h-3.5 w-3.5 mr-1" /> Accounts
               </Button>
             </Link>
             {data?.generatedAt && data.status === 'ready' && (

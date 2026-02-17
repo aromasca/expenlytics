@@ -144,10 +144,13 @@ export const healthAssessmentSchema = z.object({
   })),
 })
 
-export const insightTypeSchema = z.string().transform((v): 'behavioral_shift' | 'money_leak' | 'projection' => {
+export const insightTypeSchema = z.string().transform((v): 'behavioral_shift' | 'money_leak' | 'projection' | 'commitment_drift' | 'account_anomaly' | 'baseline_gap' => {
   if (['behavioral_shift', 'behavior', 'shift', 'correlation'].includes(v)) return 'behavioral_shift'
   if (['money_leak', 'leak', 'waste', 'subscription'].includes(v)) return 'money_leak'
   if (['projection', 'trend', 'forecast', 'warning'].includes(v)) return 'projection'
+  if (['commitment_drift', 'drift', 'price_change', 'commitment'].includes(v)) return 'commitment_drift'
+  if (['account_anomaly', 'anomaly', 'account'].includes(v)) return 'account_anomaly'
+  if (['baseline_gap', 'baseline', 'gap', 'overrun'].includes(v)) return 'baseline_gap'
   return 'behavioral_shift'
 })
 
@@ -163,6 +166,8 @@ export const financialAnalysisSchema = z.object({
       categories: stringOrArraySchema,
       amounts: z.record(z.string(), z.number()).optional(),
       time_period: z.string().optional(),
+      accounts: stringOrArraySchema,
+      commitment_merchant: z.string().optional(),
     }),
     action: z.string().optional(),
   })),

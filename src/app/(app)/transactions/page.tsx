@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { TransactionTable } from '@/components/transaction-table'
 import { FilterBar, EMPTY_FILTERS, type Filters } from '@/components/filter-bar'
@@ -40,8 +41,17 @@ function exportCsv(filters: Filters) {
     .catch(() => {})
 }
 
-export default function TransactionsPage() {
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
+function TransactionsContent() {
+  const searchParams = useSearchParams()
+
+  const [filters, setFilters] = useState<Filters>(() => {
+    const initial = { ...EMPTY_FILTERS }
+    const search = searchParams.get('search')
+    if (search) initial.search = search
+    const categoryId = searchParams.get('category_id')
+    if (categoryId) initial.category_ids = [Number(categoryId)]
+    return initial
+  })
 
   return (
     <div className="p-4 space-y-4">
@@ -57,5 +67,13 @@ export default function TransactionsPage() {
         <TransactionTable filters={filters} />
       </div>
     </div>
+  )
+}
+
+export default function TransactionsPage() {
+  return (
+    <Suspense>
+      <TransactionsContent />
+    </Suspense>
   )
 }

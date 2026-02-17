@@ -8,6 +8,12 @@ const colorMap = {
   red: 'text-red-600 dark:text-red-400',
 }
 
+const dotColor = {
+  green: 'bg-emerald-500',
+  yellow: 'bg-amber-500',
+  red: 'bg-red-500',
+}
+
 const sentimentColor = {
   good: 'text-emerald-600 dark:text-emerald-400',
   neutral: 'text-foreground',
@@ -18,21 +24,22 @@ const trendArrow = { up: '\u2191', down: '\u2193', stable: '\u2192' }
 
 export function HealthScore({ health }: { health: HealthAssessment }) {
   return (
-    <div className="space-y-2" data-walkthrough="health-score">
-      <div className="flex items-baseline gap-3">
-        <span className={`text-4xl font-semibold tabular-nums ${colorMap[health.color]}`}>
+    <div className="flex items-center gap-3 flex-wrap" data-walkthrough="health-score">
+      <div className="flex items-center gap-1.5">
+        <div className={`h-2 w-2 rounded-full ${dotColor[health.color]}`} />
+        <span className={`text-lg font-semibold tabular-nums ${colorMap[health.color]}`}>
           {health.score}
         </span>
-        <span className="text-sm text-muted-foreground">{health.summary}</span>
+        <span className="text-xs text-muted-foreground">{health.summary}</span>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {health.metrics.map((m, i) => (
-          <div key={i} className="flex items-center gap-1.5 rounded-md border px-2.5 py-1">
-            <span className="text-[11px] text-muted-foreground">{m.label}</span>
-            <span className={`text-sm tabular-nums ${sentimentColor[m.sentiment]}`}>
+          <div key={i} className="flex items-center gap-1 rounded border px-2 py-0.5">
+            <span className="text-[10px] text-muted-foreground">{m.label}</span>
+            <span className={`text-xs tabular-nums ${sentimentColor[m.sentiment]}`}>
               {m.value}
             </span>
-            <span className={`text-[11px] ${sentimentColor[m.sentiment]}`}>
+            <span className={`text-[10px] ${sentimentColor[m.sentiment]}`}>
               {trendArrow[m.trend]}
             </span>
           </div>

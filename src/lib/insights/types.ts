@@ -21,7 +21,7 @@ export interface MonthlyFlow {
   net: number
 }
 
-export type InsightType = 'behavioral_shift' | 'money_leak' | 'projection'
+export type InsightType = 'behavioral_shift' | 'money_leak' | 'projection' | 'commitment_drift' | 'account_anomaly' | 'baseline_gap'
 
 export interface Insight {
   id: string
@@ -34,6 +34,8 @@ export interface Insight {
     categories?: string[]
     amounts?: Record<string, number>
     time_period?: string
+    accounts?: string[]
+    commitment_merchant?: string
   }
   action?: string
 }

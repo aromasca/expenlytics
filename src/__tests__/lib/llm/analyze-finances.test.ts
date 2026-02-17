@@ -30,7 +30,9 @@ const SAMPLE_DATA: CompactFinancialData = {
     { day: 'Saturday', avg_spend: 90, transaction_count: 18 },
   ],
   daily_recent: [{ date: '2026-01-15', amount: 150, is_income_day: true }],
-  commitments: [{ merchant: 'Netflix', amount: 15.99, frequency: 'monthly', months: 6 }],
+  active_commitments: [{ merchant: 'Acme Stream', frequency: 'monthly', estimated_monthly: 15.99, recent_amounts: [15.99, 15.99], first_seen: '2025-07-15', last_seen: '2026-01-15', category: 'Streaming Services' }],
+  commitment_baseline: { total_monthly: 15.99, count: 1 },
+  account_summaries: [],
   outliers: [],
   top_merchants_by_category: [],
   recent_transactions: [
