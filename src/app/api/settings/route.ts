@@ -4,7 +4,7 @@ import { getAllSettings, getSetting, setSetting } from '@/lib/db/settings'
 import { PROVIDERS, getAvailableProviders, isValidProvider, isModelValidForProvider } from '@/lib/llm/config'
 import type { ProviderName, TaskName } from '@/lib/llm/types'
 
-const TASK_NAMES: TaskName[] = ['extraction', 'classification', 'normalization', 'insights']
+const TASK_NAMES: TaskName[] = ['extraction', 'classification', 'normalization', 'insights', 'merge_suggestions']
 
 const VALID_KEYS = new Set<string>([
   ...TASK_NAMES.map(t => `provider_${t}`),
