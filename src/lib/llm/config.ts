@@ -38,7 +38,7 @@ export const PROVIDERS: Record<ProviderName, ProviderConfig> = {
       { id: 'gpt-5.2', name: 'GPT-5.2' },
     ],
     defaults: {
-      extraction: 'gpt-4o',
+      extraction: 'gpt-5',
       classification: 'gpt-5-mini',
       normalization: 'gpt-5-mini',
       insights: 'gpt-5',
