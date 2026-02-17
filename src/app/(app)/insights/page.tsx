@@ -6,14 +6,27 @@ import { HealthScore } from '@/components/insights/health-score'
 import { IncomeOutflowChart } from '@/components/insights/income-outflow-chart'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { RefreshCw, Receipt, BarChart3, CreditCard, Landmark, X, AlertCircle } from 'lucide-react'
+import {
+  RefreshCw, Receipt, BarChart3, CreditCard, Landmark, X, AlertCircle,
+  Activity, Droplets, TrendingUp, ArrowLeftRight, AlertTriangle, Target,
+  ChevronDown,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import type { InsightsResponse, Insight } from '@/lib/insights/types'
+import { formatCurrencyPrecise } from '@/lib/format'
 
-const severityColor: Record<string, string> = {
+const severityBorder: Record<string, string> = {
   concerning: 'border-l-red-500',
   notable: 'border-l-amber-500',
   favorable: 'border-l-emerald-500',
   informational: 'border-l-zinc-400',
+}
+
+const severityBarColor: Record<string, string> = {
+  concerning: 'bg-red-400/30 dark:bg-red-500/25',
+  notable: 'bg-amber-400/30 dark:bg-amber-500/25',
+  favorable: 'bg-emerald-400/30 dark:bg-emerald-500/25',
+  informational: 'bg-foreground/10',
 }
 
 const typeLabel: Record<string, string> = {
@@ -25,10 +38,22 @@ const typeLabel: Record<string, string> = {
   baseline_gap: 'Baseline',
 }
 
-const sentimentColor: Record<string, string> = {
-  good: 'text-emerald-600 dark:text-emerald-400',
-  neutral: 'text-foreground',
-  bad: 'text-red-600 dark:text-red-400',
+const typeIcon: Record<string, LucideIcon> = {
+  behavioral_shift: Activity,
+  money_leak: Droplets,
+  projection: TrendingUp,
+  commitment_drift: ArrowLeftRight,
+  account_anomaly: AlertTriangle,
+  baseline_gap: Target,
+}
+
+const typePill: Record<string, string> = {
+  behavioral_shift: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+  money_leak: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+  projection: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+  commitment_drift: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  account_anomaly: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+  baseline_gap: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
 }
 
 function renderExplanationWithLinks(explanation: string, evidence: Insight['evidence']) {
@@ -49,10 +74,8 @@ function renderExplanationWithLinks(explanation: string, evidence: Insight['evid
 
   if (linkMap.length === 0) return explanation
 
-  // Sort by length desc to match longer names first
   linkMap.sort((a, b) => b.text.length - a.text.length)
 
-  // Split text by entity matches and interleave with links
   type Segment = { type: 'text'; value: string } | { type: 'link'; text: string; href: string }
   let segments: Segment[] = [{ type: 'text', value: explanation }]
 
@@ -92,23 +115,116 @@ function renderExplanationWithLinks(explanation: string, evidence: Insight['evid
   )
 }
 
-function InsightCard({ insight, expanded, onToggle }: { insight: Insight; expanded: boolean; onToggle: () => void }) {
+function StaggerWrapper({ index, children }: { index: number; children: React.ReactNode }) {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), index * 80)
+    return () => clearTimeout(timer)
+  }, [index])
+  return (
+    <div
+      className="transition-all duration-400 ease-out"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(8px)',
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function EvidenceBars({ amounts, severity }: { amounts: Record<string, number>; severity: string }) {
+  const entries = Object.entries(amounts)
+  if (entries.length === 0) return null
+
+  const maxVal = Math.max(...entries.map(([, v]) => Math.abs(v)))
+  if (maxVal === 0) return null
+
+  const barColor = severityBarColor[severity] ?? 'bg-foreground/10'
+
+  return (
+    <div className="space-y-1.5">
+      {entries.map(([label, value]) => {
+        const isNegative = value < 0
+        const pct = (Math.abs(value) / maxVal) * 100
+        return (
+          <div key={label} className="flex items-center gap-2 text-[11px]">
+            <span className="text-muted-foreground w-28 truncate shrink-0 text-right">{label}</span>
+            <div className="flex-1 h-4 bg-muted/40 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${isNegative ? 'bg-red-400/40 dark:bg-red-500/30' : barColor}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className={`tabular-nums text-[11px] font-medium shrink-0 ${isNegative ? 'text-red-600 dark:text-red-400' : ''}`}>
+              {formatCurrencyPrecise(value)}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function EvidenceDetail({ evidence, severity }: { evidence: Insight['evidence']; severity: string }) {
+  const hasAmounts = evidence.amounts && Object.keys(evidence.amounts).length > 0
+  const hasPeriod = evidence.time_period
+
+  if (!hasAmounts && !hasPeriod) return null
+
+  return (
+    <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
+      {hasPeriod && (
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-2">{evidence.time_period}</p>
+      )}
+      {hasAmounts && <EvidenceBars amounts={evidence.amounts!} severity={severity} />}
+    </div>
+  )
+}
+
+function InsightCard({ insight, expanded, onToggle, onDismiss }: {
+  insight: Insight; expanded: boolean; onToggle: () => void; onDismiss: () => void
+}) {
+  const Icon = typeIcon[insight.type] ?? Activity
+  const pill = typePill[insight.type] ?? 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+
   return (
     <Card
-      className={`p-3 border-l-2 ${severityColor[insight.severity]} cursor-pointer hover:bg-muted/50 transition-colors`}
+      className={`group p-3 border-l-[3px] ${severityBorder[insight.severity]} cursor-pointer hover:bg-muted/40 transition-colors`}
       onClick={onToggle}
     >
-      <div className="flex items-center gap-1.5">
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{typeLabel[insight.type] ?? insight.type}</span>
+      <div className="flex items-center justify-between">
+        <span className={`inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider rounded-full px-2 py-0.5 ${pill}`}>
+          <Icon className="h-2.5 w-2.5" />
+          {typeLabel[insight.type] ?? insight.type}
+        </span>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={(e) => { e.stopPropagation(); onDismiss() }}
+            className="p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+            title="Dismiss"
+          >
+            <X className="h-3 w-3" />
+          </button>
+          <ChevronDown
+            className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+          />
+        </div>
       </div>
-      <p className="text-xs font-medium leading-tight mt-1">{insight.headline}</p>
+      <p className="text-xs font-medium leading-snug mt-2">{insight.headline}</p>
+
       {expanded && (
-        <div className="mt-2 space-y-1.5">
+        <div className="mt-2.5 space-y-2.5 border-t pt-2.5">
           <p className="text-xs text-muted-foreground leading-relaxed">
             {renderExplanationWithLinks(insight.explanation, insight.evidence)}
           </p>
+          <EvidenceDetail evidence={insight.evidence} severity={insight.severity} />
           {insight.action && (
-            <p className="text-xs text-emerald-600 dark:text-emerald-400">{insight.action}</p>
+            <div className="flex items-start gap-1.5 rounded-md bg-emerald-50/80 dark:bg-emerald-950/25 border border-emerald-200/60 dark:border-emerald-800/30 px-2.5 py-1.5">
+              <span className="text-emerald-600 dark:text-emerald-400 text-xs shrink-0 mt-px">&rarr;</span>
+              <p className="text-xs text-emerald-700 dark:text-emerald-300 leading-relaxed">{insight.action}</p>
+            </div>
           )}
         </div>
       )}
@@ -116,10 +232,33 @@ function InsightCard({ insight, expanded, onToggle }: { insight: Insight; expand
   )
 }
 
+function SkeletonGauge() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-4 items-start">
+      <div className="flex flex-col items-center gap-2">
+        <div className="shrink-0 h-[140px] w-[140px] rounded-full border-[7px] border-muted animate-pulse" />
+        <div className="h-3 w-24 bg-muted rounded animate-pulse" />
+      </div>
+      <div className="grid grid-cols-2 gap-2 content-start">
+        {[0, 1, 2, 3].map(i => (
+          <div key={i} className="rounded-lg border px-3 py-2 space-y-1.5">
+            <div className="h-3 w-16 bg-muted rounded animate-pulse" />
+            <div className="h-4 w-12 bg-muted rounded animate-pulse" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function SkeletonCard() {
   return (
-    <Card className="p-3 border-l-2 border-l-zinc-200 dark:border-l-zinc-700">
-      <div className="h-3.5 w-3/4 bg-muted rounded animate-pulse" />
+    <Card className="p-3 border-l-2 border-l-muted">
+      <div className="flex items-center gap-2">
+        <div className="h-3 w-3 bg-muted rounded animate-pulse" />
+        <div className="h-3 w-16 bg-muted rounded animate-pulse" />
+      </div>
+      <div className="h-4 w-3/4 bg-muted rounded animate-pulse mt-2" />
       <div className="h-3 w-1/2 bg-muted rounded animate-pulse mt-1.5" />
     </Card>
   )
@@ -135,10 +274,20 @@ export default function InsightsPage() {
   const abortRef = useRef<AbortController | null>(null)
 
   const toggleExpand = (id: string) => {
+    const idx = insights.findIndex(i => i.id === id)
+    const partnerIdx = idx % 2 === 0 ? idx + 1 : idx - 1
+    const partnerId = insights[partnerIdx]?.id
+
     setExpandedIds(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      const expanding = !next.has(id)
+      if (expanding) {
+        next.add(id)
+        if (partnerId) next.add(partnerId)
+      } else {
+        next.delete(id)
+        if (partnerId) next.delete(partnerId)
+      }
       return next
     })
   }
@@ -179,13 +328,11 @@ export default function InsightsPage() {
   }, [stopPolling])
 
   const fetchInsights = useCallback((refresh = false) => {
-    // Cancel any in-flight request
     abortRef.current?.abort()
     stopPolling()
 
     const controller = new AbortController()
     abortRef.current = controller
-    // 15s timeout for each individual fetch
     const timeout = setTimeout(() => controller.abort(), 15000)
 
     setLoading(true)
@@ -268,7 +415,6 @@ export default function InsightsPage() {
         </Button>
       </div>
 
-      {/* Error state */}
       {error && !data && (
         <div className="text-center py-16 space-y-2">
           <AlertCircle className="h-5 w-5 text-muted-foreground mx-auto" />
@@ -280,14 +426,12 @@ export default function InsightsPage() {
         </div>
       )}
 
-      {/* Initial loading (no data yet) */}
       {loading && !data && !error && (
         <div className="flex items-center justify-center py-16">
           <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       )}
 
-      {/* Empty state (data loaded, nothing to show, not generating) */}
       {isEmpty && !hasMonthlyFlow && (
         <div className="text-center py-16 space-y-2">
           <p className="text-sm font-medium">No insights yet</p>
@@ -301,10 +445,8 @@ export default function InsightsPage() {
         </div>
       )}
 
-      {/* Main content: show when we have data OR are generating */}
       {(hasContent || generating || hasMonthlyFlow) && (
         <>
-          {/* Generating banner */}
           {generating && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
               <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -318,13 +460,9 @@ export default function InsightsPage() {
             </section>
           )}
 
-          {/* Skeleton health score while generating */}
           {generating && !data?.health && (
             <section>
-              <div className="flex items-center gap-3">
-                <div className="h-5 w-16 bg-muted rounded animate-pulse" />
-                <div className="h-3 w-48 bg-muted rounded animate-pulse" />
-              </div>
+              <SkeletonGauge />
             </section>
           )}
 
@@ -340,32 +478,26 @@ export default function InsightsPage() {
                   )}
                 </div>
               </div>
-              <div className="space-y-2">
-                {insights.map((insight) => (
-                  <div key={insight.id} className="relative group">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDismiss(insight.id) }}
-                      className="absolute top-2 right-2 z-10 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-                      title="Dismiss"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {insights.map((insight, index) => (
+                  <StaggerWrapper key={insight.id} index={index}>
                     <InsightCard
                       insight={insight}
                       expanded={expandedIds.has(insight.id)}
                       onToggle={() => toggleExpand(insight.id)}
+                      onDismiss={() => handleDismiss(insight.id)}
                     />
-                  </div>
+                  </StaggerWrapper>
                 ))}
               </div>
             </section>
           )}
 
-          {/* Skeleton insights while generating */}
           {generating && insights.length === 0 && (
             <section>
               <h2 className="text-sm font-medium mb-2">AI Insights</h2>
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <SkeletonCard />
                 <SkeletonCard />
                 <SkeletonCard />
                 <SkeletonCard />

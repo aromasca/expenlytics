@@ -15,6 +15,20 @@ export function IncomeOutflowChart({ data }: { data: MonthlyFlow[] }) {
     <div className="h-[240px]">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} barGap={2}>
+          <defs>
+            <linearGradient id="income-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10B981" stopOpacity={0.9} />
+              <stop offset="100%" stopColor="#10B981" stopOpacity={0.6} />
+            </linearGradient>
+            <linearGradient id="spending-grad-light" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#0A0A0A" stopOpacity={0.85} />
+              <stop offset="100%" stopColor="#0A0A0A" stopOpacity={0.6} />
+            </linearGradient>
+            <linearGradient id="spending-grad-dark" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#FAFAFA" stopOpacity={0.85} />
+              <stop offset="100%" stopColor="#FAFAFA" stopOpacity={0.6} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
           <XAxis
             dataKey="month"
@@ -35,13 +49,15 @@ export function IncomeOutflowChart({ data }: { data: MonthlyFlow[] }) {
               backgroundColor: isDark ? '#18181B' : '#FFFFFF',
               borderColor: gridColor,
               fontSize: 12,
+              borderRadius: 8,
+              boxShadow: isDark ? '0 4px 12px rgba(0,0,0,0.3)' : '0 4px 12px rgba(0,0,0,0.08)',
             }}
             labelStyle={{ color: textColor }}
             itemStyle={{ color: textColor }}
             formatter={(value: number | undefined) => [formatCurrency(Number(value)), '']}
           />
-          <Bar dataKey="income" fill="#10B981" radius={[2, 2, 0, 0]} name="Income" />
-          <Bar dataKey="spending" fill={isDark ? '#FAFAFA' : '#0A0A0A'} radius={[2, 2, 0, 0]} name="Spending" />
+          <Bar dataKey="income" fill="url(#income-grad)" radius={[3, 3, 0, 0]} name="Income" />
+          <Bar dataKey="spending" fill={isDark ? 'url(#spending-grad-dark)' : 'url(#spending-grad-light)'} radius={[3, 3, 0, 0]} name="Spending" />
         </BarChart>
       </ResponsiveContainer>
     </div>
