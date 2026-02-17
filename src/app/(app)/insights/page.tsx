@@ -394,6 +394,9 @@ export default function InsightsPage() {
   }
 
   const insights = data?.insights ?? []
+  const FOLD_COUNT = 6
+  const [showAll, setShowAll] = useState(false)
+  const visibleInsights = showAll ? insights : insights.slice(0, FOLD_COUNT)
 
   const hasContent = data && (data.health || insights.length > 0)
   const isEmpty = data && !generating && !data.health && insights.length === 0
@@ -479,7 +482,7 @@ export default function InsightsPage() {
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {insights.map((insight, index) => (
+                {visibleInsights.map((insight, index) => (
                   <StaggerWrapper key={insight.id} index={index}>
                     <InsightCard
                       insight={insight}
@@ -490,6 +493,14 @@ export default function InsightsPage() {
                   </StaggerWrapper>
                 ))}
               </div>
+              {insights.length > FOLD_COUNT && (
+                <button
+                  onClick={() => setShowAll(prev => !prev)}
+                  className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-2 mt-1"
+                >
+                  {showAll ? 'Show less' : `Show all ${insights.length} insights`}
+                </button>
+              )}
             </section>
           )}
 

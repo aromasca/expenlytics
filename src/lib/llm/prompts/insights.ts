@@ -13,7 +13,7 @@ Produce TWO things:
 
 1. HEALTH ASSESSMENT: Score 0-100, one-line summary, color (green >=70, yellow 40-69, red <40), and 4-5 key metrics.
 
-2. ALERTS: 5-8 alerts ranked by urgency. Each must be one of these types:
+2. ALERTS: 12-18 alerts ranked by urgency. Only produce alerts that meet the QUALITY BAR below. If fewer than 12 meet the bar, return fewer. Never pad with generic observations. Each must be one of these types:
 
   Priority 1 — Money leaving unexpectedly:
   - commitment_drift: A commitment price changed, a new commitment appeared unnoticed, or a commitment moved to a different account.

@@ -38,7 +38,7 @@ export async function analyzeFinances(
   const response = await provider.complete({
     system: prompt.system,
     messages: [{ role: 'user', content: filledPrompt }],
-    maxTokens: 8192,
+    maxTokens: 16384,
     model,
   })
 
