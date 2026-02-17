@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
   const db = getDb()
 
-  db.exec('DELETE FROM excluded_recurring_transactions')
+  db.exec('DELETE FROM excluded_commitment_transactions')
   db.exec('DELETE FROM transactions')
   db.exec('DELETE FROM document_accounts')
   db.exec('DELETE FROM documents')
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   db.exec('DELETE FROM insight_cache')
   db.exec('DELETE FROM dismissed_insights')
   db.exec('DELETE FROM dismissed_subscriptions')
-  db.exec('DELETE FROM subscription_status')
+  db.exec('DELETE FROM commitment_status')
   db.exec('DELETE FROM merchant_categories')
   db.exec("DELETE FROM settings WHERE key = 'demo_mode'")
 

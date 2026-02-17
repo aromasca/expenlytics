@@ -10,7 +10,7 @@ interface TrendDataPoint {
   amount: number
 }
 
-interface RecurringTrendChartProps {
+interface CommitmentTrendChartProps {
   data: TrendDataPoint[]
 }
 
@@ -35,7 +35,7 @@ function CustomTooltip({ active, payload, label, isDark }: { active?: boolean; p
   )
 }
 
-export function RecurringTrendChart({ data }: RecurringTrendChartProps) {
+export function CommitmentTrendChart({ data }: CommitmentTrendChartProps) {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
 
@@ -60,7 +60,7 @@ export function RecurringTrendChart({ data }: RecurringTrendChartProps) {
     <Card className="p-3">
       <div className="flex items-start justify-between mb-3">
         <div>
-          <h3 className="text-xs font-medium text-muted-foreground">Recurring Spend</h3>
+          <h3 className="text-xs font-medium text-muted-foreground">Commitment Spend</h3>
           <p className="text-2xl font-semibold tabular-nums mt-0.5">{formatCurrency(current)}<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
         </div>
         <div className="text-right">
@@ -79,7 +79,7 @@ export function RecurringTrendChart({ data }: RecurringTrendChartProps) {
       <ResponsiveContainer width="100%" height={200}>
         <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
           <defs>
-            <linearGradient id="recurringGradient" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="commitmentGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={strokeColor} stopOpacity={0.15} />
               <stop offset="100%" stopColor={strokeColor} stopOpacity={0.02} />
             </linearGradient>
@@ -116,7 +116,7 @@ export function RecurringTrendChart({ data }: RecurringTrendChartProps) {
             type="monotone"
             dataKey="amount"
             stroke={strokeColor}
-            fill="url(#recurringGradient)"
+            fill="url(#commitmentGradient)"
             strokeWidth={2}
             dot={{ r: 3, fill: dotFill, stroke: strokeColor, strokeWidth: 1.5 }}
             activeDot={{ r: 5, fill: strokeColor, stroke: dotFill, strokeWidth: 2 }}

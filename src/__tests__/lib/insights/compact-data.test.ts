@@ -45,7 +45,7 @@ describe('buildCompactData', () => {
     expect(data.merchants).toEqual([])
     expect(data.day_of_week).toHaveLength(7)
     expect(data.daily_recent).toEqual([])
-    expect(data.recurring).toEqual([])
+    expect(data.commitments).toEqual([])
     expect(data.outliers).toEqual([])
   })
 

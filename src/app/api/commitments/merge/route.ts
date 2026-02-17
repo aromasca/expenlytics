@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
-import { mergeMerchants } from '@/lib/db/recurring'
+import { mergeMerchants } from '@/lib/db/commitments'
 
 export async function POST(request: NextRequest) {
   const body = await request.json()

@@ -22,7 +22,7 @@ const TASK_NAMES = ['extraction', 'classification', 'normalization', 'insights',
 const TASK_LABELS: Record<string, { label: string; description: string }> = {
   extraction: { label: 'PDF Extraction', description: 'Extracts raw transactions from PDF documents' },
   classification: { label: 'Transaction Classification', description: 'Assigns categories to transactions' },
-  normalization: { label: 'Merchant Normalization', description: 'Normalizes merchant names for recurring detection' },
+  normalization: { label: 'Merchant Normalization', description: 'Normalizes merchant names for commitment detection' },
   insights: { label: 'Financial Insights', description: 'Generates health scores and spending insights' },
   merge_suggestions: { label: 'Merge Suggestions', description: 'Detects duplicate merchant names for merging' },
 }
@@ -285,7 +285,7 @@ export default function SettingsPage() {
                 <li>Uploaded PDF files</li>
                 <li>Insight cache and dismissed insights</li>
                 <li>Merchant classification memory</li>
-                <li>Dismissed subscriptions</li>
+                <li>Dismissed commitments</li>
               </ul>
             </div>
             <label className="flex items-center gap-2 cursor-pointer">

@@ -5,8 +5,8 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { RecurringChargesTable } from '@/components/recurring-charges-table'
-import { RecurringTrendChart } from '@/components/recurring-trend-chart'
+import { CommitmentTable } from '@/components/commitment-table'
+import { CommitmentTrendChart } from '@/components/commitment-trend-chart'
 import { RefreshCw, ChevronDown, ChevronRight, RotateCcw, Merge, Ban, StopCircle } from 'lucide-react'
 import { formatCurrency } from '@/lib/format'
 import { getDatePreset } from '@/lib/date-presets'
@@ -32,7 +32,7 @@ const DEFAULT_ORDERS: Record<SortBy, 'asc' | 'desc'> = {
   lastDate: 'desc',
 }
 
-interface RecurringGroup {
+interface CommitmentGroup {
   merchantName: string
   occurrences: number
   totalAmount: number
@@ -47,14 +47,14 @@ interface RecurringGroup {
   unexpectedActivity?: boolean
 }
 
-interface EndedRecurringGroup extends RecurringGroup {
+interface EndedCommitmentGroup extends CommitmentGroup {
   statusChangedAt: string
   unexpectedActivity: boolean
 }
 
-interface RecurringData {
-  activeGroups: RecurringGroup[]
-  endedGroups: EndedRecurringGroup[]
+interface CommitmentData {
+  activeGroups: CommitmentGroup[]
+  endedGroups: EndedCommitmentGroup[]
   excludedMerchants: Array<{ merchant: string; excludedAt: string }>
   summary: {
     activeCount: number
@@ -66,7 +66,7 @@ interface RecurringData {
   trendData: Array<{ month: string; amount: number }>
 }
 
-function sortGroups<T extends RecurringGroup>(groups: T[], sortBy: SortBy, sortOrder: 'asc' | 'desc'): T[] {
+function sortGroups<T extends CommitmentGroup>(groups: T[], sortBy: SortBy, sortOrder: 'asc' | 'desc'): T[] {
   return [...groups].sort((a, b) => {
     let cmp = 0
     switch (sortBy) {
@@ -123,8 +123,8 @@ function computeTrendData(groups: Array<{ firstDate: string; lastDate: string; e
   })
 }
 
-function groupByCategory(groups: RecurringGroup[]): Map<string, RecurringGroup[]> {
-  const map = new Map<string, RecurringGroup[]>()
+function groupByCategory(groups: CommitmentGroup[]): Map<string, CommitmentGroup[]> {
+  const map = new Map<string, CommitmentGroup[]>()
   for (const g of groups) {
     const key = g.category ?? 'Other'
     const list = map.get(key) ?? []
@@ -134,10 +134,10 @@ function groupByCategory(groups: RecurringGroup[]): Map<string, RecurringGroup[]
   return map
 }
 
-export default function SubscriptionsPage() {
+export default function CommitmentsPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [data, setData] = useState<RecurringData | null>(null)
+  const [data, setData] = useState<CommitmentData | null>(null)
   const [loading, setLoading] = useState(true)
   const [normalizing, setNormalizing] = useState(false)
   const [sortBy, setSortBy] = useState<SortBy>('estimatedMonthlyAmount')
@@ -182,7 +182,7 @@ export default function SubscriptionsPage() {
     if (startDate) params.set('start_date', startDate)
     if (endDate) params.set('end_date', endDate)
 
-    fetch(`/api/recurring?${params}`)
+    fetch(`/api/commitments?${params}`)
       .then(r => r.json())
       .then(d => {
         setData(d)
@@ -199,7 +199,7 @@ export default function SubscriptionsPage() {
     if (startDate) params.set('start_date', startDate)
     if (endDate) params.set('end_date', endDate)
 
-    fetch(`/api/recurring?${params}`)
+    fetch(`/api/commitments?${params}`)
       .then(r => r.json())
       .then(d => {
         if (!cancelled) {
@@ -220,7 +220,7 @@ export default function SubscriptionsPage() {
 
   const handleNormalize = () => {
     setNormalizing(true)
-    fetch('/api/recurring/normalize', {
+    fetch('/api/commitments/normalize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ force: true }),
@@ -247,7 +247,7 @@ export default function SubscriptionsPage() {
       return next
     })
 
-    fetch('/api/recurring/status', {
+    fetch('/api/commitments/status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ merchant: merchantName, status, statusDate: status === 'ended' ? group.lastDate : undefined }),
@@ -261,7 +261,7 @@ export default function SubscriptionsPage() {
       return next
     })
     // Revert on the server — set back to active
-    fetch('/api/recurring/status', {
+    fetch('/api/commitments/status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ merchant: merchantName, status: 'active' }),
@@ -289,7 +289,7 @@ export default function SubscriptionsPage() {
       },
     } : null)
 
-    fetch('/api/recurring/status', {
+    fetch('/api/commitments/status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ merchant: merchantName, status: 'active' }),
@@ -308,7 +308,7 @@ export default function SubscriptionsPage() {
       },
     } : null)
 
-    fetch('/api/recurring/status', {
+    fetch('/api/commitments/status', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ merchant: merchantName, status: 'active' }),
@@ -326,7 +326,7 @@ export default function SubscriptionsPage() {
     const target = mergeTarget === '__custom__' ? customTarget.trim() : mergeTarget
     if (!target) return
     setMerging(true)
-    fetch('/api/recurring/merge', {
+    fetch('/api/commitments/merge', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ merchants: Array.from(selectedMerchants), target }),
@@ -354,7 +354,7 @@ export default function SubscriptionsPage() {
     <div className="p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Recurring</h2>
+        <h2 className="text-lg font-semibold">Commitments</h2>
         <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={handleNormalize} disabled={normalizing}>
           {normalizing ? 'Analyzing...' : 'Re-analyze'}
         </Button>
@@ -384,7 +384,7 @@ export default function SubscriptionsPage() {
       ) : data ? (
         <>
           {/* Trend chart */}
-          <RecurringTrendChart data={effectiveTrendData} />
+          <CommitmentTrendChart data={effectiveTrendData} />
 
           {/* Summary cards */}
           <div className="grid grid-cols-3 gap-3">
@@ -424,7 +424,7 @@ export default function SubscriptionsPage() {
                 </button>
                 {!isCollapsed && (
                   <div className="px-0">
-                    <RecurringChargesTable
+                    <CommitmentTable
                       groups={groups}
                       onStatusChange={handleStatusChange}
                       selectable
@@ -447,7 +447,7 @@ export default function SubscriptionsPage() {
           {sortedActive.length === 0 && (
             <Card className="p-3">
               <p className="text-center text-muted-foreground py-6 text-xs">
-                No active recurring charges detected.
+                No active commitments detected.
               </p>
             </Card>
           )}
@@ -490,7 +490,7 @@ export default function SubscriptionsPage() {
                           size="sm"
                           className="h-6 text-xs text-muted-foreground"
                           onClick={() => {
-                            fetch('/api/recurring/status', {
+                            fetch('/api/commitments/status', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ merchant: group.merchantName, status: 'not_recurring' }),
@@ -498,7 +498,7 @@ export default function SubscriptionsPage() {
                               .then(() => fetchData())
                               .catch(() => fetchData())
                           }}
-                          title="Exclude from recurring"
+                          title="Exclude from commitments"
                         >
                           <Ban className="h-3 w-3 mr-1" />
                           Exclude

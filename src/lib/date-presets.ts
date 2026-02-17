@@ -45,7 +45,7 @@ export function getDatePreset(preset: string): { start: string; end: string } {
       return { start: fmt(d), end: today }
     }
 
-    // subscriptions presets
+    // commitments presets
     case 'last12Months': {
       const d = new Date(yyyy - 1, now.getMonth(), now.getDate())
       return { start: fmt(d), end: today }

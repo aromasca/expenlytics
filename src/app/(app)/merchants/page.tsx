@@ -125,7 +125,7 @@ export default function MerchantsPage() {
 
   const handleMerge = (merchantNames: string[], target: string) => {
     setMerging(true)
-    fetch('/api/recurring/merge', {
+    fetch('/api/commitments/merge', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ merchants: merchantNames, target }),

@@ -12,7 +12,7 @@ const navItems = [
   { href: '/documents', label: 'Documents', icon: FileText },
   { href: '/accounts', label: 'Accounts', icon: Building2 },
   { href: '/reports', label: 'Reports', icon: BarChart3 },
-  { href: '/subscriptions', label: 'Recurring', icon: RefreshCw },
+  { href: '/commitments', label: 'Commitments', icon: RefreshCw },
   { href: '/merchants', label: 'Merchants', icon: Store },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]

@@ -1,4 +1,4 @@
-export interface TransactionForRecurring {
+export interface TransactionForCommitment {
   id: number
   date: string
   description: string
@@ -9,7 +9,7 @@ export interface TransactionForRecurring {
   category_color: string | null
 }
 
-export interface RecurringGroup {
+export interface CommitmentGroup {
   merchantName: string
   occurrences: number
   totalAmount: number
@@ -23,7 +23,7 @@ export interface RecurringGroup {
   transactionIds: number[]
 }
 
-function detectFrequency(avgDaysBetween: number): RecurringGroup['frequency'] {
+function detectFrequency(avgDaysBetween: number): CommitmentGroup['frequency'] {
   if (avgDaysBetween <= 10) return 'weekly'
   if (avgDaysBetween <= 45) return 'monthly'
   if (avgDaysBetween <= 120) return 'quarterly'
@@ -33,7 +33,7 @@ function detectFrequency(avgDaysBetween: number): RecurringGroup['frequency'] {
 }
 
 function estimateMonthlyAmount(
-  frequency: RecurringGroup['frequency'],
+  frequency: CommitmentGroup['frequency'],
   transactions: { date: string; amount: number }[]
 ): number {
   // For infrequent charges, amortize across the period
@@ -55,9 +55,9 @@ function estimateMonthlyAmount(
   return totalAmount / Math.max(1, distinctMonths, spanMonths)
 }
 
-export function detectRecurringGroups(transactions: TransactionForRecurring[]): RecurringGroup[] {
+export function detectCommitmentGroups(transactions: TransactionForCommitment[]): CommitmentGroup[] {
   // Group case-insensitively, keeping the most common casing as the display name
-  const groups = new Map<string, TransactionForRecurring[]>()
+  const groups = new Map<string, TransactionForCommitment[]>()
 
   for (const txn of transactions) {
     if (!txn.normalized_merchant) continue
@@ -67,7 +67,7 @@ export function detectRecurringGroups(transactions: TransactionForRecurring[]): 
     groups.set(key, existing)
   }
 
-  const result: RecurringGroup[] = []
+  const result: CommitmentGroup[] = []
 
   for (const [, txns] of groups) {
     // Pick the most common casing as display name

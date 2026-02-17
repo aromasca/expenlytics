@@ -15,7 +15,7 @@ interface Transaction {
   amount: number
 }
 
-interface RecurringRowDetailProps {
+interface CommitmentRowDetailProps {
   transactionIds: number[]
 }
 
@@ -40,7 +40,7 @@ function MiniTooltip({ active, payload, isDark }: { active?: boolean; payload?: 
   )
 }
 
-export function RecurringRowDetail({ transactionIds }: RecurringRowDetailProps) {
+export function CommitmentRowDetail({ transactionIds }: CommitmentRowDetailProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [excludedIds, setExcludedIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -60,7 +60,7 @@ export function RecurringRowDetail({ transactionIds }: RecurringRowDetailProps) 
 
   const handleExclude = (id: number) => {
     setExcludedIds(prev => new Set(prev).add(id))
-    fetch('/api/recurring/exclude', {
+    fetch('/api/commitments/exclude', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transactionId: id }),
@@ -71,7 +71,7 @@ export function RecurringRowDetail({ transactionIds }: RecurringRowDetailProps) 
 
   const handleRestore = (id: number) => {
     setExcludedIds(prev => { const next = new Set(prev); next.delete(id); return next })
-    fetch('/api/recurring/exclude', {
+    fetch('/api/commitments/exclude', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transactionId: id, restore: true }),

@@ -30,7 +30,7 @@ const SAMPLE_DATA: CompactFinancialData = {
     { day: 'Saturday', avg_spend: 90, transaction_count: 18 },
   ],
   daily_recent: [{ date: '2026-01-15', amount: 150, is_income_day: true }],
-  recurring: [{ merchant: 'Netflix', amount: 15.99, frequency: 'monthly', months: 6 }],
+  commitments: [{ merchant: 'Netflix', amount: 15.99, frequency: 'monthly', months: 6 }],
   outliers: [],
   top_merchants_by_category: [],
   recent_transactions: [

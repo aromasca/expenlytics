@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { detectRecurringGroups } from '@/lib/recurring'
+import { detectCommitmentGroups } from '@/lib/commitments'
 
-describe('detectRecurringGroups', () => {
+describe('detectCommitmentGroups', () => {
   it('groups transactions by normalized_merchant', () => {
     const transactions = [
       { id: 1, date: '2025-01-15', description: 'NETFLIX.COM 1234', normalized_merchant: 'Netflix', amount: 15.99, type: 'debit' as const, category_name: 'Streaming Services', category_color: '#0EA5E9' },
@@ -10,7 +10,7 @@ describe('detectRecurringGroups', () => {
       { id: 4, date: '2025-01-20', description: 'Whole Foods', normalized_merchant: 'Whole Foods Market', amount: 85.00, type: 'debit' as const, category_name: 'Groceries', category_color: '#22C55E' },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups).toHaveLength(1)
     expect(groups[0].merchantName).toBe('Netflix')
     expect(groups[0].occurrences).toBe(3)
@@ -23,7 +23,7 @@ describe('detectRecurringGroups', () => {
       { id: 1, date: '2025-01-15', description: 'Netflix', normalized_merchant: 'Netflix', amount: 15.99, type: 'debit' as const, category_name: null, category_color: null },
       { id: 2, date: '2025-02-15', description: 'Netflix', normalized_merchant: 'Netflix', amount: 15.99, type: 'debit' as const, category_name: null, category_color: null },
     ]
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups).toHaveLength(0)
   })
 
@@ -33,7 +33,7 @@ describe('detectRecurringGroups', () => {
       { id: 2, date: '2025-01-15', description: 'WALMART 5678', normalized_merchant: 'Walmart', amount: 30.00, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups).toHaveLength(0)
   })
 
@@ -44,7 +44,7 @@ describe('detectRecurringGroups', () => {
       { id: 3, date: '2025-03-15', description: 'Netflix', normalized_merchant: 'Netflix', amount: 16.99, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups).toHaveLength(1)
     expect(groups[0].merchantName).toBe('Netflix')
   })
@@ -55,7 +55,7 @@ describe('detectRecurringGroups', () => {
       { id: 2, date: '2025-01-15', description: 'COFFEE SHOP', normalized_merchant: 'Starbucks', amount: 5.00, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups).toHaveLength(0)
   })
 
@@ -66,7 +66,7 @@ describe('detectRecurringGroups', () => {
       { id: 3, date: '2025-03-15', description: 'Spotify', normalized_merchant: 'Spotify', amount: 9.99, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups).toHaveLength(1)
     expect(groups[0].estimatedMonthlyAmount).toBeCloseTo(9.99)
     expect(groups[0].frequency).toBe('monthly')
@@ -80,7 +80,7 @@ describe('detectRecurringGroups', () => {
       { id: 4, date: '2025-01-22', description: 'Gym', normalized_merchant: 'Planet Fitness', amount: 5.00, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups[0].frequency).toBe('weekly')
   })
 
@@ -91,7 +91,7 @@ describe('detectRecurringGroups', () => {
       { id: 3, date: '2026-03-01', description: 'Amazon Prime', normalized_merchant: 'Amazon Prime', amount: 139.00, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups[0].frequency).toBe('yearly')
     expect(groups[0].estimatedMonthlyAmount).toBeCloseTo(139.00 / 12)
   })
@@ -102,7 +102,7 @@ describe('detectRecurringGroups', () => {
       { id: 2, date: '2025-03-01', description: 'Amazon Prime', normalized_merchant: 'Amazon Prime', amount: 139.00, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups).toHaveLength(1)
     expect(groups[0].frequency).toBe('yearly')
     expect(groups[0].occurrences).toBe(2)
@@ -114,7 +114,7 @@ describe('detectRecurringGroups', () => {
       { id: 2, date: '2025-09-16', description: 'Insurance', normalized_merchant: 'Acme Insurance', amount: 600.00, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups).toHaveLength(1)
     expect(groups[0].frequency).toBe('semi-annual')
     expect(groups[0].estimatedMonthlyAmount).toBeCloseTo(600 / 6)
@@ -130,7 +130,7 @@ describe('detectRecurringGroups', () => {
       { id: 6, date: '2025-03-15', description: 'Expensive', normalized_merchant: 'Expensive SaaS', amount: 99.00, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups[0].merchantName).toBe('Expensive SaaS')
     expect(groups[1].merchantName).toBe('Cheap SaaS')
   })
@@ -142,7 +142,7 @@ describe('detectRecurringGroups', () => {
       { id: 20, date: '2025-03-15', description: 'Netflix', normalized_merchant: 'Netflix', amount: 15.99, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups[0].transactionIds).toEqual([10, 15, 20])
     expect(groups[0].firstDate).toBe('2025-01-15')
     expect(groups[0].lastDate).toBe('2025-03-15')
@@ -156,7 +156,7 @@ describe('detectRecurringGroups', () => {
       { id: 4, date: '2025-04-15', description: 'chase', normalized_merchant: 'chase', amount: 100, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     // Chase (2) + JPMorgan Chase (1) + chase (1) — "Chase" and "chase" merge, "JPMorgan Chase" is separate
     expect(groups.some(g => g.merchantName === 'Chase' && g.occurrences === 3)).toBe(true)
     expect(groups.some(g => g.merchantName === 'JPMorgan Chase')).toBe(false) // only 1 occurrence
@@ -173,7 +173,7 @@ describe('detectRecurringGroups', () => {
       { id: 7, date: '2025-07-15', description: 'Acme SaaS', normalized_merchant: 'Acme SaaS', amount: 30.00, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups).toHaveLength(1)
     // $250 over 7 months — blended average between old and new price
     expect(groups[0].estimatedMonthlyAmount).toBeCloseTo(250 / 7)
@@ -198,7 +198,7 @@ describe('detectRecurringGroups', () => {
       { id: 12, date: '2026-01-02', description: 'Acme Cloud', normalized_merchant: 'Acme Cloud', amount: 50.00, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups).toHaveLength(1)
     // 11 distinct months but span is ~12 months — use span so drift doesn't inflate
     // $600 / 12 = $50, not $600 / 11 = $54.55
@@ -219,7 +219,7 @@ describe('detectRecurringGroups', () => {
       { id: 9, date: '2025-03-19', description: 'Acme Gym', normalized_merchant: 'Acme Gym', amount: 25.00, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups).toHaveLength(1)
     // 9 × $25 = $225 over 3 months = $75/mo (not $25 per-transaction avg)
     expect(groups[0].estimatedMonthlyAmount).toBeCloseTo(75.00)
@@ -232,7 +232,7 @@ describe('detectRecurringGroups', () => {
       { id: 2, date: '2025-02-15', description: 'Unknown', normalized_merchant: null, amount: 50.00, type: 'debit' as const, category_name: null, category_color: null },
     ]
 
-    const groups = detectRecurringGroups(transactions)
+    const groups = detectCommitmentGroups(transactions)
     expect(groups).toHaveLength(0)
   })
 })

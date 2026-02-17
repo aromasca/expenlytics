@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
-import { setSubscriptionStatus } from '@/lib/db/recurring'
+import { setCommitmentStatus } from '@/lib/db/commitments'
 
 const VALID_STATUSES = new Set(['active', 'ended', 'not_recurring'])
 
@@ -18,6 +18,6 @@ export async function POST(request: NextRequest) {
   const db = getDb()
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
   const validDate = typeof statusDate === 'string' && DATE_RE.test(statusDate) ? statusDate : undefined
-  setSubscriptionStatus(db, merchant.trim(), status, typeof notes === 'string' ? notes : undefined, validDate)
+  setCommitmentStatus(db, merchant.trim(), status, typeof notes === 'string' ? notes : undefined, validDate)
   return NextResponse.json({ success: true })
 }

@@ -313,9 +313,9 @@ export default function InsightsPage() {
                 <Receipt className="h-3.5 w-3.5 mr-1" /> Transactions
               </Button>
             </Link>
-            <Link href="/subscriptions">
+            <Link href="/commitments">
               <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground">
-                <CreditCard className="h-3.5 w-3.5 mr-1" /> Recurring
+                <CreditCard className="h-3.5 w-3.5 mr-1" /> Commitments
               </Button>
             </Link>
             {data?.generatedAt && data.status === 'ready' && (

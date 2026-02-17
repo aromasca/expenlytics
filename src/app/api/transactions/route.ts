@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams
   const db = getDb()
 
-  // Fetch specific transactions by ID list (used by recurring row detail)
+  // Fetch specific transactions by ID list (used by commitment row detail)
   const idsParam = params.get('ids')
   if (idsParam) {
     const ids = idsParam.split(',').map(Number).filter(n => !isNaN(n) && n > 0)

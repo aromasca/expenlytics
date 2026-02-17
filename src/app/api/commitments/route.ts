@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
-import { getRecurringCharges, getSubscriptionStatuses, getExcludedMerchants } from '@/lib/db/recurring'
+import { getCommitments, getCommitmentStatuses, getExcludedMerchants } from '@/lib/db/commitments'
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams
@@ -11,9 +11,9 @@ export async function GET(request: NextRequest) {
   const endDate = params.get('end_date')
 
   const excludedMerchants = getExcludedMerchants(db)
-  const statuses = getSubscriptionStatuses(db)
+  const statuses = getCommitmentStatuses(db)
 
-  const allGroups = getRecurringCharges(db, {
+  const allGroups = getCommitments(db, {
     start_date: startDate && DATE_RE.test(startDate) ? startDate : undefined,
     end_date: endDate && DATE_RE.test(endDate) ? endDate : undefined,
     excludeMerchants: excludedMerchants,

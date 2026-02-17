@@ -8,9 +8,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ChevronRight, ChevronDown, StopCircle, Ban, AlertTriangle, ArrowUp, ArrowDown, Undo2 } from 'lucide-react'
 import { formatCurrencyPrecise } from '@/lib/format'
-import { RecurringRowDetail } from '@/components/recurring-row-detail'
+import { CommitmentRowDetail } from '@/components/commitment-row-detail'
 
-interface RecurringGroup {
+interface CommitmentGroup {
   merchantName: string
   occurrences: number
   totalAmount: number
@@ -27,8 +27,8 @@ interface RecurringGroup {
 
 type SortBy = 'merchantName' | 'frequency' | 'category' | 'avgAmount' | 'estimatedMonthlyAmount' | 'occurrences' | 'lastDate'
 
-interface RecurringChargesTableProps {
-  groups: RecurringGroup[]
+interface CommitmentTableProps {
+  groups: CommitmentGroup[]
   onStatusChange?: (merchantName: string, status: 'ended' | 'not_recurring') => void
   selectable?: boolean
   selectedMerchants?: Set<string>
@@ -53,7 +53,7 @@ const FREQUENCY_LABELS: Record<string, string> = {
 
 const PAGE_SIZE = 20
 
-export function RecurringChargesTable({ groups, onStatusChange, selectable, selectedMerchants, onSelectionChange, sortBy, sortOrder, onSort, expandedMerchant, onToggleExpand, pendingRemovals, onUndoPending }: RecurringChargesTableProps) {
+export function CommitmentTable({ groups, onStatusChange, selectable, selectedMerchants, onSelectionChange, sortBy, sortOrder, onSort, expandedMerchant, onToggleExpand, pendingRemovals, onUndoPending }: CommitmentTableProps) {
   const [page, setPage] = useState(0)
   const totalPages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE))
   const effectivePage = Math.min(page, totalPages - 1)
@@ -181,7 +181,7 @@ export function RecurringChargesTable({ groups, onStatusChange, selectable, sele
                   rows.push(
                     <TableRow key={`${group.merchantName}-detail`} className="hover:bg-transparent">
                       <TableCell colSpan={totalColumns} className="p-0">
-                        <RecurringRowDetail transactionIds={group.transactionIds} />
+                        <CommitmentRowDetail transactionIds={group.transactionIds} />
                       </TableCell>
                     </TableRow>
                   )

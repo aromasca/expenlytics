@@ -4,11 +4,11 @@ import { initializeSchema } from '@/lib/db/schema'
 import { createDocument } from '@/lib/db/documents'
 import { insertTransactions } from '@/lib/db/transactions'
 import {
-  getRecurringCharges, mergeMerchants,
-  setSubscriptionStatus, getSubscriptionStatuses, getExcludedMerchants
-} from '@/lib/db/recurring'
+  getCommitments, mergeMerchants,
+  setCommitmentStatus, getCommitmentStatuses, getExcludedMerchants
+} from '@/lib/db/commitments'
 
-describe('getRecurringCharges', () => {
+describe('getCommitments', () => {
   let db: Database.Database
   let docId: number
 
@@ -29,7 +29,7 @@ describe('getRecurringCharges', () => {
     db.prepare("UPDATE transactions SET normalized_merchant = 'Netflix' WHERE description LIKE 'NETFLIX%'").run()
     db.prepare("UPDATE transactions SET normalized_merchant = 'Whole Foods Market' WHERE description = 'Whole Foods'").run()
 
-    const groups = getRecurringCharges(db, {})
+    const groups = getCommitments(db, {})
     expect(groups.length).toBe(1)
     expect(groups[0].merchantName).toBe('Netflix')
     expect(groups[0].occurrences).toBe(3)
@@ -44,7 +44,7 @@ describe('getRecurringCharges', () => {
     ])
     db.prepare("UPDATE transactions SET normalized_merchant = 'Netflix'").run()
 
-    const groups = getRecurringCharges(db, { start_date: '2025-01-01', end_date: '2025-03-31' })
+    const groups = getCommitments(db, { start_date: '2025-01-01', end_date: '2025-03-31' })
     expect(groups.length).toBe(1)
     expect(groups[0].occurrences).toBe(3)
   })
@@ -56,7 +56,7 @@ describe('getRecurringCharges', () => {
     ])
     db.prepare("UPDATE transactions SET normalized_merchant = 'XYZ Corp'").run()
 
-    const groups = getRecurringCharges(db, {})
+    const groups = getCommitments(db, {})
     expect(groups.length).toBe(0)
   })
 
@@ -70,7 +70,7 @@ describe('getRecurringCharges', () => {
     const transferCat = db.prepare("SELECT id FROM categories WHERE name = 'Transfer'").get() as { id: number }
     db.prepare('UPDATE transactions SET category_id = ?').run(transferCat.id)
 
-    const groups = getRecurringCharges(db, {})
+    const groups = getCommitments(db, {})
     expect(groups).toHaveLength(0)
   })
 
@@ -81,7 +81,7 @@ describe('getRecurringCharges', () => {
     ])
     // Don't set normalized_merchant — should be skipped
 
-    const groups = getRecurringCharges(db, {})
+    const groups = getCommitments(db, {})
     expect(groups.length).toBe(0)
   })
 })
@@ -117,7 +117,7 @@ describe('mergeMerchants', () => {
     expect(spotify.length).toBe(1)
   })
 
-  it('cleans up subscription status entries for merged-away merchants', () => {
+  it('cleans up commitment status entries for merged-away merchants', () => {
     insertTransactions(db, docId, [
       { date: '2025-01-15', description: 'A', amount: 10, type: 'debit' },
       { date: '2025-02-15', description: 'B', amount: 10, type: 'debit' },
@@ -125,16 +125,16 @@ describe('mergeMerchants', () => {
     db.prepare("UPDATE transactions SET normalized_merchant = 'Merchant A' WHERE description = 'A'").run()
     db.prepare("UPDATE transactions SET normalized_merchant = 'Merchant B' WHERE description = 'B'").run()
 
-    setSubscriptionStatus(db, 'Merchant B', 'not_recurring')
-    expect(getSubscriptionStatuses(db).has('Merchant B')).toBe(true)
+    setCommitmentStatus(db, 'Merchant B', 'not_recurring')
+    expect(getCommitmentStatuses(db).has('Merchant B')).toBe(true)
 
     mergeMerchants(db, ['Merchant A', 'Merchant B'], 'Merchant A')
 
-    expect(getSubscriptionStatuses(db).has('Merchant B')).toBe(false)
+    expect(getCommitmentStatuses(db).has('Merchant B')).toBe(false)
   })
 })
 
-describe('subscription_status', () => {
+describe('commitment_status', () => {
   let db: Database.Database
 
   beforeEach(() => {
@@ -142,41 +142,79 @@ describe('subscription_status', () => {
     initializeSchema(db)
   })
 
-  it('sets and retrieves subscription status', () => {
-    setSubscriptionStatus(db, 'Netflix', 'ended')
-    const statuses = getSubscriptionStatuses(db)
+  it('sets and retrieves commitment status', () => {
+    setCommitmentStatus(db, 'Netflix', 'ended')
+    const statuses = getCommitmentStatuses(db)
     expect(statuses.get('Netflix')).toMatchObject({ status: 'ended' })
   })
 
   it('upserts status on repeat calls', () => {
-    setSubscriptionStatus(db, 'Netflix', 'ended')
-    setSubscriptionStatus(db, 'Netflix', 'not_recurring', 'Not a subscription')
-    const statuses = getSubscriptionStatuses(db)
+    setCommitmentStatus(db, 'Netflix', 'ended')
+    setCommitmentStatus(db, 'Netflix', 'not_recurring', 'Not a commitment')
+    const statuses = getCommitmentStatuses(db)
     expect(statuses.get('Netflix')?.status).toBe('not_recurring')
-    expect(statuses.get('Netflix')?.notes).toBe('Not a subscription')
+    expect(statuses.get('Netflix')?.notes).toBe('Not a commitment')
   })
 
   it('removes status when set to active', () => {
-    setSubscriptionStatus(db, 'Netflix', 'ended')
-    setSubscriptionStatus(db, 'Netflix', 'active')
-    const statuses = getSubscriptionStatuses(db)
+    setCommitmentStatus(db, 'Netflix', 'ended')
+    setCommitmentStatus(db, 'Netflix', 'active')
+    const statuses = getCommitmentStatuses(db)
     expect(statuses.has('Netflix')).toBe(false)
   })
 
   it('getExcludedMerchants returns not_recurring merchants', () => {
-    setSubscriptionStatus(db, 'Chipotle', 'not_recurring')
-    setSubscriptionStatus(db, 'Netflix', 'ended')
+    setCommitmentStatus(db, 'Chipotle', 'not_recurring')
+    setCommitmentStatus(db, 'Netflix', 'ended')
     const excluded = getExcludedMerchants(db)
     expect(excluded.has('Chipotle')).toBe(true)
     expect(excluded.has('Netflix')).toBe(false)
   })
 
-  it('migrates dismissed_subscriptions to subscription_status', () => {
+  it('migrates dismissed_subscriptions to commitment_status', () => {
     // Insert into old table directly
     db.prepare("INSERT INTO dismissed_subscriptions (normalized_merchant) VALUES ('OldMerchant')").run()
     // Re-run schema to trigger migration
     initializeSchema(db)
-    const statuses = getSubscriptionStatuses(db)
+    const statuses = getCommitmentStatuses(db)
     expect(statuses.get('OldMerchant')?.status).toBe('not_recurring')
+  })
+
+  it('migrates subscription_status to commitment_status', () => {
+    // Simulate old table existing with data
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS subscription_status (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        normalized_merchant TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL CHECK (status IN ('ended', 'not_recurring')),
+        status_changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+        notes TEXT
+      )
+    `)
+    db.prepare("INSERT INTO subscription_status (normalized_merchant, status, notes) VALUES (?, 'ended', 'cancelled')").run('OldService')
+    // Re-run schema to trigger migration
+    initializeSchema(db)
+    const statuses = getCommitmentStatuses(db)
+    expect(statuses.get('OldService')?.status).toBe('ended')
+    expect(statuses.get('OldService')?.notes).toBe('cancelled')
+  })
+
+  it('migrates excluded_recurring_transactions to excluded_commitment_transactions', () => {
+    const docId = createDocument(db, 'test.pdf', '/path/test.pdf')
+    insertTransactions(db, docId, [
+      { date: '2025-01-15', description: 'Test', amount: 10, type: 'debit' },
+    ])
+    const txn = db.prepare('SELECT id FROM transactions LIMIT 1').get() as { id: number }
+    // Simulate old table existing with data
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS excluded_recurring_transactions (
+        transaction_id INTEGER PRIMARY KEY REFERENCES transactions(id) ON DELETE CASCADE
+      )
+    `)
+    db.prepare('INSERT INTO excluded_recurring_transactions (transaction_id) VALUES (?)').run(txn.id)
+    // Re-run schema to trigger migration
+    initializeSchema(db)
+    const row = db.prepare('SELECT transaction_id FROM excluded_commitment_transactions WHERE transaction_id = ?').get([txn.id])
+    expect(row).toBeTruthy()
   })
 })

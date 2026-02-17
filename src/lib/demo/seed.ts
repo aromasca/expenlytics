@@ -87,7 +87,7 @@ export function insertDemoData(db: Database.Database): void {
 
     // Mark Planet Fitness as ended subscription
     db.prepare(
-      `INSERT OR IGNORE INTO subscription_status (normalized_merchant, status) VALUES (?, 'ended')`
+      `INSERT OR IGNORE INTO commitment_status (normalized_merchant, status) VALUES (?, 'ended')`
     ).run('Planet Fitness')
 
     setSetting(db, 'demo_mode', 'true')
@@ -96,14 +96,14 @@ export function insertDemoData(db: Database.Database): void {
 
 export function clearDemoData(db: Database.Database): void {
   db.transaction(() => {
-    db.exec('DELETE FROM excluded_recurring_transactions')
+    db.exec('DELETE FROM excluded_commitment_transactions')
     db.exec('DELETE FROM transactions')
     db.exec('DELETE FROM document_accounts')
     db.exec('DELETE FROM documents')
     db.exec('DELETE FROM accounts')
     db.exec('DELETE FROM insight_cache')
     db.exec('DELETE FROM dismissed_insights')
-    db.exec('DELETE FROM subscription_status')
+    db.exec('DELETE FROM commitment_status')
     db.exec('DELETE FROM merchant_categories')
     setSetting(db, 'demo_mode', 'false')
   })()

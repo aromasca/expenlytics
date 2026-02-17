@@ -11,7 +11,7 @@ export interface CompactFinancialData {
   }>
   day_of_week: Array<{ day: string; avg_spend: number; transaction_count: number }>
   daily_recent: Array<{ date: string; amount: number; is_income_day: boolean }>
-  recurring: Array<{ merchant: string; amount: number; frequency: string; months: number }>
+  commitments: Array<{ merchant: string; amount: number; frequency: string; months: number }>
   outliers: Array<{ date: string; description: string; amount: number; category: string }>
   top_merchants_by_category: Array<{ category: string; merchants: Array<{ name: string; total: number; count: number }> }>
   recent_transactions: Array<{
@@ -138,7 +138,7 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
   }))
 
   // Recurring charges (merchants with 2+ charges, consistent amounts)
-  const recurringRows = db.prepare(`
+  const commitmentRows = db.prepare(`
     SELECT COALESCE(t.normalized_merchant, t.description) as merchant,
            ROUND(AVG(t.amount), 2) as amount,
            COUNT(*) as occurrences,
@@ -155,7 +155,7 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     ORDER BY amount DESC
   `).all() as Array<{ merchant: string; amount: number; occurrences: number; months: number; first_date: string; last_date: string }>
 
-  const recurring = recurringRows.map(r => {
+  const commitments = commitmentRows.map(r => {
     const spanDays = (new Date(r.last_date).getTime() - new Date(r.first_date).getTime()) / (1000 * 60 * 60 * 24)
     const avgDays = r.occurrences > 1 ? spanDays / (r.occurrences - 1) : 0
     let frequency = 'irregular'
@@ -254,5 +254,5 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     .slice(0, 20)
     .map(([merchant]) => ({ merchant, months: deltaMap.get(merchant)! }))
 
-  return { monthly, categories, merchants, day_of_week, daily_recent, recurring, outliers, top_merchants_by_category, recent_transactions, merchant_month_deltas }
+  return { monthly, categories, merchants, day_of_week, daily_recent, commitments, outliers, top_merchants_by_category, recent_transactions, merchant_month_deltas }
 }

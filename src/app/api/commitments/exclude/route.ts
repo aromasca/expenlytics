@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
-import { excludeTransactionFromRecurring, restoreTransactionToRecurring } from '@/lib/db/recurring'
+import { excludeTransactionFromCommitments, restoreTransactionToCommitments } from '@/lib/db/commitments'
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
@@ -12,9 +12,9 @@ export async function POST(request: NextRequest) {
 
   const db = getDb()
   if (restore) {
-    restoreTransactionToRecurring(db, transactionId)
+    restoreTransactionToCommitments(db, transactionId)
   } else {
-    excludeTransactionFromRecurring(db, transactionId)
+    excludeTransactionFromCommitments(db, transactionId)
   }
   return NextResponse.json({ success: true })
 }

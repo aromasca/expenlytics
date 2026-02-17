@@ -267,9 +267,9 @@ export function initializeSchema(db: Database.Database): void {
     )
   `)
 
-  // Subscription status table (replaces dismissed_subscriptions)
+  // Commitment status table (replaces subscription_status)
   db.exec(`
-    CREATE TABLE IF NOT EXISTS subscription_status (
+    CREATE TABLE IF NOT EXISTS commitment_status (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       normalized_merchant TEXT NOT NULL UNIQUE,
       status TEXT NOT NULL CHECK (status IN ('ended', 'not_recurring')),
@@ -278,18 +278,42 @@ export function initializeSchema(db: Database.Database): void {
     )
   `)
 
-  // Migrate dismissed_subscriptions → subscription_status
+  // Migrate dismissed_subscriptions → commitment_status
   db.exec(`
-    INSERT OR IGNORE INTO subscription_status (normalized_merchant, status, status_changed_at)
+    INSERT OR IGNORE INTO commitment_status (normalized_merchant, status, status_changed_at)
     SELECT normalized_merchant, 'not_recurring', dismissed_at
     FROM dismissed_subscriptions
   `)
 
+  // Migrate subscription_status → commitment_status (renamed table)
+  const hasOldStatusTable = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='subscription_status'"
+  ).get()
+  if (hasOldStatusTable) {
+    db.exec(`
+      INSERT OR IGNORE INTO commitment_status (normalized_merchant, status, status_changed_at, notes)
+      SELECT normalized_merchant, status, status_changed_at, notes
+      FROM subscription_status
+    `)
+  }
+
   db.exec(`
-    CREATE TABLE IF NOT EXISTS excluded_recurring_transactions (
+    CREATE TABLE IF NOT EXISTS excluded_commitment_transactions (
       transaction_id INTEGER PRIMARY KEY REFERENCES transactions(id) ON DELETE CASCADE
     )
   `)
+
+  // Migrate excluded_recurring_transactions → excluded_commitment_transactions (renamed table)
+  const hasOldExcludedTable = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='excluded_recurring_transactions'"
+  ).get()
+  if (hasOldExcludedTable) {
+    db.exec(`
+      INSERT OR IGNORE INTO excluded_commitment_transactions (transaction_id)
+      SELECT transaction_id
+      FROM excluded_recurring_transactions
+    `)
+  }
 
   // Migrate categories table - add new columns if missing
   const catColumns = db.prepare("PRAGMA table_info(categories)").all() as Array<{ name: string }>
