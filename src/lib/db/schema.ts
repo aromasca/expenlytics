@@ -303,6 +303,16 @@ export function initializeSchema(db: Database.Database): void {
     )
   `)
 
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS commitment_overrides (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      normalized_merchant TEXT NOT NULL UNIQUE,
+      frequency_override TEXT CHECK (frequency_override IN ('weekly','monthly','quarterly','semi-annual','yearly','irregular')),
+      monthly_amount_override REAL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
+
   // Migrate excluded_recurring_transactions → excluded_commitment_transactions (renamed table)
   const hasOldExcludedTable = db.prepare(
     "SELECT name FROM sqlite_master WHERE type='table' AND name='excluded_recurring_transactions'"

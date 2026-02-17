@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3'
 import { VALID_TRANSACTION_FILTER } from '@/lib/db/filters'
-import { detectCommitmentGroups, type TransactionForCommitment } from '@/lib/commitments'
+import { detectCommitmentGroups, applyCommitmentOverrides, type TransactionForCommitment } from '@/lib/commitments'
+import { getCommitmentOverrides } from '@/lib/db/commitments'
 
 export interface CompactFinancialData {
   monthly: Array<{ month: string; income: number; spending: number; net: number }>
@@ -179,6 +180,8 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
 
   const filteredTxns = commitmentTxns.filter(t => !excludedTxIds.has(t.id))
   const allGroups = detectCommitmentGroups(filteredTxns)
+  const overrides = getCommitmentOverrides(db)
+  applyCommitmentOverrides(allGroups, overrides)
   const activeGroups = allGroups.filter(g => !endedMerchants.has(g.merchantName.toLowerCase()))
 
   // Build account lookup: transaction_id → account label

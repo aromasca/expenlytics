@@ -1,6 +1,11 @@
 import type Database from 'better-sqlite3'
 import { detectCommitmentGroups, type CommitmentGroup, type TransactionForCommitment } from '@/lib/commitments'
 
+export interface CommitmentOverride {
+  frequencyOverride: CommitmentGroup['frequency'] | null
+  monthlyAmountOverride: number | null
+}
+
 export interface CommitmentFilters {
   start_date?: string
   end_date?: string
@@ -90,12 +95,15 @@ export function mergeMerchants(db: Database.Database, merchants: string[], targe
       `UPDATE transactions SET normalized_merchant = ? WHERE normalized_merchant IN (${placeholders})`
     ).run(targetName, ...merchants)
 
-    // Clean up commitment status entries for merged-away merchants
+    // Clean up commitment status and overrides for merged-away merchants
     const mergedAway = merchants.filter(m => m !== targetName)
     if (mergedAway.length > 0) {
       const statusPlaceholders = mergedAway.map(() => '?').join(', ')
       db.prepare(
         `DELETE FROM commitment_status WHERE normalized_merchant IN (${statusPlaceholders})`
+      ).run(...mergedAway)
+      db.prepare(
+        `DELETE FROM commitment_overrides WHERE normalized_merchant IN (${statusPlaceholders})`
       ).run(...mergedAway)
     }
 
@@ -103,6 +111,40 @@ export function mergeMerchants(db: Database.Database, merchants: string[], targe
   })
 
   return transaction()
+}
+
+export function getCommitmentOverrides(db: Database.Database): Map<string, CommitmentOverride> {
+  const rows = db.prepare(
+    'SELECT normalized_merchant, frequency_override, monthly_amount_override FROM commitment_overrides'
+  ).all() as Array<{ normalized_merchant: string; frequency_override: string | null; monthly_amount_override: number | null }>
+  const map = new Map<string, CommitmentOverride>()
+  for (const r of rows) {
+    map.set(r.normalized_merchant, {
+      frequencyOverride: r.frequency_override as CommitmentOverride['frequencyOverride'],
+      monthlyAmountOverride: r.monthly_amount_override,
+    })
+  }
+  return map
+}
+
+export function setCommitmentOverride(
+  db: Database.Database,
+  merchant: string,
+  frequencyOverride: CommitmentGroup['frequency'] | null,
+  monthlyAmountOverride: number | null
+): void {
+  if (frequencyOverride === null && monthlyAmountOverride === null) {
+    db.prepare('DELETE FROM commitment_overrides WHERE normalized_merchant = ?').run(merchant)
+  } else {
+    db.prepare(`
+      INSERT INTO commitment_overrides (normalized_merchant, frequency_override, monthly_amount_override, updated_at)
+      VALUES (?, ?, ?, datetime('now'))
+      ON CONFLICT(normalized_merchant) DO UPDATE SET
+        frequency_override = excluded.frequency_override,
+        monthly_amount_override = excluded.monthly_amount_override,
+        updated_at = excluded.updated_at
+    `).run(merchant, frequencyOverride, monthlyAmountOverride)
+  }
 }
 
 export function excludeTransactionFromCommitments(db: Database.Database, transactionId: number): void {

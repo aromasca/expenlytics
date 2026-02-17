@@ -35,7 +35,7 @@ describe('getProviderForTask', () => {
     setSetting(db, 'provider_extraction', 'openai')
     const result = getProviderForTask(db, 'extraction')
     expect(result.providerName).toBe('openai')
-    expect(result.model).toBe('gpt-4o')
+    expect(result.model).toBe('gpt-5')
   })
 
   it('reads model from settings', () => {
@@ -55,7 +55,7 @@ describe('getProviderForTask', () => {
     setSetting(db, 'provider_extraction', 'openai')
     setSetting(db, 'model_extraction', 'claude-sonnet-4-5-20250929')
     const result = getProviderForTask(db, 'extraction')
-    expect(result.model).toBe('gpt-4o')
+    expect(result.model).toBe('gpt-5')
   })
 
   it('ignores invalid provider setting and defaults to anthropic', () => {

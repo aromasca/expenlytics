@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ChevronRight, ChevronDown, StopCircle, Ban, AlertTriangle, ArrowUp, ArrowDown, Undo2 } from 'lucide-react'
+import { ChevronRight, ChevronDown, StopCircle, Ban, AlertTriangle, ArrowUp, ArrowDown, Undo2, Pencil, Check, X } from 'lucide-react'
 import { formatCurrencyPrecise } from '@/lib/format'
 import { CommitmentRowDetail } from '@/components/commitment-row-detail'
 
@@ -16,20 +17,24 @@ interface CommitmentGroup {
   totalAmount: number
   avgAmount: number
   estimatedMonthlyAmount: number
-  frequency: 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'irregular'
+  frequency: 'weekly' | 'monthly' | 'quarterly' | 'semi-annual' | 'yearly' | 'irregular'
   firstDate: string
   lastDate: string
   category: string | null
   categoryColor: string | null
   transactionIds: number[]
   unexpectedActivity?: boolean
+  frequencyOverride?: string | null
+  monthlyAmountOverride?: number | null
 }
 
 type SortBy = 'merchantName' | 'frequency' | 'category' | 'avgAmount' | 'estimatedMonthlyAmount' | 'occurrences' | 'lastDate'
+type Frequency = 'weekly' | 'monthly' | 'quarterly' | 'semi-annual' | 'yearly' | 'irregular'
 
 interface CommitmentTableProps {
   groups: CommitmentGroup[]
   onStatusChange?: (merchantName: string, status: 'ended' | 'not_recurring') => void
+  onOverrideChange?: (merchant: string, frequencyOverride: string | null, monthlyAmountOverride: number | null) => void
   selectable?: boolean
   selectedMerchants?: Set<string>
   onSelectionChange?: (selected: Set<string>) => void
@@ -53,8 +58,46 @@ const FREQUENCY_LABELS: Record<string, string> = {
 
 const PAGE_SIZE = 20
 
-export function CommitmentTable({ groups, onStatusChange, selectable, selectedMerchants, onSelectionChange, sortBy, sortOrder, onSort, expandedMerchant, onToggleExpand, pendingRemovals, onUndoPending }: CommitmentTableProps) {
+const FREQUENCY_OPTIONS: { value: Frequency | 'auto'; label: string }[] = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'quarterly', label: 'Quarterly' },
+  { value: 'semi-annual', label: '2x/yr' },
+  { value: 'yearly', label: 'Yearly' },
+  { value: 'irregular', label: 'Irregular' },
+]
+
+function InlineMonthlyInput({ value, onSave, onCancel }: { value: number; onSave: (v: number | null) => void; onCancel: () => void }) {
+  const [input, setInput] = useState(value.toFixed(2))
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => { ref.current?.select() }, [])
+  const handleSave = () => {
+    const num = parseFloat(input)
+    if (!isNaN(num) && num > 0) onSave(Math.round(num * 100) / 100)
+    else onCancel()
+  }
+  return (
+    <span className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+      <Input
+        ref={ref}
+        type="number"
+        step="0.01"
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') onCancel() }}
+        className="h-6 w-20 text-xs tabular-nums px-1"
+      />
+      <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={handleSave}><Check className="h-3 w-3" /></Button>
+      <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={onCancel}><X className="h-3 w-3" /></Button>
+    </span>
+  )
+}
+
+export function CommitmentTable({ groups, onStatusChange, onOverrideChange, selectable, selectedMerchants, onSelectionChange, sortBy, sortOrder, onSort, expandedMerchant, onToggleExpand, pendingRemovals, onUndoPending }: CommitmentTableProps) {
   const [page, setPage] = useState(0)
+  const [editingMerchant, setEditingMerchant] = useState<string | null>(null)
+  const [editField, setEditField] = useState<'frequency' | 'monthly' | null>(null)
   const totalPages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE))
   const effectivePage = Math.min(page, totalPages - 1)
   const paged = groups.slice(effectivePage * PAGE_SIZE, (effectivePage + 1) * PAGE_SIZE)
@@ -140,10 +183,40 @@ export function CommitmentTable({ groups, onStatusChange, selectable, selectedMe
                         )}
                       </span>
                     </TableCell>
-                    <TableCell className="py-1.5">
-                      <Badge variant="outline" className="text-[11px] px-1.5 py-0">
-                        {FREQUENCY_LABELS[group.frequency]}
-                      </Badge>
+                    <TableCell className="py-1.5" onClick={e => e.stopPropagation()}>
+                      {editingMerchant === group.merchantName && editField === 'frequency' ? (
+                        <select
+                          className="h-6 text-[11px] rounded border bg-background px-1"
+                          value={group.frequencyOverride ?? 'auto'}
+                          autoFocus
+                          onChange={e => {
+                            const val = e.target.value
+                            const freq = val === 'auto' ? null : val
+                            onOverrideChange?.(group.merchantName, freq, group.monthlyAmountOverride ?? null)
+                            setEditingMerchant(null)
+                            setEditField(null)
+                          }}
+                          onBlur={() => { setEditingMerchant(null); setEditField(null) }}
+                        >
+                          {FREQUENCY_OPTIONS.map(o => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="group/freq inline-flex items-center gap-0.5">
+                          <Badge variant={group.frequencyOverride ? 'default' : 'outline'} className="text-[11px] px-1.5 py-0">
+                            {FREQUENCY_LABELS[group.frequency]}
+                          </Badge>
+                          {onOverrideChange && (
+                            <button
+                              className="opacity-0 group-hover/freq:opacity-100 transition-opacity"
+                              onClick={() => { setEditingMerchant(group.merchantName); setEditField('frequency') }}
+                            >
+                              <Pencil className="h-2.5 w-2.5 text-muted-foreground" />
+                            </button>
+                          )}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="py-1.5 text-xs text-muted-foreground">
                       {group.category ? (
@@ -153,7 +226,33 @@ export function CommitmentTable({ groups, onStatusChange, selectable, selectedMe
                       ) : '\u2014'}
                     </TableCell>
                     <TableCell className="py-1.5 text-xs text-right tabular-nums">{formatCurrencyPrecise(group.avgAmount)}</TableCell>
-                    <TableCell className="py-1.5 text-xs text-right tabular-nums font-medium">{formatCurrencyPrecise(group.estimatedMonthlyAmount)}</TableCell>
+                    <TableCell className="py-1.5 text-xs text-right tabular-nums font-medium" onClick={e => e.stopPropagation()}>
+                      {editingMerchant === group.merchantName && editField === 'monthly' ? (
+                        <InlineMonthlyInput
+                          value={group.estimatedMonthlyAmount}
+                          onSave={v => {
+                            onOverrideChange?.(group.merchantName, group.frequencyOverride ?? null, v)
+                            setEditingMerchant(null)
+                            setEditField(null)
+                          }}
+                          onCancel={() => { setEditingMerchant(null); setEditField(null) }}
+                        />
+                      ) : (
+                        <span className="group/monthly inline-flex items-center justify-end gap-0.5">
+                          <span className={group.monthlyAmountOverride != null ? 'underline decoration-dotted' : ''}>
+                            {formatCurrencyPrecise(group.estimatedMonthlyAmount)}
+                          </span>
+                          {onOverrideChange && (
+                            <button
+                              className="opacity-0 group-hover/monthly:opacity-100 transition-opacity"
+                              onClick={() => { setEditingMerchant(group.merchantName); setEditField('monthly') }}
+                            >
+                              <Pencil className="h-2.5 w-2.5 text-muted-foreground" />
+                            </button>
+                          )}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell className="py-1.5 text-xs text-center tabular-nums text-muted-foreground">{group.occurrences}</TableCell>
                     <TableCell className="py-1.5 text-xs tabular-nums text-muted-foreground">{group.lastDate}</TableCell>
                     {hasActions && (

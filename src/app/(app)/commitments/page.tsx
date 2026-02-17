@@ -38,13 +38,15 @@ interface CommitmentGroup {
   totalAmount: number
   avgAmount: number
   estimatedMonthlyAmount: number
-  frequency: 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'irregular'
+  frequency: 'weekly' | 'monthly' | 'quarterly' | 'semi-annual' | 'yearly' | 'irregular'
   firstDate: string
   lastDate: string
   category: string | null
   categoryColor: string | null
   transactionIds: number[]
   unexpectedActivity?: boolean
+  frequencyOverride?: string | null
+  monthlyAmountOverride?: number | null
 }
 
 interface EndedCommitmentGroup extends CommitmentGroup {
@@ -341,6 +343,50 @@ export default function CommitmentsPage() {
       .catch(() => { setMerging(false) })
   }
 
+  const handleOverrideChange = (merchant: string, frequencyOverride: string | null, monthlyAmountOverride: number | null) => {
+    if (!data) return
+    // Optimistic: update local state immediately
+    setData(prev => {
+      if (!prev) return prev
+      const updateGroup = (g: CommitmentGroup) => {
+        if (g.merchantName !== merchant) return g
+        return {
+          ...g,
+          frequencyOverride,
+          monthlyAmountOverride,
+          ...(frequencyOverride ? { frequency: frequencyOverride as CommitmentGroup['frequency'] } : {}),
+          ...(monthlyAmountOverride != null ? { estimatedMonthlyAmount: monthlyAmountOverride } : {}),
+        }
+      }
+      return {
+        ...prev,
+        activeGroups: prev.activeGroups.map(updateGroup),
+        endedGroups: prev.endedGroups.map(g => updateGroup(g) as typeof g),
+      }
+    })
+
+    fetch('/api/commitments/override', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ merchant, frequencyOverride, monthlyAmountOverride }),
+    })
+      .then(r => r.json())
+      .then(res => {
+        if (res.estimatedMonthlyAmount != null) {
+          setData(prev => {
+            if (!prev) return prev
+            return {
+              ...prev,
+              activeGroups: prev.activeGroups.map(g =>
+                g.merchantName === merchant ? { ...g, estimatedMonthlyAmount: res.estimatedMonthlyAmount } : g
+              ),
+            }
+          })
+        }
+      })
+      .catch(() => { fetchData() })
+  }
+
   const sortedActive = data ? sortGroups(data.activeGroups, sortBy, sortOrder) : []
   const categoryGroups = groupByCategory(sortedActive)
   // Compute effective counts excluding pending removals for summary/trend
@@ -427,6 +473,7 @@ export default function CommitmentsPage() {
                     <CommitmentTable
                       groups={groups}
                       onStatusChange={handleStatusChange}
+                      onOverrideChange={handleOverrideChange}
                       selectable
                       selectedMerchants={selectedMerchants}
                       onSelectionChange={setSelectedMerchants}

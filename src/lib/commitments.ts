@@ -21,6 +21,9 @@ export interface CommitmentGroup {
   category: string | null
   categoryColor: string | null
   transactionIds: number[]
+  frequencyOverride?: CommitmentGroup['frequency'] | null
+  monthlyAmountOverride?: number | null
+  _transactionData?: Array<{ date: string; amount: number }>
 }
 
 function detectFrequency(avgDaysBetween: number): CommitmentGroup['frequency'] {
@@ -32,7 +35,7 @@ function detectFrequency(avgDaysBetween: number): CommitmentGroup['frequency'] {
   return 'irregular'
 }
 
-function estimateMonthlyAmount(
+export function estimateMonthlyAmount(
   frequency: CommitmentGroup['frequency'],
   transactions: { date: string; amount: number }[]
 ): number {
@@ -43,15 +46,24 @@ function estimateMonthlyAmount(
     return avgAmount / divisor
   }
 
-  // For frequent charges, total / months spanned
-  // Use the larger of distinct calendar months vs time-span months,
-  // so billing-date drift (e.g. Jan 30 → Mar 2) doesn't inflate the result,
-  // while multiple real charges per month still sum correctly
   const totalAmount = transactions.reduce((s, t) => s + t.amount, 0)
-  const distinctMonths = new Set(transactions.map(t => t.date.slice(0, 7))).size
   const first = new Date(transactions[0].date)
   const last = new Date(transactions[transactions.length - 1].date)
-  const spanMonths = Math.round((last.getTime() - first.getTime()) / (1000 * 60 * 60 * 24 * 30.44))
+  // Inclusive calendar-month span: Jan 2025 → Jan 2026 = 13, not 12.
+  // Math.round(days / 30.44) underestimates on month-end boundaries.
+  const firstYM = first.getFullYear() * 12 + first.getMonth()
+  const lastYM = last.getFullYear() * 12 + last.getMonth()
+  const spanMonths = lastYM - firstYM + 1
+
+  // For weekly/monthly: use min(count, span).
+  // - Billing drift (Jan 30 → Mar 2): count ≈ span, min picks count → correct avg per charge
+  // - Multi-charge per month (gym $50 + $20): count >> span, min picks span → correct monthly total
+  if (frequency === 'weekly' || frequency === 'monthly') {
+    return totalAmount / Math.max(1, Math.min(transactions.length, spanMonths))
+  }
+
+  // For irregular: use max of distinct months and span (can't rely on count)
+  const distinctMonths = new Set(transactions.map(t => t.date.slice(0, 7))).size
   return totalAmount / Math.max(1, distinctMonths, spanMonths)
 }
 
@@ -148,9 +160,32 @@ export function detectCommitmentGroups(transactions: TransactionForCommitment[])
       category: topCategory,
       categoryColor: topCategoryColor,
       transactionIds: txns.map(t => t.id),
+      _transactionData: txns.map(t => ({ date: t.date, amount: t.amount })),
     })
   }
 
   result.sort((a, b) => b.totalAmount - a.totalAmount)
   return result
+}
+
+export function applyCommitmentOverrides(
+  groups: CommitmentGroup[],
+  overrides: Map<string, { frequencyOverride: CommitmentGroup['frequency'] | null; monthlyAmountOverride: number | null }>
+): void {
+  for (const g of groups) {
+    const override = overrides.get(g.merchantName)
+    if (!override) continue
+    if (override.frequencyOverride) {
+      g.frequency = override.frequencyOverride
+      g.frequencyOverride = override.frequencyOverride
+      // Recalculate monthly amount with new frequency unless monthly is also overridden
+      if (override.monthlyAmountOverride == null && g._transactionData) {
+        g.estimatedMonthlyAmount = Math.round(estimateMonthlyAmount(override.frequencyOverride, g._transactionData) * 100) / 100
+      }
+    }
+    if (override.monthlyAmountOverride != null) {
+      g.estimatedMonthlyAmount = override.monthlyAmountOverride
+      g.monthlyAmountOverride = override.monthlyAmountOverride
+    }
+  }
 }

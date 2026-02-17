@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
-import { getCommitments, getCommitmentStatuses, getExcludedMerchants } from '@/lib/db/commitments'
+import { getCommitments, getCommitmentStatuses, getExcludedMerchants, getCommitmentOverrides } from '@/lib/db/commitments'
+import { applyCommitmentOverrides } from '@/lib/commitments'
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams
@@ -18,6 +19,9 @@ export async function GET(request: NextRequest) {
     end_date: endDate && DATE_RE.test(endDate) ? endDate : undefined,
     excludeMerchants: excludedMerchants,
   })
+
+  const overrides = getCommitmentOverrides(db)
+  applyCommitmentOverrides(allGroups, overrides)
 
   const activeGroups = []
   const endedGroups = []
@@ -44,9 +48,15 @@ export async function GET(request: NextRequest) {
 
   const trendData = computeTrendData(activeGroups)
 
+  // Strip internal _transactionData before sending response
+  const stripInternal = (g: typeof allGroups[number]) => {
+    const { _transactionData, ...rest } = g
+    return rest
+  }
+
   return NextResponse.json({
-    activeGroups,
-    endedGroups,
+    activeGroups: activeGroups.map(stripInternal),
+    endedGroups: endedGroups.map(stripInternal),
     excludedMerchants: excludedList,
     summary: {
       activeCount: activeGroups.length,

@@ -5,7 +5,8 @@ import { createDocument } from '@/lib/db/documents'
 import { insertTransactions } from '@/lib/db/transactions'
 import {
   getCommitments, mergeMerchants,
-  setCommitmentStatus, getCommitmentStatuses, getExcludedMerchants
+  setCommitmentStatus, getCommitmentStatuses, getExcludedMerchants,
+  setCommitmentOverride, getCommitmentOverrides
 } from '@/lib/db/commitments'
 
 describe('getCommitments', () => {
@@ -216,5 +217,75 @@ describe('commitment_status', () => {
     initializeSchema(db)
     const row = db.prepare('SELECT transaction_id FROM excluded_commitment_transactions WHERE transaction_id = ?').get([txn.id])
     expect(row).toBeTruthy()
+  })
+})
+
+describe('commitment_overrides', () => {
+  let db: Database.Database
+  let docId: number
+
+  beforeEach(() => {
+    db = new Database(':memory:')
+    initializeSchema(db)
+    docId = createDocument(db, 'test.pdf', '/path/test.pdf')
+  })
+
+  it('upserts frequency override only', () => {
+    setCommitmentOverride(db, 'Acme SaaS', 'monthly', null)
+    const overrides = getCommitmentOverrides(db)
+    expect(overrides.get('Acme SaaS')).toEqual({ frequencyOverride: 'monthly', monthlyAmountOverride: null })
+  })
+
+  it('upserts monthly amount override only', () => {
+    setCommitmentOverride(db, 'Acme SaaS', null, 50.00)
+    const overrides = getCommitmentOverrides(db)
+    expect(overrides.get('Acme SaaS')).toEqual({ frequencyOverride: null, monthlyAmountOverride: 50.00 })
+  })
+
+  it('upserts both overrides', () => {
+    setCommitmentOverride(db, 'Acme SaaS', 'yearly', 120.00)
+    const overrides = getCommitmentOverrides(db)
+    expect(overrides.get('Acme SaaS')).toEqual({ frequencyOverride: 'yearly', monthlyAmountOverride: 120.00 })
+  })
+
+  it('deletes row when both overrides are null', () => {
+    setCommitmentOverride(db, 'Acme SaaS', 'monthly', 50.00)
+    expect(getCommitmentOverrides(db).has('Acme SaaS')).toBe(true)
+
+    setCommitmentOverride(db, 'Acme SaaS', null, null)
+    expect(getCommitmentOverrides(db).has('Acme SaaS')).toBe(false)
+  })
+
+  it('updates existing override on second call', () => {
+    setCommitmentOverride(db, 'Acme SaaS', 'monthly', null)
+    setCommitmentOverride(db, 'Acme SaaS', 'yearly', 100.00)
+    const overrides = getCommitmentOverrides(db)
+    expect(overrides.get('Acme SaaS')).toEqual({ frequencyOverride: 'yearly', monthlyAmountOverride: 100.00 })
+  })
+
+  it('persists independently of commitment_status lifecycle', () => {
+    setCommitmentOverride(db, 'Acme SaaS', 'monthly', 25.00)
+    // End the commitment
+    setCommitmentStatus(db, 'Acme SaaS', 'ended')
+    expect(getCommitmentOverrides(db).get('Acme SaaS')).toEqual({ frequencyOverride: 'monthly', monthlyAmountOverride: 25.00 })
+
+    // Reactivate
+    setCommitmentStatus(db, 'Acme SaaS', 'active')
+    expect(getCommitmentOverrides(db).get('Acme SaaS')).toEqual({ frequencyOverride: 'monthly', monthlyAmountOverride: 25.00 })
+  })
+
+  it('mergeMerchants cleans up overrides for merged-away merchants', () => {
+    insertTransactions(db, docId, [
+      { date: '2025-01-15', description: 'A', amount: 10, type: 'debit' },
+      { date: '2025-02-15', description: 'B', amount: 10, type: 'debit' },
+    ])
+    db.prepare("UPDATE transactions SET normalized_merchant = 'Acme Cloud' WHERE description = 'A'").run()
+    db.prepare("UPDATE transactions SET normalized_merchant = 'Acme SaaS' WHERE description = 'B'").run()
+
+    setCommitmentOverride(db, 'Acme SaaS', 'yearly', 120.00)
+    expect(getCommitmentOverrides(db).has('Acme SaaS')).toBe(true)
+
+    mergeMerchants(db, ['Acme Cloud', 'Acme SaaS'], 'Acme Cloud')
+    expect(getCommitmentOverrides(db).has('Acme SaaS')).toBe(false)
   })
 })
