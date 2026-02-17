@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useTheme } from '@/components/theme-provider'
-import { Cpu, Trash2, Moon, Sun, RotateCcw } from 'lucide-react'
+import { Cpu, Trash2, Moon, Sun, RotateCcw, Database } from 'lucide-react'
 import { useWalkthrough } from '@/components/walkthrough-provider'
 
 interface ProviderConfig {
@@ -30,6 +30,9 @@ const TASK_LABELS: Record<string, { label: string; description: string }> = {
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme()
   const { startWalkthrough } = useWalkthrough()
+  const [demoMode, setDemoMode] = useState(false)
+  const [hasData, setHasData] = useState(false)
+  const [demoLoading, setDemoLoading] = useState(false)
   const [resetting, setResetting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmText, setConfirmText] = useState('')
@@ -48,6 +51,10 @@ export default function SettingsPage() {
         setAvailableProviders(ap || [])
         setSettings(rest)
       })
+      .catch(() => {})
+    fetch('/api/demo')
+      .then(res => res.json())
+      .then(data => { setDemoMode(data.demo === true); setHasData(data.hasData === true) })
       .catch(() => {})
   }, [])
 
@@ -110,6 +117,21 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleDemoToggle() {
+    setDemoLoading(true)
+    try {
+      if (demoMode) {
+        const res = await fetch('/api/demo', { method: 'DELETE' })
+        if (res.ok) setDemoMode(false)
+      } else {
+        const res = await fetch('/api/demo', { method: 'POST' })
+        if (res.ok) setDemoMode(true)
+      }
+    } finally {
+      setDemoLoading(false)
+    }
+  }
+
   async function handleReset() {
     setResetting(true)
     try {
@@ -157,6 +179,28 @@ export default function SettingsPage() {
           </div>
           <Button variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={startWalkthrough}>
             Restart
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Database className="h-4 w-4" />
+            <div>
+              <h3 className="text-sm font-medium">Demo Data</h3>
+              <p className="text-xs text-muted-foreground">
+                {demoMode ? 'Sample data is loaded' : hasData ? 'Reset database first to load demo data' : 'Load sample transactions to explore features'}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            className="h-7 text-xs text-muted-foreground"
+            onClick={handleDemoToggle}
+            disabled={demoLoading || (!demoMode && hasData)}
+          >
+            {demoLoading ? (demoMode ? 'Removing...' : 'Loading...') : (demoMode ? 'Remove' : 'Load')}
           </Button>
         </div>
       </Card>

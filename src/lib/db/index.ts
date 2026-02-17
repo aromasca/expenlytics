@@ -15,8 +15,24 @@ export function getDb(): Database.Database {
     db.pragma('foreign_keys = ON')
     initializeSchema(db)
     resumeStuckDocuments(db)
+    autoSeedDemoData(db)
   }
   return db
+}
+
+function autoSeedDemoData(database: Database.Database): void {
+  if (process.env.DEMO_MODE !== 'true') return
+  const row = database.prepare('SELECT COUNT(*) as count FROM transactions').get() as { count: number }
+  if (row.count > 0) return
+  console.log('[startup] DEMO_MODE=true and DB is empty — seeding demo data')
+  // Dynamic import to avoid bundling demo data when not needed
+  import('@/lib/demo/seed').then(({ insertDemoData }) => {
+    insertDemoData(database)
+    console.log('[startup] Demo data seeded successfully')
+  }).catch((error) => {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    console.error(`[startup] Failed to seed demo data: ${message}`)
+  })
 }
 
 function resumeStuckDocuments(database: Database.Database): void {
