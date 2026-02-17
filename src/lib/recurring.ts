@@ -101,15 +101,18 @@ export function detectRecurringGroups(transactions: TransactionForRecurring[]): 
     const totalAmount = txns.reduce((sum, t) => sum + t.amount, 0)
     const avgAmount = totalAmount / txns.length
 
-    // Compute avg days between distinct dates for frequency detection
+    // Compute median days between distinct dates for frequency detection
+    // Median is robust against a single missing month inflating the average
     const sortedDates = [...distinctDates].sort()
-    let totalDays = 0
+    const gaps: number[] = []
     for (let i = 1; i < sortedDates.length; i++) {
       const prev = new Date(sortedDates[i - 1])
       const curr = new Date(sortedDates[i])
-      totalDays += (curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24)
+      gaps.push((curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24))
     }
-    const avgDaysBetween = totalDays / (sortedDates.length - 1)
+    gaps.sort((a, b) => a - b)
+    const mid = Math.floor(gaps.length / 2)
+    const avgDaysBetween = gaps.length % 2 === 1 ? gaps[mid] : (gaps[mid - 1] + gaps[mid]) / 2
 
     const frequency = detectFrequency(avgDaysBetween)
 
