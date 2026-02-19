@@ -175,7 +175,7 @@ export default function MerchantsPage() {
     }
   }
 
-  const SortIcon = ({ column }: { column: SortBy }) => {
+  const renderSortIcon = (column: SortBy) => {
     if (sortBy !== column) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-30" />
     return sortOrder === 'asc'
       ? <ArrowUp className="h-3 w-3 ml-1" />
@@ -284,19 +284,19 @@ export default function MerchantsPage() {
                   />
                 </TableHead>
                 <TableHead className="text-xs cursor-pointer select-none" onClick={() => handleSort('merchant')}>
-                  <span className="flex items-center">Merchant<SortIcon column="merchant" /></span>
+                  <span className="flex items-center">Merchant{renderSortIcon('merchant')}</span>
                 </TableHead>
                 <TableHead className="text-xs text-right cursor-pointer select-none" onClick={() => handleSort('transactionCount')}>
-                  <span className="flex items-center justify-end">Txns<SortIcon column="transactionCount" /></span>
+                  <span className="flex items-center justify-end">Txns{renderSortIcon('transactionCount')}</span>
                 </TableHead>
                 <TableHead className="text-xs text-right cursor-pointer select-none" onClick={() => handleSort('totalAmount')}>
-                  <span className="flex items-center justify-end">Total<SortIcon column="totalAmount" /></span>
+                  <span className="flex items-center justify-end">Total{renderSortIcon('totalAmount')}</span>
                 </TableHead>
                 <TableHead className="text-xs cursor-pointer select-none" onClick={() => handleSort('categoryName')}>
-                  <span className="flex items-center">Category<SortIcon column="categoryName" /></span>
+                  <span className="flex items-center">Category{renderSortIcon('categoryName')}</span>
                 </TableHead>
                 <TableHead className="text-xs text-right cursor-pointer select-none" onClick={() => handleSort('lastDate')}>
-                  <span className="flex items-center justify-end">Date Range<SortIcon column="lastDate" /></span>
+                  <span className="flex items-center justify-end">Date Range{renderSortIcon('lastDate')}</span>
                 </TableHead>
               </TableRow>
             </TableHeader>

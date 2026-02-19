@@ -3,7 +3,12 @@ import { getDb } from '@/lib/db'
 import { excludeTransactionFromCommitments, restoreTransactionToCommitments } from '@/lib/db/commitments'
 
 export async function POST(request: NextRequest) {
-  const body = await request.json()
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
   const { transactionId, restore } = body ?? {}
 
   if (typeof transactionId !== 'number' || !Number.isInteger(transactionId)) {

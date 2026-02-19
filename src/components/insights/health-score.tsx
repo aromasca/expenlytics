@@ -70,7 +70,7 @@ export function HealthScore({ health }: { health: HealthAssessment }) {
   const trackStroke = isDark ? '#27272A' : '#F0F0F0'
 
   useEffect(() => {
-    setMounted(true)
+    setTimeout(() => setMounted(true), 0)
 
     let frame: number
     const start = performance.now()

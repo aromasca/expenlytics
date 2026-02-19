@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button'
 import { X, Undo2 } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { AreaChart, Area, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
-import { formatCurrencyPrecise, formatCurrency } from '@/lib/format'
+import { formatCurrencyPrecise } from '@/lib/format'
 import { useTheme } from '@/components/theme-provider'
+import { getChartColors } from '@/lib/chart-theme'
 
 interface Transaction {
   id: number
@@ -98,10 +99,7 @@ export function CommitmentRowDetail({ transactionIds }: CommitmentRowDetailProps
   const prev = amounts.length >= 2 ? amounts[amounts.length - 2] : latest
   const change = latest - prev
 
-  const strokeColor = isDark ? '#A1A1AA' : '#525252'
-  const textColor = isDark ? '#A1A1AA' : '#737373'
-  const gridColor = isDark ? '#27272A' : '#E5E5E5'
-  const dotFill = isDark ? '#18181B' : '#FFFFFF'
+  const colors = getChartColors(isDark)
 
   return (
     <div className="grid grid-cols-[1fr_280px] gap-4 px-4 py-3 bg-muted/30">
@@ -155,23 +153,23 @@ export function CommitmentRowDetail({ transactionIds }: CommitmentRowDetailProps
               <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
                 <defs>
                   <linearGradient id="miniGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={strokeColor} stopOpacity={0.12} />
-                    <stop offset="100%" stopColor={strokeColor} stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={colors.stroke} stopOpacity={0.12} />
+                    <stop offset="100%" stopColor={colors.stroke} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <ReferenceLine y={avg} stroke={textColor} strokeDasharray="3 3" strokeOpacity={0.5} />
+                <ReferenceLine y={avg} stroke={colors.text} strokeDasharray="3 3" strokeOpacity={0.5} />
                 <Tooltip
                   content={<MiniTooltip isDark={isDark} />}
-                  cursor={{ stroke: textColor, strokeDasharray: '3 3', strokeOpacity: 0.3 }}
+                  cursor={{ stroke: colors.text, strokeDasharray: '3 3', strokeOpacity: 0.3 }}
                 />
                 <Area
                   type="monotone"
                   dataKey="amount"
-                  stroke={strokeColor}
+                  stroke={colors.stroke}
                   fill="url(#miniGradient)"
                   strokeWidth={1.5}
-                  dot={{ r: 2.5, fill: dotFill, stroke: strokeColor, strokeWidth: 1.5 }}
-                  activeDot={{ r: 4, fill: strokeColor, stroke: dotFill, strokeWidth: 2 }}
+                  dot={{ r: 2.5, fill: colors.dotFill, stroke: colors.stroke, strokeWidth: 1.5 }}
+                  activeDot={{ r: 4, fill: colors.stroke, stroke: colors.dotFill, strokeWidth: 2 }}
                 />
               </AreaChart>
             </ResponsiveContainer>

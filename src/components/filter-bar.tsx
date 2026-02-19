@@ -122,10 +122,10 @@ export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
     let cancelled = false
     fetch('/api/categories').then(r => r.json()).then(data => {
       if (!cancelled) setCategories(data)
-    })
+    }).catch(() => {})
     fetch('/api/documents').then(r => r.json()).then(data => {
       if (!cancelled) setDocuments(data)
-    })
+    }).catch(() => {})
     return () => { cancelled = true }
   }, [])
 

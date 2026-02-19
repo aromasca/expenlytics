@@ -6,7 +6,12 @@ import { estimateMonthlyAmount, type CommitmentGroup } from '@/lib/commitments'
 const VALID_FREQUENCIES = new Set<string>(['weekly', 'monthly', 'quarterly', 'semi-annual', 'yearly', 'irregular'])
 
 export async function POST(request: NextRequest) {
-  const body = await request.json()
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
   const { merchant, frequencyOverride, monthlyAmountOverride } = body
 
   if (!merchant || typeof merchant !== 'string') {

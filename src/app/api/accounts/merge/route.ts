@@ -3,7 +3,12 @@ import { getDb } from '@/lib/db'
 import { mergeAccounts, getAccount } from '@/lib/db/accounts'
 
 export async function POST(request: NextRequest) {
-  const body = await request.json()
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
   const { sourceId, targetId } = body
 
   if (!Number.isInteger(sourceId) || !Number.isInteger(targetId)) {

@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { formatCurrency } from '@/lib/format'
 import { useTheme } from '@/components/theme-provider'
+import { getChartColors } from '@/lib/chart-theme'
 
 interface TrendDataPoint {
   month: string
@@ -39,11 +40,7 @@ export function CommitmentTrendChart({ data }: CommitmentTrendChartProps) {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
 
-  const textColor = isDark ? '#A1A1AA' : '#737373'
-  const gridColor = isDark ? '#27272A' : '#E5E5E5'
-  const strokeColor = isDark ? '#A1A1AA' : '#525252'
-  const fillColor = isDark ? 'rgba(161,161,170,0.1)' : 'rgba(82,82,82,0.08)'
-  const dotFill = isDark ? '#18181B' : '#FFFFFF'
+  const colors = getChartColors(isDark)
 
   if (data.length === 0) return null
 
@@ -80,14 +77,14 @@ export function CommitmentTrendChart({ data }: CommitmentTrendChartProps) {
         <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
           <defs>
             <linearGradient id="commitmentGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={strokeColor} stopOpacity={0.15} />
-              <stop offset="100%" stopColor={strokeColor} stopOpacity={0.02} />
+              <stop offset="0%" stopColor={colors.stroke} stopOpacity={0.15} />
+              <stop offset="100%" stopColor={colors.stroke} stopOpacity={0.02} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
+          <CartesianGrid stroke={colors.grid} strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey="month"
-            tick={{ fontSize: 11, fill: textColor }}
+            tick={{ fontSize: 11, fill: colors.text }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(v) => {
@@ -96,7 +93,7 @@ export function CommitmentTrendChart({ data }: CommitmentTrendChartProps) {
             }}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: textColor }}
+            tick={{ fontSize: 11, fill: colors.text }}
             axisLine={false}
             tickLine={false}
             tickFormatter={(v) => formatCurrency(v)}
@@ -104,22 +101,22 @@ export function CommitmentTrendChart({ data }: CommitmentTrendChartProps) {
           />
           <ReferenceLine
             y={avg}
-            stroke={textColor}
+            stroke={colors.text}
             strokeDasharray="4 4"
             strokeOpacity={0.5}
           />
           <Tooltip
             content={<CustomTooltip isDark={isDark} />}
-            cursor={{ stroke: textColor, strokeDasharray: '3 3', strokeOpacity: 0.4 }}
+            cursor={{ stroke: colors.text, strokeDasharray: '3 3', strokeOpacity: 0.4 }}
           />
           <Area
             type="monotone"
             dataKey="amount"
-            stroke={strokeColor}
+            stroke={colors.stroke}
             fill="url(#commitmentGradient)"
             strokeWidth={2}
-            dot={{ r: 3, fill: dotFill, stroke: strokeColor, strokeWidth: 1.5 }}
-            activeDot={{ r: 5, fill: strokeColor, stroke: dotFill, strokeWidth: 2 }}
+            dot={{ r: 3, fill: colors.dotFill, stroke: colors.stroke, strokeWidth: 1.5 }}
+            activeDot={{ r: 5, fill: colors.stroke, stroke: colors.dotFill, strokeWidth: 2 }}
           />
         </AreaChart>
       </ResponsiveContainer>

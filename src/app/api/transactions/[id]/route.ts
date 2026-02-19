@@ -8,7 +8,12 @@ const VALID_CLASSES = ['purchase', 'payment', 'refund', 'fee', 'interest', 'tran
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const body = await request.json()
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
   const { category_id, type, transaction_class } = body
 
   // Must provide at least one field

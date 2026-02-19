@@ -5,7 +5,12 @@ import { setCommitmentStatus } from '@/lib/db/commitments'
 const VALID_STATUSES = new Set(['active', 'ended', 'not_recurring'])
 
 export async function POST(request: NextRequest) {
-  const body = await request.json()
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
   const { merchant, status, notes, statusDate } = body ?? {}
 
   if (typeof merchant !== 'string' || !merchant.trim()) {

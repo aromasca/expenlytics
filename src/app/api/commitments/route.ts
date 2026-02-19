@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
 
   // Strip internal _transactionData before sending response
   const stripInternal = (g: typeof allGroups[number]) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { _transactionData, ...rest } = g
     return rest
   }

@@ -70,7 +70,7 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
     let cancelled = false
     fetch('/api/categories').then(r => r.json()).then(data => {
       if (!cancelled) setCategories(data)
-    })
+    }).catch(() => {})
     return () => { cancelled = true }
   }, [])
 
@@ -83,9 +83,11 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
 
   const fetchTransactions = useCallback(async (currentPage: number) => {
     const params = buildParams(filters, currentPage, sortBy, sortOrder)
-    const data = await fetch(`/api/transactions?${params}`).then(r => r.json())
-    setTransactions(data.transactions)
-    setTotal(data.total)
+    const data = await fetch(`/api/transactions?${params}`).then(r => r.json()).catch(() => null)
+    if (data) {
+      setTransactions(data.transactions)
+      setTotal(data.total)
+    }
   }, [filters, sortBy, sortOrder])
 
   useEffect(() => {
@@ -96,7 +98,7 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
         setTransactions(data.transactions)
         setTotal(data.total)
       }
-    })
+    }).catch(() => {})
     return () => { cancelled = true }
   }, [filters, refreshKey, page, sortBy, sortOrder])
 
@@ -135,15 +137,17 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
 
   const confirmDelete = async () => {
     if (!deleteDialog) return
-    if (deleteDialog.type === 'single') {
-      await fetch(`/api/transactions/${deleteDialog.ids[0]}`, { method: 'DELETE' })
-    } else {
-      await fetch('/api/transactions', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: deleteDialog.ids }),
-      })
-    }
+    try {
+      if (deleteDialog.type === 'single') {
+        await fetch(`/api/transactions/${deleteDialog.ids[0]}`, { method: 'DELETE' })
+      } else {
+        await fetch('/api/transactions', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: deleteDialog.ids }),
+        })
+      }
+    } catch { /* network error */ }
     setDeleteDialog(null)
     setSelected(new Set())
     await fetchTransactions(page)
