@@ -1,10 +1,12 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { TransactionTable } from '@/components/transaction-table'
 import { FilterBar, EMPTY_FILTERS, type Filters } from '@/components/filter-bar'
+import { FlaggedTransactions } from '@/components/flagged-transactions'
 import { Download } from 'lucide-react'
 
 function exportCsv(filters: Filters) {
@@ -43,6 +45,8 @@ function exportCsv(filters: Filters) {
 
 function TransactionsContent() {
   const searchParams = useSearchParams()
+  const [showFlagged, setShowFlagged] = useState(false)
+  const [flagCount, setFlagCount] = useState(0)
 
   const [filters, setFilters] = useState<Filters>(() => {
     const initial = { ...EMPTY_FILTERS }
@@ -53,18 +57,52 @@ function TransactionsContent() {
     return initial
   })
 
+  useEffect(() => {
+    fetch('/api/transactions?flag_count=true')
+      .then(r => r.json())
+      .then(data => setFlagCount(data.count))
+      .catch(() => {})
+  }, [showFlagged])
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Transactions</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold">Transactions</h2>
+          <div className="flex gap-1">
+            <Button
+              variant={showFlagged ? 'ghost' : 'default'}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setShowFlagged(false)}
+            >
+              All
+            </Button>
+            <Button
+              variant={showFlagged ? 'default' : 'ghost'}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setShowFlagged(true)}
+            >
+              Flagged
+              {flagCount > 0 && (
+                <Badge variant="secondary" className="ml-1 h-4 min-w-4 text-[10px] px-1">{flagCount}</Badge>
+              )}
+            </Button>
+          </div>
+        </div>
         <Button variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => exportCsv(filters)}>
           <Download className="h-3.5 w-3.5 mr-1" />
           Export CSV
         </Button>
       </div>
-      <FilterBar filters={filters} onFiltersChange={setFilters} />
+      {!showFlagged && <FilterBar filters={filters} onFiltersChange={setFilters} />}
       <div data-walkthrough="transactions">
-        <TransactionTable filters={filters} />
+        {showFlagged ? (
+          <FlaggedTransactions onResolve={(count) => setFlagCount(c => Math.max(0, c - count))} />
+        ) : (
+          <TransactionTable filters={filters} />
+        )}
       </div>
     </div>
   )

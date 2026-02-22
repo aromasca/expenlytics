@@ -23,6 +23,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ transactions: rows })
   }
 
+  // Flagged transactions mode
+  const flaggedParam = params.get('flagged')
+  if (flaggedParam === 'true') {
+    const { getUnresolvedFlags } = await import('@/lib/db/transaction-flags')
+    const flags = getUnresolvedFlags(db)
+    return NextResponse.json({ transactions: flags, total: flags.length })
+  }
+
+  // Flag count (for badge)
+  const countParam = params.get('flag_count')
+  if (countParam === 'true') {
+    const { getUnresolvedFlagCount } = await import('@/lib/db/transaction-flags')
+    const count = getUnresolvedFlagCount(db)
+    return NextResponse.json({ count })
+  }
+
   const VALID_SORT_BY = ['date', 'amount', 'description'] as const
   const VALID_SORT_ORDER = ['asc', 'desc'] as const
 

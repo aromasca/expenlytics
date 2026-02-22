@@ -7,6 +7,8 @@ import { getProviderForTask } from '@/lib/llm/factory'
 import { getMerchantCategoryMap, setMerchantCategory, backfillMerchantCategories, applyMerchantCategories } from '@/lib/db/merchant-categories'
 import { createAccount, findAccountByInstitutionAndLastFour, assignDocumentToAccount } from '@/lib/db/accounts'
 import { rawExtractionSchema, type RawExtractionResult } from '@/lib/llm/schemas'
+import { detectDuplicates, detectCategoryMismatches } from '@/lib/detect-duplicates'
+import { clearFlagsForDocument } from '@/lib/db/transaction-flags'
 import { readFile } from 'fs/promises'
 
 // Sequential processing queue — only one document processes at a time
@@ -215,6 +217,9 @@ export async function processDocument(db: Database.Database, documentId: number)
   // Phase 4: Insert + Learn
   // Always clear existing transactions before inserting — prevents duplicates if pipeline
   // runs concurrently (e.g., dev server restart re-enqueues a stuck document while original run continues)
+  // Clear existing flags for this document before re-inserting
+  clearFlagsForDocument(db, documentId)
+
   const deleted = db.prepare('DELETE FROM transactions WHERE document_id = ?').run(documentId)
   if (deleted.changes > 0) {
     console.log(`[pipeline] Document ${documentId}: cleared ${deleted.changes} existing transactions before insert`)
@@ -261,6 +266,18 @@ export async function processDocument(db: Database.Database, documentId: number)
     }
   })
   insertAll()
+
+  // Detect duplicate and misclassified transactions
+  try {
+    const dupCount = detectDuplicates(db, documentId)
+    const mismatchCount = detectCategoryMismatches(db, documentId)
+    if (dupCount > 0 || mismatchCount > 0) {
+      console.log(`[pipeline] Document ${documentId}: flagged ${dupCount} duplicates, ${mismatchCount} mismatches`)
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    console.warn(`[pipeline] Document ${documentId}: flag detection failed (non-blocking) — ${message}`)
+  }
 
   // Apply learned categories to all past transactions for consistency
   applyMerchantCategories(db)

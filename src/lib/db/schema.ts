@@ -313,6 +313,22 @@ export function initializeSchema(db: Database.Database): void {
     )
   `)
 
+  // Transaction flags table for deduplication & misclassification detection
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS transaction_flags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+      flag_type TEXT NOT NULL CHECK (flag_type IN ('duplicate', 'category_mismatch', 'suspicious')),
+      details TEXT,
+      resolution TEXT,
+      resolved_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(transaction_id, flag_type)
+    )
+  `)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_transaction_flags_txn ON transaction_flags(transaction_id)')
+  db.exec('CREATE INDEX IF NOT EXISTS idx_transaction_flags_unresolved ON transaction_flags(flag_type) WHERE resolution IS NULL')
+
   // Migrate excluded_recurring_transactions → excluded_commitment_transactions (renamed table)
   const hasOldExcludedTable = db.prepare(
     "SELECT name FROM sqlite_master WHERE type='table' AND name='excluded_recurring_transactions'"

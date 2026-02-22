@@ -218,6 +218,31 @@ describe('reports', () => {
     })
   })
 
+  describe('flagged-removed exclusion', () => {
+    it('excludes flagged-removed transactions from spending summary', () => {
+      const categories = getAllCategories(db)
+      const groceries = categories.find(c => c.name === 'Groceries')!
+
+      // Insert a transaction that will be flagged as removed
+      db.prepare(`
+        INSERT INTO transactions (document_id, date, description, amount, type, category_id)
+        VALUES (?, '2025-01-25', 'Acme Mart Duplicate', 60, 'debit', ?)
+      `).run(docId, groceries.id)
+
+      const txn = db.prepare("SELECT id FROM transactions WHERE description = 'Acme Mart Duplicate'").get() as { id: number }
+
+      // Flag as duplicate with resolution='removed'
+      db.prepare(`
+        INSERT INTO transaction_flags (transaction_id, flag_type, resolution)
+        VALUES (?, 'duplicate', 'removed')
+      `).run(txn.id)
+
+      const summary = getSpendingSummary(db, {})
+      // Original debits = 425, flagged-removed (60) excluded
+      expect(summary.totalSpent).toBe(425)
+    })
+  })
+
   describe('getSankeyData', () => {
     it('returns spending grouped by category_group and category', () => {
       const result = getSankeyData(db, {})

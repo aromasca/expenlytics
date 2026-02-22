@@ -4,4 +4,4 @@
  * AND transaction-level `transaction_class` check. IS NULL for backward compat.
  * Assumes `c` alias for categories and `t` alias for transactions.
  */
-export const VALID_TRANSACTION_FILTER = "COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))"
+export const VALID_TRANSACTION_FILTER = "COALESCE(c.exclude_from_totals, 0) = 0 AND (t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest')) AND NOT EXISTS (SELECT 1 FROM transaction_flags tf WHERE tf.transaction_id = t.id AND tf.resolution = 'removed')"
