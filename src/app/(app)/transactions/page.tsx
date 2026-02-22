@@ -1,13 +1,15 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { TransactionTable } from '@/components/transaction-table'
-import { FilterBar, EMPTY_FILTERS, type Filters } from '@/components/filter-bar'
+import { FilterBar } from '@/components/filter-bar'
+import { EMPTY_FILTERS, type Filters } from '@/types/filters'
 import { FlaggedTransactions } from '@/components/flagged-transactions'
 import { Download } from 'lucide-react'
+import { useFlagCount } from '@/hooks/use-transactions'
 
 function exportCsv(filters: Filters) {
   const params = new URLSearchParams()
@@ -46,7 +48,7 @@ function exportCsv(filters: Filters) {
 function TransactionsContent() {
   const searchParams = useSearchParams()
   const [showFlagged, setShowFlagged] = useState(false)
-  const [flagCount, setFlagCount] = useState(0)
+  const { data: flagCount = 0 } = useFlagCount()
 
   const [filters, setFilters] = useState<Filters>(() => {
     const initial = { ...EMPTY_FILTERS }
@@ -56,13 +58,6 @@ function TransactionsContent() {
     if (categoryId) initial.category_ids = [Number(categoryId)]
     return initial
   })
-
-  useEffect(() => {
-    fetch('/api/transactions?flag_count=true')
-      .then(r => r.json())
-      .then(data => setFlagCount(data.count))
-      .catch(() => {})
-  }, [showFlagged])
 
   return (
     <div className="p-4 space-y-4">
@@ -99,7 +94,7 @@ function TransactionsContent() {
       {!showFlagged && <FilterBar filters={filters} onFiltersChange={setFilters} />}
       <div data-walkthrough="transactions">
         {showFlagged ? (
-          <FlaggedTransactions onResolve={(count) => setFlagCount(c => Math.max(0, c - count))} />
+          <FlaggedTransactions />
         ) : (
           <TransactionTable filters={filters} />
         )}

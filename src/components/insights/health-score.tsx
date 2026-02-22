@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { HealthAssessment } from '@/lib/insights/types'
+import type { HealthAssessment } from '@/types/insights'
 
 const RADIUS = 58
 const STROKE = 7

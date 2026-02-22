@@ -1,7 +1,7 @@
 'use client'
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import type { MonthlyFlow } from '@/lib/insights/types'
+import type { MonthlyFlow } from '@/types/insights'
 import { formatCurrency } from '@/lib/format'
 
 export function IncomeOutflowChart({ data }: { data: MonthlyFlow[] }) {

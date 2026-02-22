@@ -8,13 +8,7 @@ import { AreaChart, Area, Tooltip, ResponsiveContainer, ReferenceLine } from 're
 import { formatCurrencyPrecise } from '@/lib/format'
 import { useTheme } from '@/components/theme-provider'
 import { getChartColors } from '@/lib/chart-theme'
-
-interface Transaction {
-  id: number
-  date: string
-  description: string
-  amount: number
-}
+import type { TransactionSummary } from '@/types/transactions'
 
 interface CommitmentRowDetailProps {
   transactionIds: number[]
@@ -42,7 +36,7 @@ function MiniTooltip({ active, payload, isDark }: { active?: boolean; payload?: 
 }
 
 export function CommitmentRowDetail({ transactionIds }: CommitmentRowDetailProps) {
-  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [transactions, setTransactions] = useState<TransactionSummary[]>([])
   const [excludedIds, setExcludedIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
   const { theme } = useTheme()

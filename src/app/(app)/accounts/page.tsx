@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { AccountCard } from '@/components/accounts/account-card'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,49 +11,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-
-interface AccountData {
-  id: number
-  name: string
-  institution: string | null
-  last_four: string | null
-  type: string
-  documentCount: number
-  months: Record<string, { status: 'complete' | 'missing'; documents: Array<{ filename: string; statementDate: string | null }> }>
-}
-
-interface UnassignedDoc {
-  id: number
-  filename: string
-  document_type: string | null
-  status: string
-}
+import { useAccounts, useRenameAccount, useMergeAccounts, useDetectAccounts, useResetAccount } from '@/hooks/use-accounts'
 
 export default function AccountsPage() {
-  const [accounts, setAccounts] = useState<AccountData[]>([])
-  const [unassigned, setUnassigned] = useState<UnassignedDoc[]>([])
-  const [needsDetection, setNeedsDetection] = useState<UnassignedDoc[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: accountsData, isLoading: loading } = useAccounts()
+  const renameAccount = useRenameAccount()
+  const mergeAccounts = useMergeAccounts()
+  const detectAccounts = useDetectAccounts()
+  const resetAccount = useResetAccount()
+
+  const accounts = accountsData?.accounts ?? []
+  const unassigned = accountsData?.unassigned ?? []
+  const needsDetection = accountsData?.needsDetection ?? []
+
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [mergeOpen, setMergeOpen] = useState(false)
   const [mergeTarget, setMergeTarget] = useState<number | null>(null)
   const [detecting, setDetecting] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
   const [detectProgress, setDetectProgress] = useState({ current: 0, total: 0, lastAccount: '' })
-
-  const fetchAccounts = useCallback(() => {
-    fetch('/api/accounts')
-      .then(r => r.json())
-      .then(data => {
-        setAccounts(data.accounts)
-        setUnassigned(data.unassigned)
-        setNeedsDetection(data.needsDetection ?? data.unassigned)
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
-
-  useEffect(() => { fetchAccounts() }, [fetchAccounts])
 
   const handleSelect = (id: number) => {
     setSelected(prev => {
@@ -65,34 +41,22 @@ export default function AccountsPage() {
   }
 
   const handleRename = (id: number, name: string) => {
-    fetch(`/api/accounts/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    })
-      .then(() => fetchAccounts())
-      .catch(() => {})
+    renameAccount.mutate({ id, name })
   }
 
   const handleMerge = () => {
     if (!mergeTarget || selected.size < 2) return
     const sources = [...selected].filter(id => id !== mergeTarget)
-    Promise.all(
-      sources.map(sourceId =>
-        fetch('/api/accounts/merge', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sourceId, targetId: mergeTarget }),
-        })
-      )
+    mergeAccounts.mutate(
+      sources.map(sourceId => ({ sourceId, targetId: mergeTarget })),
+      {
+        onSuccess: () => {
+          setSelected(new Set())
+          setMergeOpen(false)
+          setMergeTarget(null)
+        },
+      }
     )
-      .then(() => {
-        setSelected(new Set())
-        setMergeOpen(false)
-        setMergeTarget(null)
-        fetchAccounts()
-      })
-      .catch(() => {})
   }
 
   if (loading) {
@@ -161,26 +125,18 @@ export default function AccountsPage() {
 
                 for (let i = 0; i < docs.length; i++) {
                   try {
-                    const res = await fetch('/api/accounts/detect', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ documentId: docs[i].id }),
-                    })
-                    const data = await res.json()
+                    const result = await detectAccounts.mutateAsync(docs[i].id)
                     setDetectProgress({
                       current: i + 1,
                       total: docs.length,
-                      lastAccount: data.accountName ?? '',
+                      lastAccount: result.accountName ?? '',
                     })
                   } catch {
                     // Skip failures, continue with next
+                    setDetectProgress(prev => ({ ...prev, current: i + 1 }))
                   }
-
-                  // Refresh after each doc so the UI updates progressively
-                  fetchAccounts()
                 }
 
-                fetchAccounts()
                 setDetecting(false)
               }}
             >
@@ -252,13 +208,12 @@ export default function AccountsPage() {
               variant="destructive"
               className="h-7 text-xs"
               onClick={() => {
-                fetch('/api/accounts/reset', { method: 'POST' })
-                  .then(() => {
+                resetAccount.mutate(undefined, {
+                  onSuccess: () => {
                     setSelected(new Set())
                     setResetOpen(false)
-                    fetchAccounts()
-                  })
-                  .catch(() => {})
+                  },
+                })
               }}
             >
               Reset All Accounts

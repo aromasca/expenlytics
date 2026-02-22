@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -8,35 +8,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { CategorySelect } from './category-select'
 import { formatCurrencyPrecise } from '@/lib/format'
 import { AlertTriangle, Copy, Tag, ChevronDown, ChevronRight } from 'lucide-react'
-
-interface FlaggedTransaction {
-  id: number
-  transaction_id: number
-  flag_type: 'duplicate' | 'category_mismatch' | 'suspicious'
-  details: Record<string, unknown> | null
-  date: string
-  description: string
-  amount: number
-  type: string
-  document_id: number
-  category_name: string | null
-  normalized_merchant: string | null
-}
-
-interface Category {
-  id: number
-  name: string
-  color: string
-}
-
-interface MerchantGroup {
-  key: string
-  label: string
-  flagType: 'duplicate' | 'category_mismatch' | 'suspicious'
-  flags: FlaggedTransaction[]
-  totalAmount: number
-  count: number
-}
+import type { FlaggedTransaction, MerchantGroup } from '@/types/transactions'
+import type { Category } from '@/types/categories'
+import { useCategories } from '@/hooks/use-categories'
+import { useFlaggedTransactions, useResolveFlags } from '@/hooks/use-transactions'
 
 interface FlaggedTransactionsProps {
   onResolve?: (count: number) => void
@@ -83,35 +58,31 @@ const FLAG_LABEL = {
 } as const
 
 export function FlaggedTransactions({ onResolve }: FlaggedTransactionsProps) {
-  const [flags, setFlags] = useState<FlaggedTransaction[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const { data: categories = [] } = useCategories()
+  const { data: fetchedFlags = [], isLoading: loading } = useFlaggedTransactions()
+  const resolveFlags = useResolveFlags()
+
+  // Local optimistic state: track IDs that have been resolved but not yet refetched
+  const [optimisticallyRemovedIds, setOptimisticallyRemovedIds] = useState<Set<number>>(new Set())
+
+  const flags = useMemo(
+    () => fetchedFlags.filter(f => !optimisticallyRemovedIds.has(f.id)),
+    [fetchedFlags, optimisticallyRemovedIds]
+  )
+
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<Set<number>>(new Set())
-
-  useEffect(() => {
-    fetch('/api/transactions?flagged=true')
-      .then(r => r.json())
-      .then(data => {
-        setTimeout(() => {
-          setFlags(data.transactions)
-          setLoading(false)
-        }, 0)
-      })
-      .catch(() => setTimeout(() => setLoading(false), 0))
-    fetch('/api/categories')
-      .then(r => r.json())
-      .then(data => setTimeout(() => setCategories(data), 0))
-      .catch(() => {})
-  }, [refreshKey])
 
   const groups = useMemo(() => groupFlags(flags), [flags])
 
   const resolveMany = (flagIds: number[], resolution: string, categoryId?: number) => {
     const count = flagIds.length
     // Optimistic removal
-    setFlags(prev => prev.filter(f => !flagIds.includes(f.id)))
+    setOptimisticallyRemovedIds(prev => {
+      const next = new Set(prev)
+      for (const id of flagIds) next.add(id)
+      return next
+    })
     setSelected(prev => {
       const next = new Set(prev)
       for (const id of flagIds) next.delete(id)
@@ -119,13 +90,23 @@ export function FlaggedTransactions({ onResolve }: FlaggedTransactionsProps) {
     })
     onResolve?.(count)
 
-    fetch('/api/transactions/flags/resolve', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ flagIds, resolution, categoryId }),
-    }).catch(() => {
-      setRefreshKey(k => k + 1)
-    })
+    resolveFlags.mutate(
+      { flagIds, resolution, newCategoryId: categoryId },
+      {
+        onError: () => {
+          // Revert optimistic removal on error
+          setOptimisticallyRemovedIds(prev => {
+            const next = new Set(prev)
+            for (const id of flagIds) next.delete(id)
+            return next
+          })
+        },
+        onSuccess: () => {
+          // Clear optimistic IDs once the query has been invalidated and refetched
+          setOptimisticallyRemovedIds(new Set())
+        },
+      }
+    )
   }
 
   const resolve = (flagId: number, resolution: string, categoryId?: number) => {

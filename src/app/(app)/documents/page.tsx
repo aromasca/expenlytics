@@ -1,52 +1,17 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { UploadZone } from '@/components/upload-zone'
 import { DocumentsTable } from '@/components/documents-table'
-
-interface DocumentRow {
-  id: number
-  filename: string
-  uploaded_at: string
-  status: string
-  processing_phase: string | null
-  error_message: string | null
-  document_type: string | null
-  transaction_count: number | null
-  actual_transaction_count: number
-}
-
-type SortBy = 'filename' | 'uploaded_at' | 'document_type' | 'status' | 'actual_transaction_count'
-type SortOrder = 'asc' | 'desc'
+import type { DocumentSortBy } from '@/types/documents'
+import type { SortOrder } from '@/types/common'
+import { useDocuments } from '@/hooks/use-documents'
 
 export default function DocumentsPage() {
-  const [documents, setDocuments] = useState<DocumentRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [sortBy, setSortBy] = useState<SortBy>('uploaded_at')
+  const [sortBy, setSortBy] = useState<DocumentSortBy>('uploaded_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
 
-  const fetchDocuments = useCallback(() => {
-    fetch(`/api/documents?sort_by=${sortBy}&sort_order=${sortOrder}`)
-      .then(res => res.json())
-      .then(data => {
-        setDocuments(data)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [sortBy, sortOrder])
-
-  useEffect(() => {
-    fetchDocuments()
-  }, [fetchDocuments])
-
-  // Auto-poll when any document is processing
-  useEffect(() => {
-    const hasProcessing = documents.some(d => d.status === 'processing')
-    if (!hasProcessing) return
-
-    const interval = setInterval(fetchDocuments, 2000)
-    return () => clearInterval(interval)
-  }, [documents, fetchDocuments])
+  const { data: documents = [], isLoading: loading, refetch } = useDocuments(sortBy, sortOrder)
 
   return (
     <div className="p-4 space-y-4">
@@ -55,7 +20,7 @@ export default function DocumentsPage() {
       </div>
 
       <div data-walkthrough="upload">
-        <UploadZone onUploadComplete={fetchDocuments} />
+        <UploadZone onUploadComplete={refetch} />
       </div>
 
       {loading ? (
@@ -63,10 +28,10 @@ export default function DocumentsPage() {
       ) : (
         <DocumentsTable
           documents={documents}
-          onRefresh={fetchDocuments}
+          onRefresh={refetch}
           sortBy={sortBy}
           sortOrder={sortOrder}
-          onSort={(column: SortBy) => {
+          onSort={(column: DocumentSortBy) => {
             if (sortBy === column) {
               setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
             } else {

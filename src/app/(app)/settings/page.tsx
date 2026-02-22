@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -9,13 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useTheme } from '@/components/theme-provider'
 import { Cpu, Trash2, Moon, Sun, RotateCcw, Database } from 'lucide-react'
 import { useWalkthrough } from '@/components/walkthrough-provider'
-
-interface ProviderConfig {
-  name: string
-  envKey: string
-  models: { id: string; name: string }[]
-  defaults: Record<string, string>
-}
+import { useSettings, useDemoMode, useToggleDemo } from '@/hooks/use-settings'
+import { useQueryClient } from '@tanstack/react-query'
 
 const TASK_NAMES = ['extraction', 'classification', 'normalization', 'insights', 'merge_suggestions'] as const
 
@@ -30,33 +25,38 @@ const TASK_LABELS: Record<string, { label: string; description: string }> = {
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme()
   const { startWalkthrough } = useWalkthrough()
-  const [demoMode, setDemoMode] = useState(false)
-  const [hasData, setHasData] = useState(false)
+  const queryClient = useQueryClient()
+
+  const { data: settingsData } = useSettings()
+  const { data: demoData } = useDemoMode()
+  const toggleDemo = useToggleDemo()
+
+  const providers = settingsData?.providers ?? {}
+  const availableProviders = settingsData?.availableProviders ?? Object.keys(providers)
+  // The API returns a flat object with provider_* and model_* keys alongside providers
+  const settings: Record<string, string> = {}
+  if (settingsData) {
+    for (const key of Object.keys(settingsData)) {
+      if (key !== 'providers' && key !== 'availableProviders' && typeof settingsData[key] === 'string') {
+        settings[key] = settingsData[key] as string
+      }
+    }
+  }
+
+  const demoMode = demoData?.demo ?? false
+  const hasData = demoData?.hasData === true
+
   const [demoLoading, setDemoLoading] = useState(false)
   const [resetting, setResetting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [resetSettings, setResetSettings] = useState(false)
-  const [providers, setProviders] = useState<Record<string, ProviderConfig>>({})
-  const [availableProviders, setAvailableProviders] = useState<string[]>([])
-  const [settings, setSettings] = useState<Record<string, string>>({})
   const [savingKey, setSavingKey] = useState<string | null>(null)
+  // Local optimistic state for provider/model selects
+  const [localSettings, setLocalSettings] = useState<Record<string, string>>({})
 
-  useEffect(() => {
-    fetch('/api/settings')
-      .then(res => res.json())
-      .then(data => {
-        const { providers: p, availableProviders: ap, ...rest } = data
-        setProviders(p || {})
-        setAvailableProviders(ap || [])
-        setSettings(rest)
-      })
-      .catch(() => {})
-    fetch('/api/demo')
-      .then(res => res.json())
-      .then(data => { setDemoMode(data.demo === true); setHasData(data.hasData === true) })
-      .catch(() => {})
-  }, [])
+  // Merge server settings with local optimistic overrides
+  const effectiveSettings = { ...settings, ...localSettings }
 
   async function handleProviderChange(task: string, providerName: string) {
     const providerConfig = providers[providerName]
@@ -67,7 +67,7 @@ export default function SettingsPage() {
     const modelKey = `model_${task}`
 
     setSavingKey(providerKey)
-    setSettings(prev => ({ ...prev, [providerKey]: providerName, [modelKey]: defaultModel }))
+    setLocalSettings(prev => ({ ...prev, [providerKey]: providerName, [modelKey]: defaultModel }))
 
     try {
       await fetch('/api/settings', {
@@ -75,17 +75,15 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [providerKey]: providerName, [modelKey]: defaultModel }),
       })
+      queryClient.invalidateQueries({ queryKey: ['settings'] })
     } catch {
-      // Revert on failure
-      fetch('/api/settings')
-        .then(res => res.json())
-        .then(data => {
-          const { providers: p, availableProviders: ap, ...rest } = data
-          setProviders(p || {})
-          setAvailableProviders(ap || [])
-          setSettings(rest)
-        })
-        .catch(() => {})
+      // Revert local optimistic state on failure
+      setLocalSettings(prev => {
+        const next = { ...prev }
+        delete next[providerKey]
+        delete next[modelKey]
+        return next
+      })
     } finally {
       setSavingKey(null)
     }
@@ -94,7 +92,7 @@ export default function SettingsPage() {
   async function handleModelChange(task: string, modelId: string) {
     const modelKey = `model_${task}`
     setSavingKey(modelKey)
-    setSettings(prev => ({ ...prev, [modelKey]: modelId }))
+    setLocalSettings(prev => ({ ...prev, [modelKey]: modelId }))
 
     try {
       await fetch('/api/settings', {
@@ -102,16 +100,13 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [modelKey]: modelId }),
       })
+      queryClient.invalidateQueries({ queryKey: ['settings'] })
     } catch {
-      fetch('/api/settings')
-        .then(res => res.json())
-        .then(data => {
-          const { providers: p, availableProviders: ap, ...rest } = data
-          setProviders(p || {})
-          setAvailableProviders(ap || [])
-          setSettings(rest)
-        })
-        .catch(() => {})
+      setLocalSettings(prev => {
+        const next = { ...prev }
+        delete next[modelKey]
+        return next
+      })
     } finally {
       setSavingKey(null)
     }
@@ -120,13 +115,7 @@ export default function SettingsPage() {
   async function handleDemoToggle() {
     setDemoLoading(true)
     try {
-      if (demoMode) {
-        const res = await fetch('/api/demo', { method: 'DELETE' })
-        if (res.ok) setDemoMode(false)
-      } else {
-        const res = await fetch('/api/demo', { method: 'POST' })
-        if (res.ok) setDemoMode(true)
-      }
+      await toggleDemo.mutateAsync(demoMode ? 'clear' : 'load')
     } finally {
       setDemoLoading(false)
     }
@@ -215,8 +204,8 @@ export default function SettingsPage() {
         </div>
         <div className="space-y-3">
           {TASK_NAMES.map(task => {
-            const currentProvider = settings[`provider_${task}`] || 'anthropic'
-            const currentModel = settings[`model_${task}`] || ''
+            const currentProvider = effectiveSettings[`provider_${task}`] || 'anthropic'
+            const currentModel = effectiveSettings[`model_${task}`] || ''
             const providerConfig = providers[currentProvider]
             const models = providerConfig?.models || []
 

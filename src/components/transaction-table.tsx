@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -8,26 +8,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CategorySelect } from './category-select'
 import { formatCurrencyPrecise } from '@/lib/format'
-import { Trash2, ArrowUp, ArrowDown } from 'lucide-react'
-import type { Filters } from '@/components/filter-bar'
-
-interface Transaction {
-  id: number
-  date: string
-  description: string
-  amount: number
-  type: 'debit' | 'credit'
-  category_id: number | null
-  category_name: string | null
-  category_color: string | null
-  transaction_class: string | null
-}
-
-interface Category {
-  id: number
-  name: string
-  color: string
-}
+import { Trash2 } from 'lucide-react'
+import { SortableHeader } from '@/components/shared/sortable-header'
+import { SelectionBar } from '@/components/shared/selection-bar'
+import type { Filters } from '@/types/filters'
+import type { SortOrder } from '@/types/common'
+import { useCategories } from '@/hooks/use-categories'
+import { useTransactions, useUpdateTransaction, useBulkUpdateTransactions, useDeleteTransactions } from '@/hooks/use-transactions'
 
 interface TransactionTableProps {
   refreshKey?: number
@@ -35,44 +22,16 @@ interface TransactionTableProps {
 }
 
 type SortBy = 'date' | 'amount' | 'description'
-type SortOrder = 'asc' | 'desc'
 
 const PAGE_SIZE = 50
 
-function buildParams(filters: Filters | undefined, page: number, sortBy: SortBy, sortOrder: SortOrder): URLSearchParams {
-  const params = new URLSearchParams()
-  if (filters?.search) params.set('search', filters.search)
-  if (filters?.type) params.set('type', filters.type)
-  if (filters?.start_date) params.set('start_date', filters.start_date)
-  if (filters?.end_date) params.set('end_date', filters.end_date)
-  if (filters?.document_id) params.set('document_id', filters.document_id)
-  if (filters?.category_ids && filters.category_ids.length > 0) {
-    params.set('category_ids', filters.category_ids.join(','))
-  }
-  params.set('sort_by', sortBy)
-  params.set('sort_order', sortOrder)
-  params.set('limit', String(PAGE_SIZE))
-  params.set('offset', String(page * PAGE_SIZE))
-  return params
-}
-
 export function TransactionTable({ refreshKey, filters }: TransactionTableProps) {
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [total, setTotal] = useState(0)
+  const { data: categories = [] } = useCategories()
   const [page, setPage] = useState(0)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [deleteDialog, setDeleteDialog] = useState<{ type: 'single' | 'bulk'; ids: number[] } | null>(null)
   const [sortBy, setSortBy] = useState<SortBy>('date')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-
-  useEffect(() => {
-    let cancelled = false
-    fetch('/api/categories').then(r => r.json()).then(data => {
-      if (!cancelled) setCategories(data)
-    }).catch(() => {})
-    return () => { cancelled = true }
-  }, [])
 
   useEffect(() => {
     setTimeout(() => {
@@ -81,26 +40,13 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
     }, 0)
   }, [filters, refreshKey, sortBy, sortOrder])
 
-  const fetchTransactions = useCallback(async (currentPage: number) => {
-    const params = buildParams(filters, currentPage, sortBy, sortOrder)
-    const data = await fetch(`/api/transactions?${params}`).then(r => r.json()).catch(() => null)
-    if (data) {
-      setTransactions(data.transactions)
-      setTotal(data.total)
-    }
-  }, [filters, sortBy, sortOrder])
+  const { data, isLoading: loading } = useTransactions(filters, page, sortBy, sortOrder)
+  const transactions = data?.transactions ?? []
+  const total = data?.total ?? 0
 
-  useEffect(() => {
-    let cancelled = false
-    const params = buildParams(filters, page, sortBy, sortOrder)
-    fetch(`/api/transactions?${params}`).then(r => r.json()).then(data => {
-      if (!cancelled) {
-        setTransactions(data.transactions)
-        setTotal(data.total)
-      }
-    }).catch(() => {})
-    return () => { cancelled = true }
-  }, [filters, refreshKey, page, sortBy, sortOrder])
+  const updateTransaction = useUpdateTransaction()
+  const bulkUpdate = useBulkUpdateTransactions()
+  const deleteTransactions = useDeleteTransactions()
 
   const handleSort = (column: SortBy) => {
     if (sortBy === column) {
@@ -111,46 +57,23 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
     }
   }
 
-  const sortIcon = (column: SortBy) => {
-    if (sortBy !== column) return null
-    const Icon = sortOrder === 'asc' ? ArrowUp : ArrowDown
-    return <Icon className="inline h-3 w-3 ml-0.5" />
-  }
-
-  const updateTransactions = async (ids: number[], updates: Record<string, unknown>) => {
+  const updateTransactions = (ids: number[], updates: Record<string, unknown>) => {
     if (ids.length === 1) {
-      await fetch(`/api/transactions/${ids[0]}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      }).catch(() => {})
+      updateTransaction.mutate({ id: ids[0], updates })
     } else {
-      await fetch('/api/transactions', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids, ...updates }),
-      }).catch(() => {})
+      bulkUpdate.mutate({ ids, updates })
       setSelected(new Set())
     }
-    await fetchTransactions(page)
   }
 
-  const confirmDelete = async () => {
+  const confirmDelete = () => {
     if (!deleteDialog) return
-    try {
-      if (deleteDialog.type === 'single') {
-        await fetch(`/api/transactions/${deleteDialog.ids[0]}`, { method: 'DELETE' })
-      } else {
-        await fetch('/api/transactions', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids: deleteDialog.ids }),
-        })
-      }
-    } catch { /* network error */ }
-    setDeleteDialog(null)
-    setSelected(new Set())
-    await fetchTransactions(page)
+    deleteTransactions.mutate(deleteDialog.ids, {
+      onSettled: () => {
+        setDeleteDialog(null)
+        setSelected(new Set())
+      },
+    })
   }
 
   const toggleSelect = (id: number) => {
@@ -176,52 +99,46 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
 
   return (
     <div className="space-y-2">
-      {selected.size > 0 && (
-        <div className="flex items-center gap-3 rounded-md bg-muted px-3 py-1.5 text-xs">
-          <span className="font-medium">{selected.size} selected</span>
-          <div className="flex items-center gap-2">
-            <CategorySelect
-              categories={categories}
-              value={null}
-              placeholder="Set category..."
-              onValueChange={(catId) => updateTransactions(Array.from(selected), { category_id: catId })}
-            />
-            <Select value="" onValueChange={(v) => updateTransactions(Array.from(selected), { type: v })}>
-              <SelectTrigger className="h-6 w-[100px] text-xs">
-                <SelectValue placeholder="Set type..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="debit" className="text-xs">Debit</SelectItem>
-                <SelectItem value="credit" className="text-xs">Credit</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value="" onValueChange={(v) => updateTransactions(Array.from(selected), { transaction_class: v })}>
-              <SelectTrigger className="h-6 w-[110px] text-xs">
-                <SelectValue placeholder="Set class..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="purchase" className="text-xs">purchase</SelectItem>
-                <SelectItem value="payment" className="text-xs">payment</SelectItem>
-                <SelectItem value="refund" className="text-xs">refund</SelectItem>
-                <SelectItem value="fee" className="text-xs">fee</SelectItem>
-                <SelectItem value="interest" className="text-xs">interest</SelectItem>
-                <SelectItem value="transfer" className="text-xs">transfer</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
-            variant="destructive"
-            size="sm"
-            className="h-6 text-xs"
-            onClick={() => setDeleteDialog({ type: 'bulk', ids: Array.from(selected) })}
-          >
-            <Trash2 className="h-3 w-3 mr-1" /> Delete
-          </Button>
-          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setSelected(new Set())}>
-            Cancel
-          </Button>
+      <SelectionBar count={selected.size} onClear={() => setSelected(new Set())} variant="inline">
+        <div className="flex items-center gap-2">
+          <CategorySelect
+            categories={categories}
+            value={null}
+            placeholder="Set category..."
+            onValueChange={(catId) => updateTransactions(Array.from(selected), { category_id: catId })}
+          />
+          <Select value="" onValueChange={(v) => updateTransactions(Array.from(selected), { type: v })}>
+            <SelectTrigger className="h-6 w-[100px] text-xs">
+              <SelectValue placeholder="Set type..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="debit" className="text-xs">Debit</SelectItem>
+              <SelectItem value="credit" className="text-xs">Credit</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value="" onValueChange={(v) => updateTransactions(Array.from(selected), { transaction_class: v })}>
+            <SelectTrigger className="h-6 w-[110px] text-xs">
+              <SelectValue placeholder="Set class..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="purchase" className="text-xs">purchase</SelectItem>
+              <SelectItem value="payment" className="text-xs">payment</SelectItem>
+              <SelectItem value="refund" className="text-xs">refund</SelectItem>
+              <SelectItem value="fee" className="text-xs">fee</SelectItem>
+              <SelectItem value="interest" className="text-xs">interest</SelectItem>
+              <SelectItem value="transfer" className="text-xs">transfer</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      )}
+        <Button
+          variant="destructive"
+          size="sm"
+          className="h-6 text-xs"
+          onClick={() => setDeleteDialog({ type: 'bulk', ids: Array.from(selected) })}
+        >
+          <Trash2 className="h-3 w-3 mr-1" /> Delete
+        </Button>
+      </SelectionBar>
 
       <Table>
         <TableHeader>
@@ -232,16 +149,22 @@ export function TransactionTable({ refreshKey, filters }: TransactionTableProps)
                 onCheckedChange={toggleSelectAll}
               />
             </TableHead>
-            <TableHead className="py-2 text-xs cursor-pointer select-none" onClick={() => handleSort('date')}>Date{sortIcon('date')}</TableHead>
-            <TableHead className="py-2 text-xs cursor-pointer select-none" onClick={() => handleSort('description')}>Description{sortIcon('description')}</TableHead>
-            <TableHead className="py-2 text-xs text-right cursor-pointer select-none" onClick={() => handleSort('amount')}>Amount{sortIcon('amount')}</TableHead>
+            <SortableHeader column="date" label="Date" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="py-2 text-xs" />
+            <SortableHeader column="description" label="Description" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="py-2 text-xs" />
+            <SortableHeader column="amount" label="Amount" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="py-2 text-xs text-right" />
             <TableHead className="py-2 text-xs">Type</TableHead>
             <TableHead className="py-2 text-xs">Category</TableHead>
             <TableHead className="w-8 py-2"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {transactions.length === 0 ? (
+          {loading ? (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center text-muted-foreground py-6 text-xs">
+                Loading...
+              </TableCell>
+            </TableRow>
+          ) : transactions.length === 0 ? (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-muted-foreground py-6 text-xs">
                 No transactions found.

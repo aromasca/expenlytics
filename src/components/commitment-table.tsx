@@ -7,29 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ChevronRight, ChevronDown, StopCircle, Ban, AlertTriangle, ArrowUp, ArrowDown, Undo2, Pencil, Check, X } from 'lucide-react'
+import { ChevronRight, ChevronDown, StopCircle, Ban, AlertTriangle, Undo2, Pencil, Check, X } from 'lucide-react'
+import { SortableHeader } from '@/components/shared/sortable-header'
 import { formatCurrencyPrecise } from '@/lib/format'
 import { CommitmentRowDetail } from '@/components/commitment-row-detail'
-
-interface CommitmentGroup {
-  merchantName: string
-  occurrences: number
-  totalAmount: number
-  avgAmount: number
-  estimatedMonthlyAmount: number
-  frequency: 'weekly' | 'monthly' | 'quarterly' | 'semi-annual' | 'yearly' | 'irregular'
-  firstDate: string
-  lastDate: string
-  category: string | null
-  categoryColor: string | null
-  transactionIds: number[]
-  unexpectedActivity?: boolean
-  frequencyOverride?: string | null
-  monthlyAmountOverride?: number | null
-}
-
-type SortBy = 'merchantName' | 'frequency' | 'category' | 'avgAmount' | 'estimatedMonthlyAmount' | 'occurrences' | 'lastDate'
-type Frequency = 'weekly' | 'monthly' | 'quarterly' | 'semi-annual' | 'yearly' | 'irregular'
+import type { CommitmentGroup, CommitmentSortBy, Frequency } from '@/types/commitments'
 
 interface CommitmentTableProps {
   groups: CommitmentGroup[]
@@ -38,9 +20,9 @@ interface CommitmentTableProps {
   selectable?: boolean
   selectedMerchants?: Set<string>
   onSelectionChange?: (selected: Set<string>) => void
-  sortBy?: SortBy
+  sortBy?: CommitmentSortBy
   sortOrder?: 'asc' | 'desc'
-  onSort?: (column: SortBy) => void
+  onSort?: (column: CommitmentSortBy) => void
   expandedMerchant?: string | null
   onToggleExpand?: (merchant: string) => void
   pendingRemovals?: Map<string, string>
@@ -102,14 +84,6 @@ export function CommitmentTable({ groups, onStatusChange, onOverrideChange, sele
   const effectivePage = Math.min(page, totalPages - 1)
   const paged = groups.slice(effectivePage * PAGE_SIZE, (effectivePage + 1) * PAGE_SIZE)
 
-  const sortIcon = (column: SortBy) => {
-    if (sortBy !== column) return null
-    const Icon = sortOrder === 'asc' ? ArrowUp : ArrowDown
-    return <Icon className="inline h-3 w-3 ml-0.5" />
-  }
-
-  const sortable = onSort ? 'cursor-pointer select-none' : ''
-
   const selected = selectedMerchants ?? new Set<string>()
   const allPageSelected = paged.length > 0 && paged.every(g => selected.has(g.merchantName))
 
@@ -152,13 +126,27 @@ export function CommitmentTable({ groups, onStatusChange, onOverrideChange, sele
                     <Checkbox checked={allPageSelected} onCheckedChange={toggleAll} />
                   </TableHead>
                 )}
-                <TableHead className={`py-1.5 text-xs ${sortable}`} onClick={() => onSort?.('merchantName')}>Merchant{sortIcon('merchantName')}</TableHead>
-                <TableHead className={`py-1.5 text-xs ${sortable}`} onClick={() => onSort?.('frequency')}>Freq{sortIcon('frequency')}</TableHead>
-                <TableHead className={`py-1.5 text-xs ${sortable}`} onClick={() => onSort?.('category')}>Category{sortIcon('category')}</TableHead>
-                <TableHead className={`py-1.5 text-xs text-right ${sortable}`} onClick={() => onSort?.('avgAmount')}>Avg{sortIcon('avgAmount')}</TableHead>
-                <TableHead className={`py-1.5 text-xs text-right ${sortable}`} onClick={() => onSort?.('estimatedMonthlyAmount')}>Monthly{sortIcon('estimatedMonthlyAmount')}</TableHead>
-                <TableHead className={`py-1.5 text-xs text-center ${sortable}`} onClick={() => onSort?.('occurrences')}>#<span>{sortIcon('occurrences')}</span></TableHead>
-                <TableHead className={`py-1.5 text-xs ${sortable}`} onClick={() => onSort?.('lastDate')}>Last{sortIcon('lastDate')}</TableHead>
+                {onSort && sortBy && sortOrder ? (
+                  <>
+                    <SortableHeader column="merchantName" label="Merchant" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort} className="py-1.5 text-xs" />
+                    <SortableHeader column="frequency" label="Freq" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort} className="py-1.5 text-xs" />
+                    <SortableHeader column="category" label="Category" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort} className="py-1.5 text-xs" />
+                    <SortableHeader column="avgAmount" label="Avg" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort} className="py-1.5 text-xs text-right" />
+                    <SortableHeader column="estimatedMonthlyAmount" label="Monthly" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort} className="py-1.5 text-xs text-right" />
+                    <SortableHeader column="occurrences" label="#" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort} className="py-1.5 text-xs text-center" />
+                    <SortableHeader column="lastDate" label="Last" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort} className="py-1.5 text-xs" />
+                  </>
+                ) : (
+                  <>
+                    <TableHead className="py-1.5 text-xs">Merchant</TableHead>
+                    <TableHead className="py-1.5 text-xs">Freq</TableHead>
+                    <TableHead className="py-1.5 text-xs">Category</TableHead>
+                    <TableHead className="py-1.5 text-xs text-right">Avg</TableHead>
+                    <TableHead className="py-1.5 text-xs text-right">Monthly</TableHead>
+                    <TableHead className="py-1.5 text-xs text-center">#</TableHead>
+                    <TableHead className="py-1.5 text-xs">Last</TableHead>
+                  </>
+                )}
                 {hasActions && <TableHead className="w-16 py-1.5"></TableHead>}
               </TableRow>
             </TableHeader>

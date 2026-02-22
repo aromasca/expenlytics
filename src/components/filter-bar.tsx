@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -8,47 +8,23 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox'
 import { X } from 'lucide-react'
 import { getDatePreset } from '@/lib/date-presets'
+import type { Category } from '@/types/categories'
+import { EMPTY_FILTERS } from '@/types/filters'
+import type { Filters } from '@/types/filters'
+import { useCategories } from '@/hooks/use-categories'
+import { useDocumentList } from '@/hooks/use-documents'
 
-interface Category {
-  id: number
-  name: string
-  color: string
-  category_group?: string
-}
-
-interface Document {
-  id: number
-  filename: string
-}
-
-export interface Filters {
-  search: string
-  type: '' | 'debit' | 'credit'
-  start_date: string
-  end_date: string
-  category_ids: number[]
-  document_id: string
-}
-
-const EMPTY_FILTERS: Filters = {
-  search: '',
-  type: '',
-  start_date: '',
-  end_date: '',
-  category_ids: [],
-  document_id: '',
-}
+export type { Filters }
+export { EMPTY_FILTERS }
 
 interface FilterBarProps {
   filters: Filters
   onFiltersChange: (filters: Filters) => void
 }
 
-function hasActiveFilters(filters: Filters): boolean {
+export function hasActiveFilters(filters: Filters): boolean {
   return filters.search !== '' || filters.type !== '' || filters.start_date !== '' || filters.end_date !== '' || filters.category_ids.length > 0 || filters.document_id !== ''
 }
-
-export { EMPTY_FILTERS, hasActiveFilters }
 
 function CategoryFilterPopover({ categories, selectedIds, onToggle }: { categories: Category[]; selectedIds: number[]; onToggle: (id: number) => void }) {
   const [search, setSearch] = useState('')
@@ -115,19 +91,8 @@ function CategoryFilterPopover({ categories, selectedIds, onToggle }: { categori
 }
 
 export function FilterBar({ filters, onFiltersChange }: FilterBarProps) {
-  const [categories, setCategories] = useState<Category[]>([])
-  const [documents, setDocuments] = useState<Document[]>([])
-
-  useEffect(() => {
-    let cancelled = false
-    fetch('/api/categories').then(r => r.json()).then(data => {
-      if (!cancelled) setCategories(data)
-    }).catch(() => {})
-    fetch('/api/documents').then(r => r.json()).then(data => {
-      if (!cancelled) setDocuments(data)
-    }).catch(() => {})
-    return () => { cancelled = true }
-  }, [])
+  const { data: categories = [] } = useCategories()
+  const { data: documents = [] } = useDocumentList()
 
   const update = (partial: Partial<Filters>) => {
     onFiltersChange({ ...filters, ...partial })

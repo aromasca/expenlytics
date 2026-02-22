@@ -4,28 +4,16 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ProcessingStatus } from '@/components/processing-status'
-import { RotateCw, Trash2, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react'
-
-interface DocumentRow {
-  id: number
-  filename: string
-  uploaded_at: string
-  status: string
-  processing_phase: string | null
-  error_message: string | null
-  document_type: string | null
-  transaction_count: number | null
-  actual_transaction_count: number
-}
-
-type SortBy = 'filename' | 'uploaded_at' | 'document_type' | 'status' | 'actual_transaction_count'
+import { RotateCw, Trash2, RefreshCw } from 'lucide-react'
+import { SortableHeader } from '@/components/shared/sortable-header'
+import type { DocumentRow, DocumentSortBy } from '@/types/documents'
 
 interface DocumentsTableProps {
   documents: DocumentRow[]
   onRefresh: () => void
-  sortBy: SortBy
+  sortBy: DocumentSortBy
   sortOrder: 'asc' | 'desc'
-  onSort: (column: SortBy) => void
+  onSort: (column: DocumentSortBy) => void
 }
 
 export function DocumentsTable({ documents, onRefresh, sortBy, sortOrder, onSort }: DocumentsTableProps) {
@@ -108,12 +96,6 @@ export function DocumentsTable({ documents, onRefresh, sortBy, sortOrder, onSort
     }
   }
 
-  const sortIcon = (column: SortBy) => {
-    if (sortBy !== column) return null
-    const Icon = sortOrder === 'asc' ? ArrowUp : ArrowDown
-    return <Icon className="inline h-3 w-3 ml-0.5" />
-  }
-
   if (documents.length === 0) {
     return (
       <div className="text-center py-12 text-sm text-muted-foreground">
@@ -151,11 +133,11 @@ export function DocumentsTable({ documents, onRefresh, sortBy, sortOrder, onSort
                   aria-label="Select all"
                 />
               </th>
-              <th className="text-left font-medium text-muted-foreground px-3 py-2 cursor-pointer select-none" onClick={() => onSort('filename')}>File{sortIcon('filename')}</th>
-              <th className="text-left font-medium text-muted-foreground px-3 py-2 cursor-pointer select-none" onClick={() => onSort('uploaded_at')}>Uploaded{sortIcon('uploaded_at')}</th>
-              <th className="text-left font-medium text-muted-foreground px-3 py-2 cursor-pointer select-none" onClick={() => onSort('document_type')}>Type{sortIcon('document_type')}</th>
-              <th className="text-left font-medium text-muted-foreground px-3 py-2 cursor-pointer select-none" onClick={() => onSort('status')}>Status{sortIcon('status')}</th>
-              <th className="text-right font-medium text-muted-foreground px-3 py-2 tabular-nums cursor-pointer select-none" onClick={() => onSort('actual_transaction_count')}>Txns{sortIcon('actual_transaction_count')}</th>
+              <SortableHeader column="filename" label="File" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort} className="text-left font-medium text-muted-foreground px-3 py-2" />
+              <SortableHeader column="uploaded_at" label="Uploaded" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort} className="text-left font-medium text-muted-foreground px-3 py-2" />
+              <SortableHeader column="document_type" label="Type" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort} className="text-left font-medium text-muted-foreground px-3 py-2" />
+              <SortableHeader column="status" label="Status" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort} className="text-left font-medium text-muted-foreground px-3 py-2" />
+              <SortableHeader column="actual_transaction_count" label="Txns" currentSort={sortBy} currentOrder={sortOrder} onSort={onSort} className="text-right font-medium text-muted-foreground px-3 py-2 tabular-nums" />
               <th className="text-right font-medium text-muted-foreground px-3 py-2">Actions</th>
             </tr>
           </thead>
