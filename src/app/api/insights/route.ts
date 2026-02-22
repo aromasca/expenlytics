@@ -7,10 +7,25 @@ import { generateCacheKey, getCachedInsights, setCachedInsights, clearInsightCac
 import { getProviderForTask } from '@/lib/llm/factory'
 import type { HealthAssessment, MonthlyFlow, Insight } from '@/lib/insights/types'
 
-// Track in-progress generation to avoid duplicate LLM calls
-const generationInProgress = new Map<string, Promise<void>>()
+// Track in-progress generation with timestamps to detect stale/hung promises
+const generationInProgress = new Map<string, { promise: Promise<void>; startedAt: number }>()
+
+const GENERATION_TIMEOUT_MS = 180_000 // 3 minutes
+
+function isGenerationStale(key: string): boolean {
+  const entry = generationInProgress.get(key)
+  if (!entry) return false
+  const elapsed = Date.now() - entry.startedAt
+  if (elapsed > GENERATION_TIMEOUT_MS) {
+    console.error(`[insights] Generation stale (${(elapsed / 1000).toFixed(0)}s), cleaning up`)
+    generationInProgress.delete(key)
+    return true
+  }
+  return false
+}
 
 async function generateInsights(cacheKey: string) {
+  const t0 = Date.now()
   try {
     const db = getDb()
     const { provider, providerName, model } = getProviderForTask(db, 'insights')
@@ -22,23 +37,36 @@ async function generateInsights(cacheKey: string) {
       return
     }
 
+    const payloadKB = (JSON.stringify(compactData).length / 1024).toFixed(1)
     const { active_commitments, commitment_baseline, account_summaries } = compactData
-    console.log(`[insights] Starting generation (${providerName}/${model})`)
-    console.log(`[insights]   data: ${compactData.monthly.length} months, ${compactData.recent_transactions.length} recent txns, ${compactData.merchants.length} merchants`)
-    console.log(`[insights]   commitments: ${active_commitments.length} active, $${commitment_baseline.total_monthly.toFixed(0)}/mo baseline`)
-    console.log(`[insights]   accounts: ${account_summaries.length} linked`)
+    console.log(`[insights] Starting generation (${providerName}/${model}, ${payloadKB}KB)`)
+    console.log(`[insights]   ${compactData.monthly.length} months, ${compactData.recent_transactions.length} recent txns, ${active_commitments.length} commitments ($${commitment_baseline.total_monthly.toFixed(0)}/mo), ${account_summaries.length} accounts`)
 
+    // Race the LLM call against a timeout to prevent hung promises
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`LLM call timed out after ${GENERATION_TIMEOUT_MS / 1000}s`)), GENERATION_TIMEOUT_MS)
+    })
+
+    const { health, insights } = await Promise.race([
+      analyzeFinances(provider, providerName, compactData, model),
+      timeoutPromise,
+    ])
+
+    const types = insights.map(i => i.type).join(', ')
+    console.log(`[insights] Analysis complete (${((Date.now() - t0) / 1000).toFixed(1)}s)`)
+    console.log(`[insights]   score: ${health?.score ?? 'n/a'} (${health?.color ?? '?'}), ${insights.length} alerts [${types}]`)
+    setCachedInsights(db, cacheKey, { health, insights })
+    console.log('[insights] Results cached')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`[insights] Generation failed (${((Date.now() - t0) / 1000).toFixed(1)}s): ${message}`)
+
+    // Cache empty result (1h TTL) to prevent retry storm
     try {
-      const t0 = Date.now()
-      const { health, insights } = await analyzeFinances(provider, providerName, compactData, model)
-      const types = insights.map(i => i.type).join(', ')
-      console.log(`[insights] Analysis complete (${((Date.now() - t0) / 1000).toFixed(1)}s)`)
-      console.log(`[insights]   score: ${health?.score ?? 'n/a'} (${health?.color ?? '?'}), ${insights.length} alerts [${types}]`)
-      setCachedInsights(db, cacheKey, { health, insights })
-      console.log('[insights] Results cached ✓')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      console.error(`[insights] Analysis FAILED — ${message}`)
+      const db = getDb()
+      setCachedInsights(db, cacheKey, { health: null, insights: [] }, 1)
+    } catch (cacheError) {
+      console.error(`[insights] Failed to cache empty result: ${cacheError}`)
     }
   } finally {
     generationInProgress.delete(cacheKey)
@@ -71,6 +99,7 @@ export async function GET(request: NextRequest) {
     if (refresh === 'true') {
       console.log('[insights] Cache cleared (manual refresh)')
       clearInsightCache(db)
+      generationInProgress.clear()
     }
 
     const monthlyFlow = getMonthlyIncomeVsSpending(db)
@@ -87,9 +116,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Generation already in progress — tell client to poll
-    if (generationInProgress.has(cacheKey)) {
-      console.log(`[insights] Generation in progress (key: ${cacheKey.slice(0, 8)}…), polling`)
+    // Generation in progress — check if stale first
+    if (generationInProgress.has(cacheKey) && !isGenerationStale(cacheKey)) {
+      const entry = generationInProgress.get(cacheKey)!
+      const elapsed = ((Date.now() - entry.startedAt) / 1000).toFixed(0)
+      console.log(`[insights] Generation in progress (key: ${cacheKey.slice(0, 8)}…, ${elapsed}s elapsed), polling`)
       return NextResponse.json(
         buildResponse('generating', null, monthlyFlow, [], dismissedIds)
       )
@@ -98,7 +129,7 @@ export async function GET(request: NextRequest) {
     // Start background generation, return immediately so client can poll
     console.log(`[insights] Cache miss (key: ${cacheKey.slice(0, 8)}…), starting background generation`)
     const promise = generateInsights(cacheKey)
-    generationInProgress.set(cacheKey, promise)
+    generationInProgress.set(cacheKey, { promise, startedAt: Date.now() })
 
     return NextResponse.json(
       buildResponse('generating', null, monthlyFlow, [], dismissedIds)

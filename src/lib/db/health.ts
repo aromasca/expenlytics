@@ -1,16 +1,12 @@
 import type Database from 'better-sqlite3'
 import type { MonthlyFlow } from '@/lib/insights/types'
-import { VALID_TRANSACTION_FILTER } from './filters'
 
 export function getMonthlyIncomeVsSpending(db: Database.Database): MonthlyFlow[] {
   const rows = db.prepare(`
     SELECT strftime('%Y-%m', t.date) as month,
-           SUM(CASE WHEN t.type = 'credit' AND ${VALID_TRANSACTION_FILTER}
-               THEN t.amount ELSE 0 END) as income,
-           SUM(CASE WHEN t.type = 'debit' AND ${VALID_TRANSACTION_FILTER}
-               THEN t.amount ELSE 0 END) as spending
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+           SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END) as income,
+           SUM(CASE WHEN t.type = 'debit' THEN t.amount ELSE 0 END) as spending
+    FROM valid_transactions t
     WHERE t.date >= date('now', '-12 months')
     GROUP BY month
     ORDER BY month ASC

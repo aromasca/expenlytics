@@ -35,7 +35,6 @@
 - `estimateMonthlyAmount`: for frequent charges (weekly/monthly/irregular), uses `totalAmount / max(distinctCalendarMonths, roundedSpanMonths)` — handles both multiple charges per month and billing-date drift. For infrequent charges (quarterly/semi-annual/yearly), amortizes `avgAmount / divisor`
 - `src/lib/format.ts` — `formatCurrency()` and `formatCurrencyPrecise()` utilities
 - `src/lib/chart-theme.ts` — Shared light/dark chart color constants (`getChartColors()`)
-- `src/lib/filters.ts` — `VALID_TRANSACTION_FILTER` constant for query param validation
 - `src/lib/date-presets.ts` — Date range preset helpers for filter bar
 - `src/app/api/` — API routes: `upload`, `transactions`, `transactions/[id]`, `categories`, `documents`, `documents/[id]`, `documents/[id]/reprocess`, `documents/[id]/retry`, `reports`, `commitments`, `commitments/normalize`, `commitments/status`, `commitments/exclude`, `commitments/merge`, `commitments/override`, `reclassify/[documentId]`, `insights`, `insights/dismiss`, `accounts`, `accounts/[id]`, `accounts/detect`, `accounts/merge`, `accounts/reset`, `merchants`, `merchants/suggest-merges`, `settings`, `reset`
 - `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, documents, reports, commitments, merchants, accounts, settings
@@ -61,8 +60,7 @@
 - Account matching: exact `institution + last_four` first, fuzzy `LIKE` substring fallback on institution name for LLM naming inconsistencies
 
 ### Query Patterns
-- `exclude_from_totals` column on `categories` table: Transfer, Refund, Savings, Investments are flagged. Use `COALESCE(c.exclude_from_totals, 0) = 0` in summary/chart/insight queries instead of hardcoding category names
-- `transaction_class` column on `transactions` table: structural classification (purchase, payment, refund, fee, interest, transfer). Belt-and-suspenders: summary queries use BOTH `exclude_from_totals` AND `(t.transaction_class IS NULL OR t.transaction_class IN ('purchase', 'fee', 'interest'))`. `IS NULL` for backward compat
+- `valid_transactions` view: pre-filters (category `exclude_from_totals`, `transaction_class = 'refund'`, flagged-removed) and pre-joins categories (category_name, category_color, category_group). Use for all spending/report/insight/commitment queries. Use raw `transactions` table only for CRUD, pipeline, detection, and admin queries. Only `refund` class is excluded (inflates income); `transfer`/`payment` classes are NOT excluded (LLM misclassifies loan/car payments as these)
 - Dynamic WHERE extension: `${where}${where ? ' AND' : ' WHERE'} <condition>` when appending to `buildWhere()` output
 - API routes: validate query params with allowlists before passing to DB (never trust `as` casts for SQL-interpolated values)
 

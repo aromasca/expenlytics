@@ -65,24 +65,29 @@ describe('getMonthlyIncomeVsSpending', () => {
     expect(month!.income).toBe(5000)
   })
 
-  it('excludes payment/transfer class from spending via belt-and-suspenders', () => {
+  it('excludes refund class but includes transfer/payment class', () => {
     const db = createDb()
     insertTx(db, { date: monthsAgo(1), description: 'Rent', amount: 1500, category: 'Rent & Mortgage' })
-    // Insert a transaction with transaction_class='transfer' but normal category
     db.prepare(`
       INSERT INTO documents (filename, filepath, status, file_hash)
       VALUES ('test.pdf', '/tmp/test.pdf', 'completed', 'hash-class-test')
     `).run()
     const docId = (db.prepare('SELECT last_insert_rowid() as id').get() as { id: number }).id
+    // Transfer class INCLUDED
     db.prepare(`
       INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
-      VALUES (?, ?, 'Misclassified Transfer', 500, 'debit', ?, 'transfer')
+      VALUES (?, ?, 'Car Payment', 500, 'debit', ?, 'transfer')
+    `).run(docId, monthsAgo(1), getCategoryId(db, 'Groceries'))
+    // Refund class EXCLUDED
+    db.prepare(`
+      INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
+      VALUES (?, ?, 'Return', 200, 'credit', ?, 'refund')
     `).run(docId, monthsAgo(1), getCategoryId(db, 'Groceries'))
     const result = getMonthlyIncomeVsSpending(db)
     const month = result.find(r => r.spending > 0)
     expect(month).toBeDefined()
-    // Only Rent (1500) counts; transfer-class (500) excluded
-    expect(month!.spending).toBe(1500)
+    // Rent (1500) + Car Payment (500) = 2000; refund excluded
+    expect(month!.spending).toBe(2000)
   })
 
   it('excludes Transfer/Savings/Investments debits from spending', () => {

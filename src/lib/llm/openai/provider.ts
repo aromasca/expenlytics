@@ -24,7 +24,7 @@ export class OpenAIProvider implements LLMProvider {
   private client: OpenAI
 
   constructor() {
-    this.client = new OpenAI()
+    this.client = new OpenAI({ timeout: 120_000 })
   }
 
   async complete(request: LLMRequest): Promise<LLMResponse> {

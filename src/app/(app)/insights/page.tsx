@@ -270,6 +270,7 @@ export default function InsightsPage() {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState(false)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [timedOut, setTimedOut] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -307,6 +308,7 @@ export default function InsightsPage() {
       if (elapsed > 120000) {
         stopPolling()
         setGenerating(false)
+        setTimedOut(true)
         return
       }
       const controller = new AbortController()
@@ -337,6 +339,7 @@ export default function InsightsPage() {
 
     setLoading(true)
     setError(false)
+    setTimedOut(false)
 
     fetch(`/api/insights${refresh ? '?refresh=true' : ''}`, { signal: controller.signal })
       .then((res) => {
@@ -435,7 +438,18 @@ export default function InsightsPage() {
         </div>
       )}
 
-      {isEmpty && !hasMonthlyFlow && (
+      {timedOut && !hasContent && (
+        <div className="text-center py-16 space-y-2">
+          <RefreshCw className="h-5 w-5 text-muted-foreground mx-auto" />
+          <p className="text-sm font-medium">Still generating</p>
+          <p className="text-xs text-muted-foreground">Analysis is taking longer than usual. It will be ready on next refresh.</p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => fetchInsights()}>
+            Check now
+          </Button>
+        </div>
+      )}
+
+      {isEmpty && !hasMonthlyFlow && !timedOut && (
         <div className="text-center py-16 space-y-2">
           <p className="text-sm font-medium">No insights yet</p>
           <p className="text-xs text-muted-foreground">Upload bank statements to see spending analysis.</p>

@@ -1,5 +1,4 @@
 import type Database from 'better-sqlite3'
-import { VALID_TRANSACTION_FILTER } from './filters'
 
 export interface ReportFilters {
   start_date?: string
@@ -78,16 +77,15 @@ export function getSpendingSummary(db: Database.Database, filters: ReportFilters
 
   const totals = db.prepare(`
     SELECT
-      COALESCE(SUM(CASE WHEN t.type = 'debit' AND ${VALID_TRANSACTION_FILTER} THEN t.amount ELSE 0 END), 0) as totalSpent,
-      COALESCE(SUM(CASE WHEN t.type = 'credit' AND ${VALID_TRANSACTION_FILTER} THEN t.amount ELSE 0 END), 0) as totalIncome
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+      COALESCE(SUM(CASE WHEN t.type = 'debit' THEN t.amount ELSE 0 END), 0) as totalSpent,
+      COALESCE(SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END), 0) as totalIncome
+    FROM valid_transactions t
     ${where}
   `).get(params) as { totalSpent: number; totalIncome: number }
 
   const monthCount = db.prepare(`
     SELECT COUNT(DISTINCT strftime('%Y-%m', t.date)) as months
-    FROM transactions t
+    FROM valid_transactions t
     ${where}
   `).get(params) as { months: number }
 
@@ -100,10 +98,9 @@ export function getSpendingSummary(db: Database.Database, filters: ReportFilters
   const { where: debitWhere, params: debitParams } = buildWhere(debitFilters)
 
   const topCat = db.prepare(`
-    SELECT c.name, SUM(t.amount) as amount
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
-    ${debitWhere}${debitWhere ? ' AND' : ' WHERE'} ${VALID_TRANSACTION_FILTER}
+    SELECT t.category_name as name, SUM(t.amount) as amount
+    FROM valid_transactions t
+    ${debitWhere}
     GROUP BY t.category_id
     ORDER BY amount DESC
     LIMIT 1
@@ -140,9 +137,8 @@ export function getSpendingOverTime(
 
   return db.prepare(`
     SELECT ${periodExpr} as period, SUM(t.amount) as amount
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
-    ${where}${where ? ' AND' : ' WHERE'} ${VALID_TRANSACTION_FILTER}
+    FROM valid_transactions t
+    ${where}
     GROUP BY period
     ORDER BY period ASC
   `).all(params) as SpendingOverTimeRow[]
@@ -154,12 +150,11 @@ export function getCategoryBreakdown(db: Database.Database, filters: ReportFilte
 
   const rows = db.prepare(`
     SELECT
-      COALESCE(c.name, 'Uncategorized') as category,
-      COALESCE(c.color, '#9CA3AF') as color,
+      COALESCE(t.category_name, 'Uncategorized') as category,
+      COALESCE(t.category_color, '#9CA3AF') as color,
       SUM(t.amount) as amount
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
-    ${where}${where ? ' AND' : ' WHERE'} ${VALID_TRANSACTION_FILTER}
+    FROM valid_transactions t
+    ${where}
     GROUP BY t.category_id
     ORDER BY amount DESC
   `).all(params) as Array<{ category: string; color: string; amount: number }>
@@ -179,10 +174,9 @@ export function getSpendingTrend(db: Database.Database, filters: ReportFilters):
   return db.prepare(`
     SELECT
       strftime('%Y-%m', t.date) as period,
-      COALESCE(SUM(CASE WHEN t.type = 'debit' AND ${VALID_TRANSACTION_FILTER} THEN t.amount ELSE 0 END), 0) as debits,
-      COALESCE(SUM(CASE WHEN t.type = 'credit' AND ${VALID_TRANSACTION_FILTER} THEN t.amount ELSE 0 END), 0) as credits
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+      COALESCE(SUM(CASE WHEN t.type = 'debit' THEN t.amount ELSE 0 END), 0) as debits,
+      COALESCE(SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END), 0) as credits
+    FROM valid_transactions t
     ${where}
     GROUP BY period
     ORDER BY period ASC
@@ -202,13 +196,12 @@ export function getSankeyData(db: Database.Database, filters: ReportFilters): Sa
 
   return db.prepare(`
     SELECT
-      COALESCE(c.name, 'Uncategorized') as category,
-      COALESCE(c.category_group, 'Other') as category_group,
-      COALESCE(c.color, '#9CA3AF') as color,
+      COALESCE(t.category_name, 'Uncategorized') as category,
+      COALESCE(t.category_group, 'Other') as category_group,
+      COALESCE(t.category_color, '#9CA3AF') as color,
       SUM(t.amount) as amount
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
-    ${where}${where ? ' AND' : ' WHERE'} ${VALID_TRANSACTION_FILTER}
+    FROM valid_transactions t
+    ${where}
     GROUP BY t.category_id
     HAVING amount > 0
     ORDER BY amount DESC
@@ -221,14 +214,12 @@ export function getSankeyIncomeData(db: Database.Database, filters: ReportFilter
 
   return db.prepare(`
     SELECT
-      COALESCE(c.name, 'Uncategorized') as category,
-      COALESCE(c.category_group, 'Other') as category_group,
-      COALESCE(c.color, '#9CA3AF') as color,
+      COALESCE(t.category_name, 'Uncategorized') as category,
+      COALESCE(t.category_group, 'Other') as category_group,
+      COALESCE(t.category_color, '#9CA3AF') as color,
       SUM(t.amount) as amount
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+    FROM valid_transactions t
     ${where}
-    AND ${VALID_TRANSACTION_FILTER}
     GROUP BY t.category_id
     HAVING amount > 0
     ORDER BY amount DESC
@@ -249,7 +240,7 @@ export function getMoMComparison(db: Database.Database, filters: ReportFilters):
 
   const months = db.prepare(`
     SELECT DISTINCT strftime('%Y-%m', t.date) as month
-    FROM transactions t
+    FROM valid_transactions t
     ${where}
     ORDER BY month DESC
     LIMIT 2
@@ -262,15 +253,13 @@ export function getMoMComparison(db: Database.Database, filters: ReportFilters):
 
   const rows = db.prepare(`
     SELECT
-      COALESCE(c.category_group, 'Other') as grp,
+      COALESCE(t.category_group, 'Other') as grp,
       SUM(CASE WHEN strftime('%Y-%m', t.date) = ? THEN t.amount ELSE 0 END) as current_amount,
       SUM(CASE WHEN strftime('%Y-%m', t.date) = ? THEN t.amount ELSE 0 END) as previous_amount
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+    FROM valid_transactions t
     ${where}${where ? ' AND' : ' WHERE'} t.type = 'debit'
-      AND ${VALID_TRANSACTION_FILTER}
       AND strftime('%Y-%m', t.date) IN (?, ?)
-    GROUP BY COALESCE(c.category_group, 'Other')
+    GROUP BY COALESCE(t.category_group, 'Other')
     HAVING current_amount > 0 OR previous_amount > 0
   `).all([...params, currentMonth, previousMonth, currentMonth, previousMonth]) as Array<{ grp: string; current_amount: number; previous_amount: number }>
 
@@ -298,10 +287,9 @@ export function getTopTransactions(
 
   return db.prepare(`
     SELECT t.id, t.date, t.description, t.amount, t.type,
-           c.name as category
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
-    ${where}${where ? ' AND' : ' WHERE'} ${VALID_TRANSACTION_FILTER}
+           t.category_name as category
+    FROM valid_transactions t
+    ${where}
     ORDER BY t.amount DESC
     LIMIT ?
   `).all([...params, limit]) as TopTransactionRow[]

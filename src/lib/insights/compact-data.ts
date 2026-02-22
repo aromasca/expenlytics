@@ -1,5 +1,4 @@
 import type Database from 'better-sqlite3'
-import { VALID_TRANSACTION_FILTER } from '@/lib/db/filters'
 import { detectCommitmentGroups, applyCommitmentOverrides, type TransactionForCommitment } from '@/lib/commitments'
 import { getCommitmentOverrides } from '@/lib/db/commitments'
 
@@ -52,10 +51,8 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     SELECT strftime('%Y-%m', t.date) as month,
            SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END) as income,
            SUM(CASE WHEN t.type = 'debit' THEN t.amount ELSE 0 END) as spending
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+    FROM valid_transactions t
     WHERE t.date >= date('now', '-12 months')
-      AND ${VALID_TRANSACTION_FILTER}
     GROUP BY month
     ORDER BY month ASC
   `).all() as Array<{ month: string; income: number; spending: number }>
@@ -69,13 +66,11 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
 
   // Category spending by month (last 6 months, top 15 categories by total)
   const catRows = db.prepare(`
-    SELECT COALESCE(c.name, 'Uncategorized') as category,
+    SELECT COALESCE(t.category_name, 'Uncategorized') as category,
            strftime('%Y-%m', t.date) as month,
            SUM(t.amount) as amount
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+    FROM valid_transactions t
     WHERE t.type = 'debit' AND t.date >= date('now', '-6 months')
-      AND ${VALID_TRANSACTION_FILTER}
     GROUP BY category, month
     ORDER BY amount DESC
   `).all() as Array<{ category: string; month: string; amount: number }>
@@ -99,10 +94,8 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
            MAX(t.date) as last_seen,
            MIN(t.date) as first_seen,
            COUNT(DISTINCT strftime('%Y-%m', t.date)) as months_active
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+    FROM valid_transactions t
     WHERE t.type = 'debit' AND t.date >= date('now', '-12 months')
-      AND ${VALID_TRANSACTION_FILTER}
     GROUP BY COALESCE(t.normalized_merchant, t.description)
     ORDER BY count DESC, total DESC
     LIMIT 30
@@ -117,10 +110,8 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
       SELECT t.date,
              SUM(t.amount) as daily_total,
              COUNT(*) as daily_count
-      FROM transactions t
-      LEFT JOIN categories c ON t.category_id = c.id
+      FROM valid_transactions t
       WHERE t.type = 'debit' AND t.date >= date('now', '-6 months')
-        AND ${VALID_TRANSACTION_FILTER}
       GROUP BY t.date
     )
     GROUP BY CAST(strftime('%w', date) AS INTEGER)
@@ -145,10 +136,8 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
 
   const dailyRows = db.prepare(`
     SELECT t.date, SUM(t.amount) as amount
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+    FROM valid_transactions t
     WHERE t.type = 'debit' AND t.date >= date('now', '-60 days')
-      AND ${VALID_TRANSACTION_FILTER}
     GROUP BY t.date
     ORDER BY t.date ASC
   `).all() as Array<{ date: string; amount: number }>
@@ -171,11 +160,9 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
 
   const commitmentTxns = db.prepare(`
     SELECT t.id, t.date, t.description, t.normalized_merchant, t.amount, t.type,
-           c.name as category_name, c.color as category_color
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+           t.category_name, t.category_color
+    FROM valid_transactions t
     WHERE t.type = 'debit' AND t.normalized_merchant IS NOT NULL
-      AND COALESCE(c.exclude_from_totals, 0) = 0
   `).all() as TransactionForCommitment[]
 
   const filteredTxns = commitmentTxns.filter(t => !excludedTxIds.has(t.id))
@@ -236,37 +223,30 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
   // Outlier transactions (last 3 months, >2x category average)
   const outliers = db.prepare(`
     SELECT t.date, t.description, t.amount,
-           COALESCE(c.name, 'Uncategorized') as category
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+           COALESCE(t.category_name, 'Uncategorized') as category
+    FROM valid_transactions t
     JOIN (
       SELECT t2.category_id, AVG(t2.amount) as avg_amount
-      FROM transactions t2
-      LEFT JOIN categories c2 ON t2.category_id = c2.id
+      FROM valid_transactions t2
       WHERE t2.type = 'debit' AND t2.date >= date('now', '-6 months')
-        AND COALESCE(c2.exclude_from_totals, 0) = 0
-        AND (t2.transaction_class IS NULL OR t2.transaction_class IN ('purchase', 'fee', 'interest'))
       GROUP BY t2.category_id
     ) cat_avg ON t.category_id = cat_avg.category_id
     WHERE t.type = 'debit'
       AND t.date >= date('now', '-3 months')
       AND t.amount > cat_avg.avg_amount * 2
-      AND ${VALID_TRANSACTION_FILTER}
     ORDER BY t.amount DESC
     LIMIT 10
   `).all() as Array<{ date: string; description: string; amount: number; category: string }>
 
   // Top merchants per category (top 5 merchants for top 10 categories)
   const merchantByCatRows = db.prepare(`
-    SELECT COALESCE(c.name, 'Uncategorized') as category,
+    SELECT COALESCE(t.category_name, 'Uncategorized') as category,
            COALESCE(t.normalized_merchant, t.description) as merchant_name,
            SUM(t.amount) as total,
            COUNT(*) as count
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+    FROM valid_transactions t
     WHERE t.type = 'debit' AND t.date >= date('now', '-6 months')
-      AND ${VALID_TRANSACTION_FILTER}
-    GROUP BY COALESCE(c.name, 'Uncategorized'), COALESCE(t.normalized_merchant, t.description)
+    GROUP BY COALESCE(t.category_name, 'Uncategorized'), COALESCE(t.normalized_merchant, t.description)
     ORDER BY category, total DESC
   `).all() as Array<{ category: string; merchant_name: string; total: number; count: number }>
 
@@ -282,18 +262,18 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     .filter(cat => catMerchantMap.has(cat))
     .map(cat => ({ category: cat, merchants: catMerchantMap.get(cat)! }))
 
-  // Individual transactions for last 90 days (gives LLM specific purchase context)
+  // Individual transactions for last 30 days (gives LLM specific purchase context)
+  // Capped at 100 to keep payload under ~30KB — aggregated data covers the rest
   const recent_transactions = db.prepare(`
     SELECT t.date, t.description,
            t.normalized_merchant,
            t.amount, t.type,
-           COALESCE(c.name, 'Uncategorized') as category,
+           COALESCE(t.category_name, 'Uncategorized') as category,
            t.transaction_class
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
-    WHERE t.date >= date('now', '-90 days')
-      AND ${VALID_TRANSACTION_FILTER}
+    FROM valid_transactions t
+    WHERE t.date >= date('now', '-30 days')
     ORDER BY t.date DESC
+    LIMIT 100
   `).all() as CompactFinancialData['recent_transactions']
 
   // Month-by-month spending for top 20 merchants (lets LLM spot merchant trends)
@@ -301,10 +281,8 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     SELECT COALESCE(t.normalized_merchant, t.description) as merchant,
            strftime('%Y-%m', t.date) as month,
            SUM(t.amount) as total
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+    FROM valid_transactions t
     WHERE t.type = 'debit' AND t.date >= date('now', '-6 months')
-      AND ${VALID_TRANSACTION_FILTER}
     GROUP BY COALESCE(t.normalized_merchant, t.description), strftime('%Y-%m', t.date)
     ORDER BY total DESC
   `).all() as Array<{ merchant: string; month: string; total: number }>
@@ -337,11 +315,9 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
              SUM(CASE WHEN t.type = 'debit' THEN t.amount ELSE 0 END) as spending,
              SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE 0 END) as income,
              COUNT(*) as txn_count
-      FROM transactions t
-      LEFT JOIN categories c ON t.category_id = c.id
+      FROM valid_transactions t
       JOIN document_accounts da ON da.document_id = t.document_id
       WHERE da.account_id = ?
-        AND ${VALID_TRANSACTION_FILTER}
       GROUP BY month
       ORDER BY month
     `).all([acct.id]) as Array<{ month: string; spending: number; income: number; txn_count: number }>
@@ -357,12 +333,10 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
 
     // Top 3 categories
     const top_categories = db.prepare(`
-      SELECT COALESCE(c.name, 'Uncategorized') as category, SUM(t.amount) as total
-      FROM transactions t
-      LEFT JOIN categories c ON t.category_id = c.id
+      SELECT COALESCE(t.category_name, 'Uncategorized') as category, SUM(t.amount) as total
+      FROM valid_transactions t
       JOIN document_accounts da ON da.document_id = t.document_id
       WHERE da.account_id = ? AND t.type = 'debit'
-        AND ${VALID_TRANSACTION_FILTER}
       GROUP BY category
       ORDER BY total DESC
       LIMIT 3
@@ -371,11 +345,9 @@ export function buildCompactData(db: Database.Database): CompactFinancialData {
     // Top 5 merchants
     const top_merchants = db.prepare(`
       SELECT COALESCE(t.normalized_merchant, t.description) as name, SUM(t.amount) as total
-      FROM transactions t
-      LEFT JOIN categories c ON t.category_id = c.id
+      FROM valid_transactions t
       JOIN document_accounts da ON da.document_id = t.document_id
       WHERE da.account_id = ? AND t.type = 'debit'
-        AND ${VALID_TRANSACTION_FILTER}
       GROUP BY name
       ORDER BY total DESC
       LIMIT 5

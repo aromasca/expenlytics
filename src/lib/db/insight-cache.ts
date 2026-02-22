@@ -18,7 +18,11 @@ export function generateCacheKey(db: Database.Database): string {
     SELECT COUNT(*) as account_count FROM accounts
   `).get() as { account_count: number }
 
-  const raw = `${row.last_date ?? ''}:${row.count}:${Math.round(row.total ?? 0)}:${commitmentRow.ended_count}:${accountRow.account_count}`
+  const flagRow = db.prepare(`
+    SELECT COUNT(*) as resolved_count FROM transaction_flags WHERE resolution IS NOT NULL
+  `).get() as { resolved_count: number }
+
+  const raw = `${row.last_date ?? ''}:${row.count}:${Math.round(row.total ?? 0)}:${commitmentRow.ended_count}:${accountRow.account_count}:${flagRow.resolved_count}`
   return createHash('sha256').update(raw).digest('hex').slice(0, 16)
 }
 

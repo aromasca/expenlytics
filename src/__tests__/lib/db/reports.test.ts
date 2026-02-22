@@ -167,16 +167,25 @@ describe('reports', () => {
   })
 
   describe('transaction_class filtering', () => {
-    it('excludes payment/transfer class from totalSpent even without exclude_from_totals', () => {
-      // Insert a transaction with transaction_class='payment' but a non-excluded category
+    it('excludes refund class but includes payment/transfer class', () => {
+      // Payment and transfer classes included (loan/car payments are real spending)
       db.prepare(`
         INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
-        VALUES (?, '2025-01-25', 'CC Payment Received', 500, 'debit', ?, 'payment')
+        VALUES (?, '2025-01-25', 'Car Payment', 500, 'debit', ?, 'payment')
+      `).run(docId, getAllCategories(db).find(c => c.name === 'Groceries')!.id)
+      db.prepare(`
+        INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
+        VALUES (?, '2025-01-26', 'Bank Transfer', 1000, 'debit', ?, 'transfer')
+      `).run(docId, getAllCategories(db).find(c => c.name === 'Groceries')!.id)
+      // Refund class excluded (inflates income)
+      db.prepare(`
+        INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
+        VALUES (?, '2025-01-27', 'Store Return', 200, 'credit', ?, 'refund')
       `).run(docId, getAllCategories(db).find(c => c.name === 'Groceries')!.id)
 
       const summary = getSpendingSummary(db, {})
-      // Original debits = 425, payment-class (500) excluded even though category is Groceries
-      expect(summary.totalSpent).toBe(425)
+      // Original debits 425 + payment 500 + transfer 1000 = 1925; refund excluded
+      expect(summary.totalSpent).toBe(1925)
     })
 
     it('includes purchase/fee/interest class in totals', () => {

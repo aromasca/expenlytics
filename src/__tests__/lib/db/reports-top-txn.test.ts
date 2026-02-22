@@ -4,7 +4,7 @@ import { initializeSchema } from '@/lib/db/schema'
 import { getTopTransactions } from '@/lib/db/reports'
 
 describe('getTopTransactions', () => {
-  it('excludes transfers and refunds', () => {
+  it('excludes by category exclude_from_totals and refund class', () => {
     const db = new Database(':memory:')
     initializeSchema(db)
 
@@ -15,13 +15,13 @@ describe('getTopTransactions', () => {
     // Insert a document
     db.prepare("INSERT INTO documents (filename, filepath, status) VALUES ('test.pdf', '/tmp/test.pdf', 'completed')").run()
 
-    // Insert a large transfer (should be excluded - category has exclude_from_totals=1)
+    // Excluded: Transfer category has exclude_from_totals=1
     db.prepare("INSERT INTO transactions (date, description, amount, type, category_id, document_id, transaction_class) VALUES ('2026-01-15', 'Wire Transfer', 50000, 'debit', ?, 1, 'transfer')").run(transfer.id)
 
-    // Insert a large refund (should be excluded - transaction_class='refund')
-    db.prepare("INSERT INTO transactions (date, description, amount, type, category_id, document_id, transaction_class) VALUES ('2026-01-16', 'Refund', 2000, 'credit', ?, 1, 'refund')").run(groceries.id)
+    // Excluded: refund class (regardless of category)
+    db.prepare("INSERT INTO transactions (date, description, amount, type, category_id, document_id, transaction_class) VALUES ('2026-01-16', 'Store Return', 2000, 'credit', ?, 1, 'refund')").run(groceries.id)
 
-    // Insert a real purchase (should be included)
+    // Included: normal purchase
     db.prepare("INSERT INTO transactions (date, description, amount, type, category_id, document_id, transaction_class) VALUES ('2026-01-17', 'Grocery Store', 150, 'debit', ?, 1, 'purchase')").run(groceries.id)
 
     const results = getTopTransactions(db, {}, 50)

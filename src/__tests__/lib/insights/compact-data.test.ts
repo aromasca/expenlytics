@@ -41,6 +41,12 @@ function monthsAgo(n: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+function daysAgo(n: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return d.toISOString().slice(0, 10)
+}
+
 describe('buildCompactData', () => {
   it('returns empty structure for no transactions', () => {
     const db = createDb()
@@ -90,37 +96,42 @@ describe('buildCompactData', () => {
     expect(totalTxns).toBe(1)
   })
 
-  it('excludes payment/transfer transaction_class from compact data', () => {
+  it('excludes refund class but includes payment/transfer class', () => {
     const db = createDb()
     insertTx(db, { date: monthsAgo(1), description: 'Groceries', amount: 200, category: 'Groceries' })
-    // Insert a payment-class transaction with normal category
     db.prepare(`
       INSERT INTO documents (filename, filepath, status, file_hash)
       VALUES ('test.pdf', '/tmp/test.pdf', 'completed', 'hash-class-test')
     `).run()
     const docId = (db.prepare('SELECT last_insert_rowid() as id').get() as { id: number }).id
     const catId = getCategoryId(db, 'Groceries')
+    // Payment and transfer classes INCLUDED
     db.prepare(`
       INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
-      VALUES (?, ?, 'Payment', 500, 'debit', ?, 'payment')
+      VALUES (?, ?, 'Car Payment', 500, 'debit', ?, 'payment')
     `).run(docId, monthsAgo(1), catId)
     db.prepare(`
       INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
       VALUES (?, ?, 'Transfer Out', 1000, 'debit', ?, 'transfer')
     `).run(docId, monthsAgo(1), catId)
+    // Refund class EXCLUDED
+    db.prepare(`
+      INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
+      VALUES (?, ?, 'Return', 300, 'credit', ?, 'refund')
+    `).run(docId, monthsAgo(1), catId)
 
     const data = buildCompactData(db)
     const m = data.monthly.find(r => r.spending > 0)
     expect(m).toBeDefined()
-    // Only Groceries (200) counts; payment (500) and transfer (1000) excluded
-    expect(m!.spending).toBe(200)
+    // 200 + 500 + 1000 = 1700; refund excluded
+    expect(m!.spending).toBe(1700)
   })
 
-  it('includes recent_transactions for last 90 days', () => {
+  it('includes recent_transactions for last 30 days', () => {
     const db = createDb()
-    // Transaction within 90 days — should be included
-    insertTx(db, { date: monthsAgo(1), description: 'Whole Foods', amount: 85.50, category: 'Groceries', normalized_merchant: 'Whole Foods' })
-    // Transaction outside 90 days — should be excluded
+    // Transaction within 30 days — should be included
+    insertTx(db, { date: daysAgo(15), description: 'Whole Foods', amount: 85.50, category: 'Groceries', normalized_merchant: 'Whole Foods' })
+    // Transaction outside 30 days — should be excluded
     insertTx(db, { date: monthsAgo(4), description: 'Old Purchase', amount: 50, category: 'Groceries' })
     const data = buildCompactData(db)
     expect(data.recent_transactions).toBeDefined()
@@ -135,23 +146,28 @@ describe('buildCompactData', () => {
     })
   })
 
-  it('excludes transfer/payment classes from recent_transactions', () => {
+  it('excludes refund class from recent_transactions but includes payment/transfer', () => {
     const db = createDb()
-    insertTx(db, { date: monthsAgo(1), description: 'Groceries', amount: 200, category: 'Groceries' })
-    // Insert a payment-class transaction
+    insertTx(db, { date: daysAgo(10), description: 'Groceries', amount: 200, category: 'Groceries' })
     db.prepare(`
       INSERT INTO documents (filename, filepath, status, file_hash)
       VALUES ('test.pdf', '/tmp/test.pdf', 'completed', 'hash-recent-txn-test')
     `).run()
     const docId = (db.prepare('SELECT last_insert_rowid() as id').get() as { id: number }).id
     const catId = getCategoryId(db, 'Groceries')
+    // Included
     db.prepare(`
       INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
-      VALUES (?, ?, 'CC Payment', 500, 'debit', ?, 'payment')
-    `).run(docId, monthsAgo(1), catId)
+      VALUES (?, ?, 'Car Payment', 500, 'debit', ?, 'payment')
+    `).run(docId, daysAgo(10), catId)
+    // Excluded
+    db.prepare(`
+      INSERT INTO transactions (document_id, date, description, amount, type, category_id, transaction_class)
+      VALUES (?, ?, 'Store Return', 100, 'credit', ?, 'refund')
+    `).run(docId, daysAgo(10), catId)
     const data = buildCompactData(db)
-    expect(data.recent_transactions).toHaveLength(1)
-    expect(data.recent_transactions[0].description).toBe('Groceries')
+    expect(data.recent_transactions).toHaveLength(2)
+    expect(data.recent_transactions.map(t => t.description).sort()).toEqual(['Car Payment', 'Groceries'])
   })
 
   it('includes merchant_month_deltas for top merchants', () => {

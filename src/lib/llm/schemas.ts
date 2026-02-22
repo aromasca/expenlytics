@@ -168,7 +168,7 @@ export const financialAnalysisSchema = z.object({
       time_period: z.string().optional(),
       accounts: stringOrArraySchema,
       commitment_merchant: z.string().optional(),
-    }),
+    }).optional().default({ merchants: [], categories: [], accounts: [] }),
     action: z.string().optional(),
   })),
 })

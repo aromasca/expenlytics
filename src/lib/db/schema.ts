@@ -396,4 +396,23 @@ export function initializeSchema(db: Database.Database): void {
 
   // Set exclude_from_totals flag for transfer/non-spending categories
   db.exec(`UPDATE categories SET exclude_from_totals = 1 WHERE name IN ('Transfer', 'Refund', 'Savings', 'Investments')`)
+
+  // valid_transactions view -- pre-filters and pre-joins categories
+  // DROP+CREATE so schema changes propagate on restart
+  db.exec('DROP VIEW IF EXISTS valid_transactions')
+  db.exec(`
+    CREATE VIEW valid_transactions AS
+    SELECT t.*,
+           c.name AS category_name,
+           c.color AS category_color,
+           c.category_group
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE COALESCE(c.exclude_from_totals, 0) = 0
+      AND (t.transaction_class IS NULL OR t.transaction_class != 'refund')
+      AND NOT EXISTS (
+        SELECT 1 FROM transaction_flags tf
+        WHERE tf.transaction_id = t.id AND tf.resolution = 'removed'
+      )
+  `)
 }

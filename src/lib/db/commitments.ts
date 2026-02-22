@@ -13,7 +13,7 @@ export interface CommitmentFilters {
 }
 
 export function getCommitments(db: Database.Database, filters: CommitmentFilters): CommitmentGroup[] {
-  const conditions: string[] = ["t.type = 'debit'", "t.normalized_merchant IS NOT NULL", "COALESCE(c.exclude_from_totals, 0) = 0", "t.id NOT IN (SELECT transaction_id FROM excluded_commitment_transactions)"]
+  const conditions: string[] = ["t.type = 'debit'", "t.normalized_merchant IS NOT NULL", "t.id NOT IN (SELECT transaction_id FROM excluded_commitment_transactions)"]
   const params: unknown[] = []
 
   if (filters.start_date) {
@@ -29,9 +29,8 @@ export function getCommitments(db: Database.Database, filters: CommitmentFilters
 
   const rows = db.prepare(`
     SELECT t.id, t.date, t.description, t.normalized_merchant, t.amount, t.type,
-           c.name as category_name, c.color as category_color
-    FROM transactions t
-    LEFT JOIN categories c ON t.category_id = c.id
+           t.category_name, t.category_color
+    FROM valid_transactions t
     ${where}
     ORDER BY t.date ASC
   `).all(params) as TransactionForCommitment[]

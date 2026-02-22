@@ -32,17 +32,21 @@ DOCUMENT TYPE CONTEXT — this determines how to interpret debits and credits:
 - Investment: debits are contributions/purchases, credits are withdrawals/dividends.
 
 TRANSACTION CLASS RULES — classify each transaction structurally:
-- "purchase": regular purchases, charges for goods/services
-- "payment": payments received on credit card, loan payments received
-- "refund": returned purchases, merchant credits, chargebacks, reimbursements
+- "purchase": regular spending — purchases, bills, subscriptions, loan payments, car payments, insurance premiums, rent, mortgage payments. This is the DEFAULT for any debit that is spending money on goods or services
+- "payment": ONLY for credit card payments received (credits on a CC statement when you pay your bill)
+- "refund": returned purchases, merchant credits, chargebacks, reimbursements, insurance claim payouts. Any credit that reverses or reimburses a previous purchase — even partial refunds
 - "fee": bank fees, late fees, service charges, overdraft fees, annual fees
-- "interest": interest charges, finance charges on credit cards/loans
-- "transfer": inter-account transfers, CC bill payments from checking, savings contributions, 401k contributions, P2P self-transfers (Venmo/Zelle to yourself), ACH between own accounts
+- "interest": interest charges OR interest earned. Finance charges on credit cards/loans, and also interest credits on savings/checking accounts
+- "transfer": ONLY inter-account money movements — CC bill payments FROM checking, transfers to savings/investments, 401k contributions, P2P self-transfers (Venmo/Zelle to yourself), ACH between your own accounts
 
-By document type:
-- Credit card: charges/purchases → purchase, payments received → payment, refunds/credits → refund, interest charges → interest, fees → fee
-- Checking: purchases/spending → purchase, CC payments out → transfer, transfers to savings/investments → transfer, refunds → refund, fees → fee, salary deposits → purchase (it's income, not a "purchase" per se, but use purchase for non-transfer credits)
-- All: inter-account movements → transfer
+CRITICAL DISTINCTIONS:
+- A debit for "Porsche Financial Payment" or "Auto Loan" → "purchase" (it is spending on a car loan, NOT a transfer)
+- A debit for "State Farm Insurance" → "purchase" (it is spending on insurance, NOT a transfer)
+- A credit from "State Farm" or "GEICO" on checking → "refund" (insurance claim payout / reimbursement)
+- A credit from "Home Depot" or any merchant on checking → "refund" (return or credit, NOT income)
+- A credit for salary/wages/payroll → "purchase" (income deposit — use purchase for non-transfer credits)
+- Interest earned on savings/checking → "interest"
+- Only use "transfer" for money moving between YOUR OWN accounts
 
 Return ONLY valid JSON in this exact format:
 {
@@ -111,17 +115,21 @@ This determines how to interpret debits and credits:
 ## Transaction Class Rules
 
 Classify each transaction structurally:
-- **"purchase"**: regular purchases, charges for goods/services
-- **"payment"**: payments received on credit card, loan payments received
-- **"refund"**: returned purchases, merchant credits, chargebacks, reimbursements
+- **"purchase"**: regular spending — purchases, bills, subscriptions, loan payments, car payments, insurance premiums, rent, mortgage payments. This is the DEFAULT for any debit that is spending money on goods or services
+- **"payment"**: ONLY for credit card payments received (credits on a CC statement when you pay your bill)
+- **"refund"**: returned purchases, merchant credits, chargebacks, reimbursements, insurance claim payouts. Any credit that reverses or reimburses a previous purchase — even partial refunds
 - **"fee"**: bank fees, late fees, service charges, overdraft fees, annual fees
-- **"interest"**: interest charges, finance charges on credit cards/loans
-- **"transfer"**: inter-account transfers, CC bill payments from checking, savings contributions, 401k contributions, P2P self-transfers (Venmo/Zelle to yourself), ACH between own accounts
+- **"interest"**: interest charges OR interest earned. Finance charges on credit cards/loans, and also interest credits on savings/checking accounts
+- **"transfer"**: ONLY inter-account money movements — CC bill payments FROM checking, transfers to savings/investments, 401k contributions, P2P self-transfers (Venmo/Zelle to yourself), ACH between your own accounts
 
-### By Document Type:
-1. **Credit card**: charges/purchases → purchase, payments received → payment, refunds/credits → refund, interest charges → interest, fees → fee
-2. **Checking**: purchases/spending → purchase, CC payments out → transfer, transfers to savings/investments → transfer, refunds → refund, fees → fee, salary deposits → purchase (it's income, not a "purchase" per se, but use purchase for non-transfer credits)
-3. **All**: inter-account movements → transfer
+### Critical Distinctions:
+- A debit for "Porsche Financial Payment" or "Auto Loan" → **"purchase"** (spending on a car loan, NOT a transfer)
+- A debit for "State Farm Insurance" → **"purchase"** (spending on insurance, NOT a transfer)
+- A credit from "State Farm" or "GEICO" on checking → **"refund"** (insurance claim payout / reimbursement)
+- A credit from "Home Depot" or any merchant on checking → **"refund"** (return or credit, NOT income)
+- A credit for salary/wages/payroll → **"purchase"** (income deposit — use purchase for non-transfer credits)
+- Interest earned on savings/checking → **"interest"**
+- Only use **"transfer"** for money moving between YOUR OWN accounts
 
 ## Output Format
 
@@ -181,12 +189,13 @@ DOCUMENT TYPE CONTEXT — this determines how to interpret debits and credits:
 - Investment: debits are contributions/purchases, credits are withdrawals/dividends.
 
 TRANSACTION CLASS (structural — orthogonal to category):
-- "purchase": regular purchases, charges for goods/services, salary/income deposits
-- "payment": payments received on credit card
-- "refund": returned purchases, merchant credits, chargebacks
+- "purchase": regular spending — purchases, bills, subscriptions, loan payments, car payments, insurance premiums, rent, mortgage. DEFAULT for any debit that is spending on goods/services. Also use for salary/income credits
+- "payment": ONLY for credit card payments received (credits on a CC statement when you pay your bill)
+- "refund": returned purchases, merchant credits, chargebacks, reimbursements, insurance claim payouts. Any credit that reverses a previous purchase
 - "fee": bank fees, late fees, service charges, overdraft fees
-- "interest": interest charges, finance charges
-- "transfer": inter-account transfers, CC bill payments, savings/investment contributions, P2P self-transfers
+- "interest": interest charges OR interest earned (finance charges and interest credits)
+- "transfer": ONLY inter-account money movements — CC bill payments FROM checking, transfers to savings/investments, P2P self-transfers
+CRITICAL: A debit for a loan/car/insurance payment → "purchase" (NOT "transfer"). A credit from a merchant → "refund" (NOT "payment")
 
 CLASSIFICATION APPROACH: Think in two steps — first identify which GROUP the transaction belongs to, then pick the most specific category within that group.
 
@@ -367,12 +376,14 @@ This determines how to interpret debits and credits:
 - **Investment**: debits are contributions/purchases, credits are withdrawals/dividends.
 
 ## Transaction Class (structural — orthogonal to category)
-- **"purchase"**: regular purchases, charges for goods/services, salary/income deposits
-- **"payment"**: payments received on credit card
-- **"refund"**: returned purchases, merchant credits, chargebacks
+- **"purchase"**: regular spending — purchases, bills, subscriptions, loan payments, car payments, insurance premiums, rent, mortgage. DEFAULT for any debit that is spending on goods/services. Also use for salary/income credits
+- **"payment"**: ONLY for credit card payments received (credits on a CC statement when you pay your bill)
+- **"refund"**: returned purchases, merchant credits, chargebacks, reimbursements, insurance claim payouts. Any credit that reverses a previous purchase
 - **"fee"**: bank fees, late fees, service charges, overdraft fees
-- **"interest"**: interest charges, finance charges
-- **"transfer"**: inter-account transfers, CC bill payments, savings/investment contributions, P2P self-transfers
+- **"interest"**: interest charges OR interest earned (finance charges and interest credits)
+- **"transfer"**: ONLY inter-account money movements — CC bill payments FROM checking, transfers to savings/investments, P2P self-transfers
+
+**CRITICAL**: A debit for a loan/car/insurance payment → "purchase" (NOT "transfer"). A credit from a merchant → "refund" (NOT "payment")
 
 ## Classification Approach
 
@@ -563,17 +574,21 @@ DOCUMENT TYPE CONTEXT — this determines how to interpret debits and credits:
 - Investment: debits are contributions/purchases, credits are withdrawals/dividends.
 
 TRANSACTION CLASS RULES — classify each transaction structurally:
-- "purchase": regular purchases, charges for goods/services
-- "payment": payments received on credit card, loan payments received
-- "refund": returned purchases, merchant credits, chargebacks, reimbursements
+- "purchase": regular spending — purchases, bills, subscriptions, loan payments, car payments, insurance premiums, rent, mortgage payments. This is the DEFAULT for any debit that is spending money on goods or services
+- "payment": ONLY for credit card payments received (credits on a CC statement when you pay your bill)
+- "refund": returned purchases, merchant credits, chargebacks, reimbursements, insurance claim payouts. Any credit that reverses or reimburses a previous purchase — even partial refunds
 - "fee": bank fees, late fees, service charges, overdraft fees, annual fees
-- "interest": interest charges, finance charges on credit cards/loans
-- "transfer": inter-account transfers, CC bill payments from checking, savings contributions, 401k contributions, P2P self-transfers (Venmo/Zelle to yourself), ACH between own accounts
+- "interest": interest charges OR interest earned. Finance charges on credit cards/loans, and also interest credits on savings/checking accounts
+- "transfer": ONLY inter-account money movements — CC bill payments FROM checking, transfers to savings/investments, 401k contributions, P2P self-transfers (Venmo/Zelle to yourself), ACH between your own accounts
 
-By document type:
-- Credit card: charges/purchases → purchase, payments received → payment, refunds/credits → refund, interest charges → interest, fees → fee
-- Checking: purchases/spending → purchase, CC payments out → transfer, transfers to savings/investments → transfer, refunds → refund, fees → fee, salary deposits → purchase (it's income, not a "purchase" per se, but use purchase for non-transfer credits)
-- All: inter-account movements → transfer
+CRITICAL DISTINCTIONS:
+- A debit for "Porsche Financial Payment" or "Auto Loan" → "purchase" (it is spending on a car loan, NOT a transfer)
+- A debit for "State Farm Insurance" → "purchase" (it is spending on insurance, NOT a transfer)
+- A credit from "State Farm" or "GEICO" on checking → "refund" (insurance claim payout / reimbursement)
+- A credit from "Home Depot" or any merchant on checking → "refund" (return or credit, NOT income)
+- A credit for salary/wages/payroll → "purchase" (income deposit — use purchase for non-transfer credits)
+- Interest earned on savings/checking → "interest"
+- Only use "transfer" for money moving between YOUR OWN accounts
 
 Return ONLY valid JSON in this exact format:
 {
@@ -646,17 +661,21 @@ This determines how to interpret debits and credits:
 ## Transaction Class Rules
 
 Classify each transaction structurally:
-- **"purchase"**: regular purchases, charges for goods/services
-- **"payment"**: payments received on credit card, loan payments received
-- **"refund"**: returned purchases, merchant credits, chargebacks, reimbursements
+- **"purchase"**: regular spending — purchases, bills, subscriptions, loan payments, car payments, insurance premiums, rent, mortgage payments. This is the DEFAULT for any debit that is spending money on goods or services
+- **"payment"**: ONLY for credit card payments received (credits on a CC statement when you pay your bill)
+- **"refund"**: returned purchases, merchant credits, chargebacks, reimbursements, insurance claim payouts. Any credit that reverses or reimburses a previous purchase — even partial refunds
 - **"fee"**: bank fees, late fees, service charges, overdraft fees, annual fees
-- **"interest"**: interest charges, finance charges on credit cards/loans
-- **"transfer"**: inter-account transfers, CC bill payments from checking, savings contributions, 401k contributions, P2P self-transfers (Venmo/Zelle to yourself), ACH between own accounts
+- **"interest"**: interest charges OR interest earned. Finance charges on credit cards/loans, and also interest credits on savings/checking accounts
+- **"transfer"**: ONLY inter-account money movements — CC bill payments FROM checking, transfers to savings/investments, 401k contributions, P2P self-transfers (Venmo/Zelle to yourself), ACH between your own accounts
 
-### By Document Type:
-1. **Credit card**: charges/purchases → purchase, payments received → payment, refunds/credits → refund, interest charges → interest, fees → fee
-2. **Checking**: purchases/spending → purchase, CC payments out → transfer, transfers to savings/investments → transfer, refunds → refund, fees → fee, salary deposits → purchase (it's income, not a "purchase" per se, but use purchase for non-transfer credits)
-3. **All**: inter-account movements → transfer
+### Critical Distinctions:
+- A debit for "Porsche Financial Payment" or "Auto Loan" → **"purchase"** (spending on a car loan, NOT a transfer)
+- A debit for "State Farm Insurance" → **"purchase"** (spending on insurance, NOT a transfer)
+- A credit from "State Farm" or "GEICO" on checking → **"refund"** (insurance claim payout / reimbursement)
+- A credit from "Home Depot" or any merchant on checking → **"refund"** (return or credit, NOT income)
+- A credit for salary/wages/payroll → **"purchase"** (income deposit — use purchase for non-transfer credits)
+- Interest earned on savings/checking → **"interest"**
+- Only use **"transfer"** for money moving between YOUR OWN accounts
 
 ## Output Format
 
