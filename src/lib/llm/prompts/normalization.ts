@@ -16,6 +16,7 @@ SPECIFIC RULES:
 - "BA Electronic Payment" = Bank of America (NOT British Airways)
 - Normalize case consistently (use title case)
 - Collapse apostrophe/accent variants: "Due Cucina" = "Due' Cucina"
+- Treat different financial products from the same institution as SEPARATE merchants. Mortgage payments (ACH), credit card payments (ePay/AutoPay), and loan payments from the same bank are different merchants (e.g. "JPMorgan Chase ACH" → "JPMorgan Chase Mortgage", "Chase Credit Card ePay" → "Chase Credit Card")
 
 {existing_merchants_block}Return ONLY valid JSON:
 {
@@ -42,6 +43,7 @@ Descriptions to normalize:
 - "BA Electronic Payment" = Bank of America (NOT British Airways)
 - Normalize case consistently (use title case)
 - Collapse apostrophe/accent variants: "Due Cucina" = "Due' Cucina"
+- Treat different financial products from the same institution as SEPARATE merchants. Mortgage payments (ACH), credit card payments (ePay/AutoPay), and loan payments from the same bank are different merchants (e.g. "JPMorgan Chase ACH" → "JPMorgan Chase Mortgage", "Chase Credit Card ePay" → "Chase Credit Card")
 
 {existing_merchants_block}## Output Format
 
