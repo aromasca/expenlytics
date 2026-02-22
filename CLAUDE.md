@@ -43,9 +43,13 @@
 - `src/app/api/` — API routes: `upload`, `transactions`, `transactions/[id]`, `transactions/detect-duplicates`, `transactions/flags/resolve`, `categories`, `documents`, `documents/[id]`, `documents/[id]/reprocess`, `documents/[id]/retry`, `reports`, `commitments`, `commitments/normalize`, `commitments/status`, `commitments/exclude`, `commitments/merge`, `commitments/override`, `reclassify/[documentId]`, `insights`, `insights/dismiss`, `accounts`, `accounts/[id]`, `accounts/detect`, `accounts/merge`, `accounts/reset`, `merchants`, `merchants/[merchant]`, `merchants/merge-preview`, `merchants/split`, `merchants/suggest-merges`, `demo`, `settings`, `reset`
 - `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, documents, reports, commitments, merchants, accounts, settings
 - `src/app/page.tsx` — Redirects to `/insights`
-- `src/components/` — React client components using shadcn/ui
+- `src/types/` — shared API response types, one file per domain (transactions, categories, documents, merchants, commitments, accounts, reports, insights, settings, filters, common). All components and API routes import from here
+- `src/hooks/` — TanStack Query hooks, one file per domain. `QueryProvider` in `layout.tsx`
+- `src/components/` — React client components using shadcn/ui; subdirectories: `shared/`, `merchants/`, `commitments/`, `insights/`, `reports/`
+- `src/components/shared/` — shared UI components: `SortableHeader` (generic sortable table header), `SelectionBar` (count + clear + action children), `DateRangePicker` (date inputs + preset buttons)
 - `src/components/reports/` — Recharts charts (spending bar/trend/pie, savings rate, MoM comparison, summary cards, top transactions) + d3-sankey Sankey diagram (`sankey-chart.tsx`)
 - `src/components/insights/` — Health score card, income/outflow chart
+- `src/components/merchants/`, `src/components/commitments/` — domain-specific sub-components extracted from page files
 - `src/components/flagged-transactions.tsx` — Grouped flag review UI: merchant-grouped expandable rows, checkbox selection, bulk resolve actions (Remove/Keep/Fix/Dismiss), optimistic updates
 - `src/__tests__/` — mirrors src structure
 - `data/` — gitignored; SQLite DB and uploaded PDFs
@@ -115,6 +119,11 @@
 - Dark mode: `suppressHydrationWarning` on `<html>`; ThemeProvider must render children immediately (no null during SSR)
 - TypeScript: `new Set()` from `as const` arrays narrows to literal union — use `new Set<string>(...)` when `.has()` receives `string`
 - Prefer automatic background operations over Settings page buttons for data maintenance
+- When adding a new API endpoint: define response types in `src/types/`, create hook in `src/hooks/`, never use raw `fetch()` + `useState` in components
+- When adding sorting to a table: use `<SortableHeader>` from `@/components/shared/sortable-header`
+- When adding a selection bar: use `<SelectionBar>` from `@/components/shared/selection-bar`
+- TanStack Query: `@tanstack/react-query` for all data fetching. Queries auto-invalidate via shared key prefixes (e.g. resolving flags invalidates `['transactions']` which covers flagCount too)
+- Hook testing: `@testing-library/react` + `renderHook` with QueryClient wrapper. Mock `globalThis.fetch`. Add `// @vitest-environment jsdom` docblock to hook/component test files
 
 ### Recharts Specifics
 - CSS variables don't render in SVG — use explicit hex colors for stroke, fill, tick, labelStyle, itemStyle
