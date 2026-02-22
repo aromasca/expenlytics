@@ -19,29 +19,34 @@
 ## Environment
 - `ANTHROPIC_API_KEY` — required for Anthropic provider
 - `OPENAI_API_KEY` — optional, required when using OpenAI provider
+- `DEMO_MODE=true` — optional, auto-seeds demo data on empty DB at startup. NEVER toggle demo mode, insert/clear demo data, or modify any data in the DB without explicit user confirmation. The user's financial data is irreversible to lose
 - `data/` directory is auto-created on first upload, but the SQLite DB requires it to exist at startup
 
 ## Project Structure
 - Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`)
-- `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib). Key modules: `schema.ts`, `transactions.ts`, `reports.ts`, `commitments.ts`, `categories.ts`, `documents.ts`, `accounts.ts`, `health.ts`, `settings.ts`, `insight-cache.ts`, `merchant-categories.ts`, `merchants.ts`
+- `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib). Key modules: `schema.ts`, `transactions.ts`, `reports.ts`, `commitments.ts`, `categories.ts`, `documents.ts`, `accounts.ts`, `health.ts`, `settings.ts`, `insight-cache.ts`, `merchant-categories.ts`, `merchants.ts`, `transaction-flags.ts`
 - `src/lib/llm/` — Multi-provider LLM abstraction. `LLMProvider` interface in `types.ts`, `AnthropicProvider` in `anthropic/provider.ts` + `OpenAIProvider` in `openai/provider.ts`, `getProviderForTask(db, task)` factory in `factory.ts`, provider-specific prompts in `prompts/`, Zod schemas in `schemas.ts`
-- `src/lib/llm/extract-transactions.ts` — `extractRawTransactions` (PDF→raw data), `classifyTransactions` (add categories), `reclassifyTransactions`. Classification prompts include TRANSFER IDENTIFICATION rules for debit-side transfers
+- `src/lib/llm/extract-transactions.ts` — `extractRawTransactions` (PDF→raw data), `classifyTransactions` (add categories), `reclassifyTransactions`. `transaction_class` values: `purchase` (default for all spending), `refund`, `payment`, `transfer`, `fee`, `interest`. Classification prompts include TRANSFER IDENTIFICATION rules for debit-side transfers
 - `src/lib/llm/analyze-finances.ts` — LLM-powered health score, patterns, deep insights (two LLM calls)
 - `src/lib/llm/normalize-merchants.ts` — LLM merchant normalization
 - `src/lib/llm/suggest-merges.ts` — LLM-powered merchant duplicate detection
-- `src/lib/pipeline.ts` — Background document processing: extraction → classification → normalization → complete
+- `src/lib/detect-duplicates.ts` — Cross-doc and same-doc duplicate detection + category mismatch detection. Optional `documentId` param to scope to single doc (pipeline) or run globally (manual scan)
+- `src/lib/utils.ts` — `cn()` helper (clsx + tailwind-merge), imported by all components
+- `src/lib/demo/` — Demo data system: `constants.ts` (accounts, merchants, one-offs), `generators.ts` (deterministic PRNG transactions), `seed.ts` (isDemoMode/insertDemoData/clearDemoData)
+- `src/lib/pipeline.ts` — Background document processing: extraction → normalization → classification → insert+learn → flag detection → complete
 - `src/lib/insights/compact-data.ts` — SQL data compaction for LLM context (`buildCompactData`)
 - `src/lib/commitments.ts` — Pure commitment detection logic (no DB dependency). Groups by case-insensitive `normalized_merchant` (picks most common casing). Frequencies: weekly/monthly/quarterly/semi-annual/yearly/irregular. 2 occurrences allowed for 150+ day spans
 - `estimateMonthlyAmount`: for frequent charges (weekly/monthly/irregular), uses `totalAmount / max(distinctCalendarMonths, roundedSpanMonths)` — handles both multiple charges per month and billing-date drift. For infrequent charges (quarterly/semi-annual/yearly), amortizes `avgAmount / divisor`
 - `src/lib/format.ts` — `formatCurrency()` and `formatCurrencyPrecise()` utilities
 - `src/lib/chart-theme.ts` — Shared light/dark chart color constants (`getChartColors()`)
 - `src/lib/date-presets.ts` — Date range preset helpers for filter bar
-- `src/app/api/` — API routes: `upload`, `transactions`, `transactions/[id]`, `categories`, `documents`, `documents/[id]`, `documents/[id]/reprocess`, `documents/[id]/retry`, `reports`, `commitments`, `commitments/normalize`, `commitments/status`, `commitments/exclude`, `commitments/merge`, `commitments/override`, `reclassify/[documentId]`, `insights`, `insights/dismiss`, `accounts`, `accounts/[id]`, `accounts/detect`, `accounts/merge`, `accounts/reset`, `merchants`, `merchants/suggest-merges`, `settings`, `reset`
+- `src/app/api/` — API routes: `upload`, `transactions`, `transactions/[id]`, `transactions/detect-duplicates`, `transactions/flags/resolve`, `categories`, `documents`, `documents/[id]`, `documents/[id]/reprocess`, `documents/[id]/retry`, `reports`, `commitments`, `commitments/normalize`, `commitments/status`, `commitments/exclude`, `commitments/merge`, `commitments/override`, `reclassify/[documentId]`, `insights`, `insights/dismiss`, `accounts`, `accounts/[id]`, `accounts/detect`, `accounts/merge`, `accounts/reset`, `merchants`, `merchants/[merchant]`, `merchants/merge-preview`, `merchants/split`, `merchants/suggest-merges`, `demo`, `settings`, `reset`
 - `src/app/(app)/` — Route group with sidebar layout; pages: insights, transactions, documents, reports, commitments, merchants, accounts, settings
 - `src/app/page.tsx` — Redirects to `/insights`
 - `src/components/` — React client components using shadcn/ui
 - `src/components/reports/` — Recharts charts (spending bar/trend/pie, savings rate, MoM comparison, summary cards, top transactions) + d3-sankey Sankey diagram (`sankey-chart.tsx`)
 - `src/components/insights/` — Health score card, income/outflow chart
+- `src/components/flagged-transactions.tsx` — Grouped flag review UI: merchant-grouped expandable rows, checkbox selection, bulk resolve actions (Remove/Keep/Fix/Dismiss), optimistic updates
 - `src/__tests__/` — mirrors src structure
 - `data/` — gitignored; SQLite DB and uploaded PDFs
 
@@ -58,10 +63,13 @@
 - Use `null` (not fallback values) for un-populated columns so backfill endpoints can find rows via `IS NULL`
 - `document_accounts` junction table: many-to-many between documents and accounts (combined statements). Stores `statement_month`/`statement_date` per link
 - Account matching: exact `institution + last_four` first, fuzzy `LIKE` substring fallback on institution name for LLM naming inconsistencies
+- `transaction_flags` table: `transaction_id` (FK CASCADE), `flag_type` (duplicate/category_mismatch/suspicious), `details` (JSON), `resolution` (removed/kept/fixed/dismissed). UNIQUE(transaction_id, flag_type). Partial index on unresolved flags
+- `commitment_overrides` table: `normalized_merchant` (UNIQUE), `frequency_override`, `monthly_amount_override` — user overrides for commitment detection
 
 ### Query Patterns
 - `valid_transactions` view: pre-filters (category `exclude_from_totals`, `transaction_class = 'refund'`, flagged-removed) and pre-joins categories (category_name, category_color, category_group). Use for all spending/report/insight/commitment queries. Use raw `transactions` table only for CRUD, pipeline, detection, and admin queries. Only `refund` class is excluded (inflates income); `transfer`/`payment` classes are NOT excluded (LLM misclassifies loan/car payments as these)
 - Dynamic WHERE extension: `${where}${where ? ' AND' : ' WHERE'} <condition>` when appending to `buildWhere()` output
+- `GET /api/transactions` query modes: `?flagged=true` returns unresolved flags (via `getUnresolvedFlags`), `?flag_count=true` returns count for badge display
 - API routes: validate query params with allowlists before passing to DB (never trust `as` casts for SQL-interpolated values)
 
 ### LLM
@@ -73,7 +81,10 @@
 
 ### Pipeline
 - Upload route is non-blocking: saves file, fires `processDocument()` in background, returns immediately
-- Pipeline phases: `upload` → `extraction` → `classification` → `normalization` → `complete` (tracked via `processing_phase` on documents)
+- Pipeline phases: `upload` → `extraction` → `normalization` → `classification` → `insert+learn` → `flag detection` → `complete` (tracked via `processing_phase` on documents)
+- Flag detection phase: runs `detectDuplicates` + `detectCategoryMismatches` after insert; `clearFlagsForDocument` before re-insert. Wrapped in try/catch (non-blocking)
+- Sequential queue: `enqueueDocument(task)` serializes processing — one document at a time. All callers (upload, retry, reprocess) use this
+- Stuck document resume: `getDb()` initialization re-enqueues documents with `status = 'processing'` on server restart
 - Two-stage PDF extraction: local `pdf-parse` first, LLM fallback for scanned/image PDFs
 - Raw extraction stored as JSON in `documents.raw_extraction` — immutable once extracted
 - `extractRawTransactions` for extraction-only, `classifyTransactions` for classification-only — separate LLM calls
@@ -88,6 +99,7 @@
 - When mocking multiple `@/lib/*` modules, use module-level `vi.fn()` variables with `vi.mock()` factory functions (not class-based mocks)
 - Mock `fs/promises` with `vi.mock('fs/promises', ...)` when testing pipeline code
 - `.worktrees/` excluded in `vitest.config.ts` to avoid stale test copies
+- Query hygiene test (`no-raw-transactions.test.ts`): statically reads source files to assert `valid_transactions` view usage instead of raw `FROM transactions` in reports/health/commitments/merchants/compact-data modules
 
 ### React & UI
 - React 19: avoid calling setState synchronously in useEffect; use `.then()` pattern or `setTimeout(() => setState(...), 0)`
