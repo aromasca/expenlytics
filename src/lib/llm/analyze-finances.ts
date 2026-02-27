@@ -14,7 +14,7 @@ export async function analyzeFinances(
   data: CompactFinancialData,
   model: string
 ): Promise<{ health: HealthAssessment; insights: Insight[] }> {
-  const prompt = getFinancialAnalysisPrompt(providerName)
+  const prompt = getFinancialAnalysisPrompt()
 
   // Build context line
   const months = data.monthly.map(m => m.month)

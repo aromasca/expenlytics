@@ -52,7 +52,7 @@ export async function extractRawTransactions(
   // Stage 2: If we have text, send to LLM via complete() (fast text-based, no document upload)
   if (extractedText) {
     try {
-      const prompt = getTextExtractionPrompt(providerName)
+      const prompt = getTextExtractionPrompt()
       const filledPrompt = prompt.user.replace('{extracted_text}', extractedText)
 
       console.log(`[extraction] using fast text path → ${providerName} complete()`)
@@ -82,7 +82,7 @@ export async function extractRawTransactions(
 
   // Stage 3: Fallback — full document upload (current behavior)
   console.log(`[extraction] using document upload path → ${providerName} extractFromDocument()`)
-  const prompt = getRawExtractionPrompt(providerName)
+  const prompt = getRawExtractionPrompt()
 
   const response = await provider.extractFromDocument({
     system: prompt.system,
@@ -105,7 +105,7 @@ export async function extractTransactions(
   pdfBuffer: Buffer,
   model: string
 ): Promise<ExtractionResult> {
-  const prompt = getLegacyExtractionPrompt(providerName)
+  const prompt = getLegacyExtractionPrompt()
 
   const response = await provider.extractFromDocument({
     system: prompt.system,
@@ -137,7 +137,7 @@ export async function classifyTransactions(
     knownMappingsBlock = `KNOWN MERCHANT CLASSIFICATIONS (use these for consistency with previously classified transactions):\n${lines.join('\n')}\nWhen you encounter similar merchants, use the established category. Only classify independently for genuinely new merchants.\n\n`
   }
 
-  const prompt = getClassifyPrompt(providerName)
+  const prompt = getClassifyPrompt()
   const filledPrompt = prompt.user
     .replace('{document_type}', documentType)
     .replace('{known_mappings}', knownMappingsBlock)
@@ -165,7 +165,7 @@ export async function reclassifyTransactions(
   transactions: ReclassifyInput[],
   model: string
 ): Promise<ReclassificationResult> {
-  const prompt = getReclassifyPrompt(providerName)
+  const prompt = getReclassifyPrompt()
   const filledPrompt = prompt.user
     .replace('{document_type}', documentType)
     .replace('{transactions_json}', JSON.stringify(transactions, null, 2))

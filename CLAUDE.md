@@ -7,25 +7,55 @@
 - Vitest for testing
 
 ## Commands
+
+### Development
+- `npm install` — install dependencies
+- `npm run dev` — dev server on localhost:3000 (auto-reload)
+- `npm run build` — production build
+- `npm start` — start production server
+
+### Testing
 - `npm test` — run all tests (vitest)
 - `npm run test:watch` — run tests in watch mode
 - `npm run test -- src/__tests__/lib/db/transactions.test.ts` — run a single test file
-- `npm run lint` — eslint
-- `npm run build` — production build
-- `npm run dev` — dev server on localhost:3000
-- `npm start` — start production server
+
+### Linting & Quality
+- `npm run lint` — run eslint on src/
+
+### Database & Data
+- `rm -rf data && npm run dev` — reset SQLite DB and restart (clears all transactions/documents)
+- `DEMO_MODE=true npm run dev` — auto-seed demo data on empty DB at startup (development only)
+
+### Git
+- `git commit -m "..."` — create a commit (encouraged; commits are local and reversible)
+- `git push` — push to remote (requires explicit user permission; never push without asking)
 - `git reset --soft <commit>` — squash multiple commits into one (combine with `git commit` to create unified commit)
 
-## Environment
-- `ANTHROPIC_API_KEY` — required for Anthropic provider
-- `OPENAI_API_KEY` — optional, required when using OpenAI provider
-- `DEMO_MODE=true` — optional, auto-seeds demo data on empty DB at startup. NEVER toggle demo mode, insert/clear demo data, or modify any data in the DB without explicit user confirmation. The user's financial data is irreversible to lose
-- `data/` directory is auto-created on first upload, but the SQLite DB requires it to exist at startup
+## Environment & Setup
+
+### Required
+- `.env.local` file with API keys:
+  - `ANTHROPIC_API_KEY` — required for Anthropic provider
+  - `OPENAI_API_KEY` — optional, required when using OpenAI provider (otherwise defaults to Anthropic)
+
+### Optional
+- `DEMO_MODE=true` — auto-seeds demo data on empty DB at startup (development only). **CRITICAL**: NEVER toggle demo mode, insert/clear demo data, or modify any data in production DB without explicit user confirmation. The user's financial data is irreversible to lose.
+
+### Directories
+- `data/` — gitignored; created on first upload, but must exist at startup for DB initialization
+- `.claude/` — local Claude Code settings (not in git)
+- `.claude.local.md` — personal/local settings (gitignored, overrides CLAUDE.md)
+
+### First Run
+1. Create `.env.local` with `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY`)
+2. Run `npm install && npm run dev`
+3. Navigate to `http://localhost:3000`
+4. Upload a financial statement PDF to trigger first pipeline run
 
 ## Project Structure
 - Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`)
 - `src/lib/db/` — SQLite connection, schema, query modules (pass `db` instance, no global imports in lib). Key modules: `schema.ts`, `transactions.ts`, `reports.ts`, `commitments.ts`, `categories.ts`, `documents.ts`, `accounts.ts`, `health.ts`, `settings.ts`, `insight-cache.ts`, `merchant-categories.ts`, `merchants.ts`, `transaction-flags.ts`
-- `src/lib/llm/` — Multi-provider LLM abstraction. `LLMProvider` interface in `types.ts`, `AnthropicProvider` in `anthropic/provider.ts` + `OpenAIProvider` in `openai/provider.ts`, `getProviderForTask(db, task)` factory in `factory.ts`, provider-specific prompts in `prompts/`, Zod schemas in `schemas.ts`
+- `src/lib/llm/` — Multi-provider LLM abstraction. `LLMProvider` interface in `types.ts`, `AnthropicProvider` in `anthropic/provider.ts` + `OpenAIProvider` in `openai/provider.ts`, `getProviderForTask(db, task)` factory in `factory.ts`. Prompts are provider-agnostic (single markdown prompts in `prompts/`) — both Anthropic and OpenAI handle markdown equally well. Zod schemas in `schemas.ts`
 - `src/lib/llm/extract-transactions.ts` — `extractRawTransactions` (PDF→raw data), `classifyTransactions` (add categories), `reclassifyTransactions`. `transaction_class` values: `purchase` (default for all spending), `refund`, `payment`, `transfer`, `fee`, `interest`. Classification prompts include TRANSFER IDENTIFICATION rules for debit-side transfers
 - `src/lib/llm/analyze-finances.ts` — LLM-powered health score, patterns, deep insights (two LLM calls)
 - `src/lib/llm/normalize-merchants.ts` — LLM merchant normalization
@@ -54,6 +84,57 @@
 - `src/__tests__/` — mirrors src structure
 - `data/` — gitignored; SQLite DB and uploaded PDFs
 
+## Pages & Features
+
+### Insights (`/insights`)
+- LLM-powered financial health dashboard with health score (0-100), alert carousel, category trends
+- Displays 12-18 prioritized alerts (commitment_drift, account_anomaly, baseline_gap, behavioral_shift, money_leak, projection)
+- Entry point when user logs in; redirects from `/` to `/insights`
+
+### Transactions (`/transactions`)
+- Sortable table of all transactions with category, amount, date, merchant
+- Filter bar with date range presets, category/account/merchant filters
+- Transaction flags UI: grouped by merchant, shows duplicates and category mismatches
+- Bulk actions: remove, keep, fix, dismiss flags; optimistic updates with undo
+- Uses `valid_transactions` view (excludes refunds, removed flags, excluded categories)
+
+### Documents (`/documents`)
+- Upload and manage financial statements (PDFs)
+- Progressive processing status: upload → extraction → normalization → classification → insert → flag detection → complete
+- Retry/reprocess controls for adjusting categories and merchant names
+- Shows processing errors and extraction text preview
+
+### Reports (`/reports`)
+- Spending breakdown: category bar chart, trend line, pie chart, MoM comparison
+- Savings rate area chart; top transactions table
+- Sankey diagram: income → category groups → categories + net savings
+- All charts respond to date range filter
+
+### Commitments (`/commitments`)
+- Active recurring charges (subscriptions, bills, loan payments) with frequency and monthly cost
+- Expandable rows show cost trends, recent charges, case-insensitive merchant grouping
+- Bulk actions: exclude, merge, mark as ended, override frequency/amount
+- Transaction-level exclude from commitment detection
+- Uses commitment detection algorithm: 2+ occurrences for 150+ day spans, frequency detection (weekly/monthly/quarterly/semi-annual/yearly/irregular)
+
+### Merchants (`/merchants`)
+- Normalized merchant names with transaction count, total spending, category, date range
+- Checkbox selection, merge dialog, split UI for multi-category merchants
+- LLM-powered suggest-merges endpoint detects duplicate merchants
+- Merchant memory: known merchants skip LLM classification, manual overrides propagate globally
+
+### Accounts (`/accounts`)
+- Auto-detect accounts from PDF headers via lightweight LLM call
+- Many-to-many relationship with documents (combined statements link to multiple accounts)
+- Per-month completeness grid grouped by year
+- Account matching: exact `institution + last_four` first, fuzzy substring fallback for LLM naming inconsistencies
+- Merge/rename/reset controls
+
+### Settings (`/settings`)
+- Provider selection per LLM task (extraction, classification, insights, etc.)
+- Model selection per provider; available models by provider in `src/lib/llm/config.ts`
+- User walkthrough: 5-step tooltip tour for first-time users, restartable from settings
+
 ## Conventions
 
 ### Database
@@ -76,9 +157,20 @@
 - `GET /api/transactions` query modes: `?flagged=true` returns unresolved flags (via `getUnresolvedFlags`), `?flag_count=true` returns count for badge display
 - API routes: validate query params with allowlists before passing to DB (never trust `as` casts for SQL-interpolated values)
 
+### Transaction Classes (Orthogonal to Categories)
+- `purchase` — default for all spending (purchases, bills, subscriptions, loan payments, rent, mortgage, insurance). Also used for salary/income credits (non-transfer debits)
+- `refund` — returned purchases, merchant credits, chargebacks, reimbursements, insurance payouts. Reversed/reimbursed money from prior purchase
+- `payment` — ONLY for credit card payments received (credits on CC statement when paying bill)
+- `transfer` — ONLY inter-account money movements (CC bill payment FROM checking, transfers to savings/investments, P2P self-transfers via Venmo/Zelle, ACH between own accounts)
+- `fee` — bank fees, late fees, service charges, overdraft fees, annual fees
+- `interest` — interest charges OR interest earned (finance charges on cards/loans, interest credits on savings/checking)
+- Critical distinction: A debit for "Porsche Financial Payment" or "Auto Loan" → `purchase` (NOT transfer); A credit from merchant on checking → `refund` (NOT income)
+- Only `refund` class is excluded from spending totals; `transfer`/`payment` are NOT excluded (LLM often misclassifies loan/car payments as transfers)
+
 ### LLM
 - `getProviderForTask(db, task)` returns `{ provider, providerName, model }` — reads `provider_<task>` and `model_<task>` from settings, defaults to Anthropic. See `src/lib/llm/config.ts` for available models
-- LLM functions accept `(provider, providerName, ..., model)` signature
+- LLM functions accept `(provider, providerName, ..., model)` signature — prompt getters no longer take provider param (single shared prompts)
+- Prompt getters: `getRawExtractionPrompt()`, `getTextExtractionPrompt()`, `getLegacyExtractionPrompt()`, `getClassifyPrompt()`, `getReclassifyPrompt()`, `getNormalizationPrompt()`, `getFinancialAnalysisPrompt()` — all return `PromptTemplate` with markdown-formatted user/system content (provider-agnostic)
 - OpenAI: use `max_completion_tokens` not `max_tokens`; PDF extraction via file upload API (`files.create` + `responses.create`), NOT image conversion
 - Zod schemas for LLM output: use `.transform()` with fallback instead of strict `.enum()` — LLMs return unexpected values causing infinite retry loops. Use `z.union([z.array(z.string()), z.string().transform(v => [v])])` for array fields. Same pattern for object-or-array: `z.union([z.array(schema), schema.transform(v => [v])])`
 - Optional LLM calls (normalization, etc.) should be wrapped in try/catch so failures don't block core operations
@@ -125,18 +217,38 @@
 - TanStack Query: `@tanstack/react-query` for all data fetching. Queries auto-invalidate via shared key prefixes (e.g. resolving flags invalidates `['transactions']` which covers flagCount too)
 - Hook testing: `@testing-library/react` + `renderHook` with QueryClient wrapper. Mock `globalThis.fetch`. Add `// @vitest-environment jsdom` docblock to hook/component test files
 
+### Debugging & Common Issues
+- **Stuck document processing**: Restart dev server — `getDb()` initialization re-enqueues documents with `status = 'processing'` on startup
+- **Text extraction failing**: Check `documents.raw_extraction` JSON — if empty and phase is `extraction`, PDF was scanned/image-based (requires LLM document upload)
+- **Zero transactions extracted**: LLM may have failed silently. Check logs for `[extraction]` phase messages. Verify PDF contains transaction table (not just images)
+- **Merchant normalization applying to wrong merchants**: `merchant_categories` table caches mappings. Manual category override for one transaction applies globally to that normalized merchant. Use `/api/merchants/split` if merchant needs multiple categories
+- **Commitment not detected**: Requires 2+ occurrences within 150+ day span OR monthly/regular frequency. Check `committed_status` table — merchant may be marked `ended` or `not_recurring`
+- **Category mismatch flag not disappearing**: Transaction flagged but category already correct? Check `transaction_flags` table — flag must be manually resolved (Dismiss) or category changed again to trigger re-detection
+
 ### Recharts Specifics
 - CSS variables don't render in SVG — use explicit hex colors for stroke, fill, tick, labelStyle, itemStyle
 - Theme: light: text `#737373`, grid `#E5E5E5`, bars `#0A0A0A`; dark: text `#A1A1AA`, grid `#27272A`, bars `#FAFAFA`
 - `axisLine={false} tickLine={false} vertical={false}` on CartesianGrid; height 240px
 - `Tooltip` formatter: use `Number(value)` not `(value: number)`; `cursor={false}` to disable hover cursor
 
-## Security — Pre-Commit Checks
-- Before EVERY commit, review staged files and diffs for sensitive information. This is mandatory and non-negotiable.
-- Sensitive information includes but is not limited to: API keys, secrets, tokens, transaction data, PII (names, accounts, addresses), imported financial documents (PDFs, CSVs), and database files.
-- Run `git diff --cached` and inspect for anything that should not be committed.
-- If uncertain whether something is sensitive, ALWAYS ask the user before committing.
-- Known sensitive paths: `data/`, `data-sample/`, `data-backup-*`, `.env*` — these must never be committed.
+## Git Workflow
+
+### Commits
+- **Create commits freely** — they are local, reversible, and help track progress
+- Before committing: review staged files with `git diff --cached` for sensitive information (mandatory, non-negotiable)
+- Commit message style: `type: description` (e.g., `refactor: deduplicate prompts`, `fix: transaction date parsing`, `feat: accounts page`)
+- Sensitive data must never be committed: API keys, secrets, tokens, transaction data, PII, PDFs, DB files, `.env*` files
+
+### Pushes
+- **NEVER push without explicit user permission** — pushing affects shared state
+- Always ask before pushing to remote branches
+- Only push when user explicitly approves the work
+
+### Pre-Commit Security Checks (Mandatory)
+- Before EVERY commit, run `git diff --cached` and review for sensitive information
+- Known sensitive paths (must be gitignored): `data/`, `data-sample/`, `data-backup-*`, `.env`, `.env.local`, `.env.*.local`
+- If uncertain whether something should be committed, ALWAYS ask the user first
+- Check that node_modules, .next, and other build artifacts are not staged
 
 ## Design System
 - Aesthetic: minimal, data-dense dashboard (neutral monochrome, not warm/coral)

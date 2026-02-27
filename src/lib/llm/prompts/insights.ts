@@ -1,4 +1,4 @@
-import type { ProviderName, PromptTemplate } from '../types'
+import type { PromptTemplate } from '../types'
 
 const SYSTEM_CORE = `You are reviewing a close friend's finances. Produce alerts ranked by how urgently the person should know — not generic observations.
 
@@ -65,53 +65,8 @@ EXAMPLES OF BAD ALERTS (do NOT produce these):
 
 ACCURACY: Every number must come from the provided data. Do not invent merchants or amounts.`
 
-const FINANCIAL_ANALYSIS_PROMPTS: Record<ProviderName, PromptTemplate> = {
-  anthropic: {
-    system: SYSTEM_CORE,
-    user: `Here is the financial data. Date range: {date_range}. Transaction count (90 days): {txn_count}.
-
-<aggregated_data>
-{data_json}
-</aggregated_data>
-
-<recent_transactions>
-{recent_txns_json}
-</recent_transactions>
-
-<merchant_trends>
-{merchant_deltas_json}
-</merchant_trends>
-
-<account_profiles>
-{account_summaries_json}
-</account_profiles>
-
-<commitment_baseline>
-{active_commitments_json}
-Monthly baseline: $__baseline_total__ across __baseline_count__ active commitments
-</commitment_baseline>
-
-Return ONLY valid JSON in this exact format (alerts ordered by priority, P1 first):
-{
-  "health": {
-    "score": 0-100,
-    "summary": "one line",
-    "color": "green|yellow|red",
-    "metrics": [{"label": "...", "value": "...", "trend": "up|down|stable", "sentiment": "good|neutral|bad"}]
-  },
-  "insights": [
-    {
-      "type": "commitment_drift|account_anomaly|baseline_gap|behavioral_shift|money_leak|projection",
-      "headline": "Short title",
-      "severity": "concerning|notable|favorable|informational",
-      "explanation": "3-5 sentences with specific numbers",
-      "evidence": {"merchants": [], "categories": [], "accounts": [], "commitment_merchant": "", "amounts": {"key": 123}, "time_period": ""},
-      "action": "One concrete action (optional)"
-    }
-  ]
-}`,
-  },
-  openai: {
+export function getFinancialAnalysisPrompt(): PromptTemplate {
+  return {
     system: SYSTEM_CORE,
     user: `Here is the financial data. Date range: {date_range}. Transaction count (90 days): {txn_count}.
 
@@ -152,9 +107,5 @@ Return ONLY valid JSON in this exact format (alerts ordered by priority, P1 firs
   ]
 }
 \`\`\``,
-  },
-}
-
-export function getFinancialAnalysisPrompt(provider: ProviderName): PromptTemplate {
-  return FINANCIAL_ANALYSIS_PROMPTS[provider]
+  }
 }

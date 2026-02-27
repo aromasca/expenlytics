@@ -25,7 +25,7 @@ async function normalizeBatch(provider: LLMProvider, providerName: ProviderName,
     existingMerchantsBlock = `EXISTING MERCHANT NAMES (match to these when the description refers to the same business):\n${list}\n\n`
   }
 
-  const prompt = getNormalizationPrompt(providerName)
+  const prompt = getNormalizationPrompt()
   const filledPrompt = prompt.user
     .replace('{existing_merchants_block}', existingMerchantsBlock)
     .replace('{descriptions_json}', JSON.stringify(batch, null, 2))
