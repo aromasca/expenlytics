@@ -88,7 +88,7 @@ describe('analyzeFinances', () => {
 
     const userPrompt = mockComplete.mock.calls[0][0].messages[0].content as string
     expect(userPrompt).toContain('Whole Foods Market')
-    expect(userPrompt).toContain('recent_transactions')
+    expect(userPrompt).toContain('Recent Transactions')
   })
 
   it('works with openai provider name', async () => {
